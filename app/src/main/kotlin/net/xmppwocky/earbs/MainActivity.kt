@@ -1,5 +1,6 @@
 package net.xmppwocky.earbs
 
+import android.content.Context
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -27,6 +28,8 @@ import net.xmppwocky.earbs.ui.ReviewScreen
 import net.xmppwocky.earbs.ui.ReviewScreenState
 import kotlinx.coroutines.launch
 
+private const val PREFS_NAME = "earbs_prefs"
+
 private const val TAG = "Earbs"
 
 /**
@@ -48,12 +51,14 @@ class MainActivity : ComponentActivity() {
 
         // Initialize database and repository
         val database = EarbsDatabase.getDatabase(applicationContext)
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         repository = EarbsRepository(
             cardDao = database.cardDao(),
             reviewSessionDao = database.reviewSessionDao(),
             trialDao = database.trialDao(),
             sessionCardSummaryDao = database.sessionCardSummaryDao(),
-            historyDao = database.historyDao()
+            historyDao = database.historyDao(),
+            prefs = prefs
         )
 
         setContent {
@@ -76,6 +81,8 @@ private fun EarbsApp(repository: EarbsRepository) {
     var dbSessionId by remember { mutableStateOf<Long?>(null) }
     var sessionResults by remember { mutableStateOf<List<CardScore>>(emptyList()) }
     var dueCount by remember { mutableIntStateOf(0) }
+    var unlockedCount by remember { mutableIntStateOf(4) }
+    var canUnlockMore by remember { mutableStateOf(true) }
     var isLoading by remember { mutableStateOf(true) }
     val coroutineScope = rememberCoroutineScope()
 
@@ -84,8 +91,10 @@ private fun EarbsApp(repository: EarbsRepository) {
         Log.i(TAG, "Initializing app...")
         repository.initializeStartingDeck()
         dueCount = repository.getDueCount()
+        unlockedCount = repository.getUnlockedCount()
+        canUnlockMore = repository.canUnlockMore()
         isLoading = false
-        Log.i(TAG, "Initialization complete, $dueCount cards due")
+        Log.i(TAG, "Initialization complete, $dueCount cards due, $unlockedCount unlocked")
     }
 
     Log.d(TAG, "EarbsApp composing, screen: $currentScreen")
@@ -104,6 +113,8 @@ private fun EarbsApp(repository: EarbsRepository) {
         Screen.HOME -> {
             HomeScreen(
                 dueCount = dueCount,
+                unlockedCount = unlockedCount,
+                canUnlockMore = canUnlockMore,
                 onStartReviewClicked = {
                     coroutineScope.launch {
                         Log.i(TAG, "Starting new review session")
@@ -116,12 +127,25 @@ private fun EarbsApp(repository: EarbsRepository) {
 
                         val newSession = ReviewSession(cards)
                         val octave = newSession.octave
-                        val sessionId = repository.startSession(octave)
+                        val playbackMode = newSession.playbackMode
+                        val sessionId = repository.startSession(octave, playbackMode)
 
                         session = newSession
                         dbSessionId = sessionId
                         session?.nextTrial()
                         currentScreen = Screen.REVIEW
+                    }
+                },
+                onAddCardsClicked = {
+                    coroutineScope.launch {
+                        Log.i(TAG, "Unlocking next group of cards")
+                        val unlocked = repository.unlockNextGroup()
+                        if (unlocked) {
+                            unlockedCount = repository.getUnlockedCount()
+                            canUnlockMore = repository.canUnlockMore()
+                            dueCount = repository.getDueCount()
+                            Log.i(TAG, "Unlocked new cards, now $unlockedCount total, $dueCount due")
+                        }
                     }
                 },
                 onHistoryClicked = {
@@ -189,6 +213,8 @@ private fun EarbsApp(repository: EarbsRepository) {
                 onBackClicked = {
                     coroutineScope.launch {
                         dueCount = repository.getDueCount()
+                        unlockedCount = repository.getUnlockedCount()
+                        canUnlockMore = repository.canUnlockMore()
                     }
                     currentScreen = Screen.HOME
                 }
@@ -222,7 +248,9 @@ private fun ReviewSessionScreen(
             val rootSemitones = ChordBuilder.randomRootInOctave(currentCard.octave)
             val frequencies = ChordBuilder.buildChord(currentCard.chordType, rootSemitones)
 
-            Log.i(TAG, "Playing ${currentCard.displayName}, root: $rootSemitones")
+            // Use the card's playback mode (not a user toggle)
+            val playbackMode = currentCard.playbackMode
+            Log.i(TAG, "Playing ${currentCard.displayName}, root: $rootSemitones, mode: $playbackMode")
 
             reviewState = reviewState.copy(
                 isPlaying = true,
@@ -233,7 +261,7 @@ private fun ReviewSessionScreen(
                 try {
                     AudioEngine.playChord(
                         frequencies = frequencies,
-                        mode = reviewState.playbackMode,
+                        mode = playbackMode,
                         durationMs = 500,
                         chordType = currentCard.chordType.displayName,
                         rootSemitones = rootSemitones
@@ -269,10 +297,6 @@ private fun ReviewSessionScreen(
                 lastAnswer = result,
                 showingFeedback = true
             )
-        },
-        onModeChanged = { newMode ->
-            Log.i(TAG, "Playback mode changed to: $newMode")
-            reviewState = reviewState.copy(playbackMode = newMode)
         },
         onTrialComplete = {
             val nextCard = session.nextTrial()

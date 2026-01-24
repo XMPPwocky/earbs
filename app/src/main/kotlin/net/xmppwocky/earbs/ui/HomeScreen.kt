@@ -9,11 +9,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import net.xmppwocky.earbs.model.Deck
 
 @Composable
 fun HomeScreen(
     dueCount: Int = 0,
+    unlockedCount: Int = 4,
+    canUnlockMore: Boolean = true,
     onStartReviewClicked: () -> Unit,
+    onAddCardsClicked: () -> Unit = {},
     onHistoryClicked: () -> Unit = {}
 ) {
     Column(
@@ -36,8 +40,22 @@ fun HomeScreen(
             text = "Chord Ear Training",
             fontSize = 20.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 24.dp)
+            modifier = Modifier.padding(bottom = 8.dp)
         )
+
+        // Unlock progress
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier.padding(bottom = 16.dp)
+        ) {
+            Text(
+                text = "$unlockedCount / ${Deck.TOTAL_CARDS} cards unlocked",
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
         // Due count badge
         if (dueCount > 0) {
@@ -96,6 +114,45 @@ fun HomeScreen(
                 text = "History",
                 fontSize = 18.sp
             )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Add 4 Cards button
+        if (canUnlockMore) {
+            Button(
+                onClick = onAddCardsClicked,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.secondary
+                )
+            ) {
+                Text(
+                    text = "Add 4 Cards",
+                    fontSize = 18.sp
+                )
+            }
+        } else {
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    Text(
+                        text = "All cards unlocked!",
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))

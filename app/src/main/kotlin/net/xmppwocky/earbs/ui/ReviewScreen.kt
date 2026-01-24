@@ -23,12 +23,12 @@ private const val FEEDBACK_DELAY_MS = 500L
 
 /**
  * State for the review screen UI.
+ * Note: playbackMode is now a property of the card, not a user toggle.
  */
 data class ReviewScreenState(
     val session: ReviewSession,
     val currentCard: Card? = null,
     val lastAnswer: AnswerResult? = null,
-    val playbackMode: PlaybackMode = PlaybackMode.BLOCK,
     val isPlaying: Boolean = false,
     val hasPlayedThisTrial: Boolean = false,
     val showingFeedback: Boolean = false
@@ -36,6 +36,8 @@ data class ReviewScreenState(
     val trialNumber: Int get() = session.currentTrial
     val totalTrials: Int get() = session.totalTrials
     val isComplete: Boolean get() = session.isComplete()
+    // Playback mode comes from the current card (all cards in session share the same mode)
+    val playbackMode: PlaybackMode get() = currentCard?.playbackMode ?: session.playbackMode
 }
 
 @Composable
@@ -43,7 +45,6 @@ fun ReviewScreen(
     state: ReviewScreenState,
     onPlayClicked: () -> Unit,
     onAnswerClicked: (ChordType) -> Unit,
-    onModeChanged: (PlaybackMode) -> Unit,
     onTrialComplete: () -> Unit,
     onSessionComplete: (List<CardScore>) -> Unit
 ) {
@@ -82,12 +83,8 @@ fun ReviewScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Mode Toggle
-        ReviewModeToggle(
-            currentMode = state.playbackMode,
-            onModeChanged = onModeChanged,
-            enabled = !state.isPlaying && !state.showingFeedback
-        )
+        // Mode Indicator (read-only, mode comes from card)
+        PlaybackModeIndicator(mode = state.playbackMode)
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -153,34 +150,20 @@ private fun CurrentCardInfo(card: Card?) {
 }
 
 @Composable
-private fun ReviewModeToggle(
-    currentMode: PlaybackMode,
-    onModeChanged: (PlaybackMode) -> Unit,
-    enabled: Boolean
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
+private fun PlaybackModeIndicator(mode: PlaybackMode) {
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        shape = MaterialTheme.shapes.small
     ) {
         Text(
-            text = "Block",
-            fontWeight = if (currentMode == PlaybackMode.BLOCK) FontWeight.Bold else FontWeight.Normal,
-            color = if (enabled) Color.Unspecified else Color.Gray
-        )
-
-        Switch(
-            checked = currentMode == PlaybackMode.ARPEGGIATED,
-            onCheckedChange = { isArpeggiated ->
-                onModeChanged(if (isArpeggiated) PlaybackMode.ARPEGGIATED else PlaybackMode.BLOCK)
+            text = when (mode) {
+                PlaybackMode.BLOCK -> "Block Mode"
+                PlaybackMode.ARPEGGIATED -> "Arpeggiated Mode"
             },
-            enabled = enabled,
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
-
-        Text(
-            text = "Arpeggiated",
-            fontWeight = if (currentMode == PlaybackMode.ARPEGGIATED) FontWeight.Bold else FontWeight.Normal,
-            color = if (enabled) Color.Unspecified else Color.Gray
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer
         )
     }
 }
