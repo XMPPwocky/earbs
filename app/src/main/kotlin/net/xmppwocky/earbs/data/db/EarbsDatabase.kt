@@ -77,7 +77,8 @@ abstract class EarbsDatabase : RoomDatabase() {
                         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                         startedAt INTEGER NOT NULL,
                         completedAt INTEGER,
-                        octave INTEGER NOT NULL
+                        octave INTEGER NOT NULL,
+                        playbackMode TEXT NOT NULL DEFAULT 'ARPEGGIATED'
                     )
                 """.trimIndent())
 
