@@ -10,6 +10,7 @@ data class Card(
     val chordType: ChordType,
     val octave: Int
 ) {
+    val id: String get() = "${chordType.name}_$octave"
     val displayName: String get() = "${chordType.displayName} @ Oct $octave"
 }
 
