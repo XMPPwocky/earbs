@@ -1,12 +1,14 @@
 package net.xmppwocky.earbs.model
 
 import android.util.Log
+import net.xmppwocky.earbs.audio.PlaybackMode
 import net.xmppwocky.earbs.data.repository.TrialRecord
 
 private const val TAG = "ReviewSession"
 
 /**
  * A review session with 4 cards and 40 total trials (exactly 10 per card).
+ * All cards in a session share the same (octave, playbackMode).
  */
 class ReviewSession(
     val cards: List<Card>,
@@ -113,4 +115,10 @@ class ReviewSession(
      * Get the octave for this session (from the first card).
      */
     val octave: Int get() = cards.firstOrNull()?.octave ?: 4
+
+    /**
+     * Get the playback mode for this session (from the first card).
+     * All cards in a session share the same playback mode.
+     */
+    val playbackMode: PlaybackMode get() = cards.firstOrNull()?.playbackMode ?: PlaybackMode.ARPEGGIATED
 }

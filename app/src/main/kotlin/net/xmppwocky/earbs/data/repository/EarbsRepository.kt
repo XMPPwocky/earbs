@@ -1,8 +1,10 @@
 package net.xmppwocky.earbs.data.repository
 
+import android.content.SharedPreferences
 import android.util.Log
 import kotlinx.coroutines.flow.Flow
 import net.xmppwocky.earbs.audio.ChordType
+import net.xmppwocky.earbs.audio.PlaybackMode
 import net.xmppwocky.earbs.data.db.CardDao
 import net.xmppwocky.earbs.data.db.CardStatsView
 import net.xmppwocky.earbs.data.db.HistoryDao
@@ -21,6 +23,7 @@ import net.xmppwocky.earbs.fsrs.FlashCard
 import net.xmppwocky.earbs.fsrs.Rating
 import net.xmppwocky.earbs.model.Card
 import net.xmppwocky.earbs.model.CardScore
+import net.xmppwocky.earbs.model.Deck
 import net.xmppwocky.earbs.model.Grade
 import java.time.LocalDateTime
 
@@ -35,18 +38,21 @@ data class TrialRecord(
     val wasCorrect: Boolean
 )
 
+private const val PREF_KEY_UNLOCK_LEVEL = "unlock_level"
+
 class EarbsRepository(
     private val cardDao: CardDao,
     private val reviewSessionDao: ReviewSessionDao,
     private val trialDao: TrialDao,
     private val sessionCardSummaryDao: SessionCardSummaryDao,
-    private val historyDao: HistoryDao
+    private val historyDao: HistoryDao,
+    private val prefs: SharedPreferences
 ) {
     private val fsrs = FSRS(requestRetention = 0.9, params = DEFAULT_PARAMS)
 
     /**
      * Initialize the starting deck on first launch.
-     * Creates 4 cards: MAJOR, MINOR, SUS2, SUS4 @ octave 4.
+     * Creates 4 cards: MAJOR, MINOR, SUS2, SUS4 @ octave 4, arpeggiated.
      */
     suspend fun initializeStartingDeck() {
         val existingCount = cardDao.count()
@@ -55,32 +61,96 @@ class EarbsRepository(
             return
         }
 
-        Log.i(TAG, "Initializing starting deck with 4 cards")
+        Log.i(TAG, "Initializing starting deck with 4 arpeggiated triads @ octave 4")
         val now = System.currentTimeMillis()
 
-        val startingCards = listOf(
-            ChordType.MAJOR,
-            ChordType.MINOR,
-            ChordType.SUS2,
-            ChordType.SUS4
-        ).map { chordType ->
+        // Starting deck is group 0: triads @ octave 4, arpeggiated
+        val startingGroup = Deck.UNLOCK_ORDER[0]
+        val startingCards = startingGroup.chordTypes.map { chordType ->
             CardEntity(
-                id = "${chordType.name}_4",
+                id = "${chordType.name}_${startingGroup.octave}_${startingGroup.playbackMode.name}",
                 chordType = chordType.name,
-                octave = 4,
+                octave = startingGroup.octave,
+                playbackMode = startingGroup.playbackMode.name,
                 dueDate = now  // Immediately due
             )
         }
 
         cardDao.insertAll(startingCards)
-        Log.i(TAG, "Inserted ${startingCards.size} starting cards")
+        prefs.edit().putInt(PREF_KEY_UNLOCK_LEVEL, 0).apply()
+        Log.i(TAG, "Inserted ${startingCards.size} starting cards, unlock level set to 0")
+    }
+
+    /**
+     * Get the current unlock level (0-indexed).
+     * Level 0 = starting deck (group 0 unlocked)
+     * Level 11 = full deck (all 12 groups unlocked)
+     */
+    fun getUnlockLevel(): Int {
+        return prefs.getInt(PREF_KEY_UNLOCK_LEVEL, 0)
+    }
+
+    /**
+     * Check if there are more cards to unlock.
+     */
+    fun canUnlockMore(): Boolean {
+        return getUnlockLevel() < Deck.MAX_UNLOCK_LEVEL
+    }
+
+    /**
+     * Unlock the next group of 4 cards.
+     * @return true if unlock succeeded, false if already at max level
+     */
+    suspend fun unlockNextGroup(): Boolean {
+        val currentLevel = getUnlockLevel()
+        if (currentLevel >= Deck.MAX_UNLOCK_LEVEL) {
+            Log.i(TAG, "Already at max unlock level ($currentLevel), cannot unlock more")
+            return false
+        }
+
+        val nextLevel = currentLevel + 1
+        val nextGroup = Deck.UNLOCK_ORDER[nextLevel]
+        val now = System.currentTimeMillis()
+
+        Log.i(TAG, "Unlocking group $nextLevel: ${nextGroup.chordTypes.map { it.displayName }} @ octave ${nextGroup.octave}, ${nextGroup.playbackMode}")
+
+        val newCards = nextGroup.chordTypes.map { chordType ->
+            CardEntity(
+                id = "${chordType.name}_${nextGroup.octave}_${nextGroup.playbackMode.name}",
+                chordType = chordType.name,
+                octave = nextGroup.octave,
+                playbackMode = nextGroup.playbackMode.name,
+                dueDate = now  // Due immediately
+            )
+        }
+
+        cardDao.insertAll(newCards)
+        prefs.edit().putInt(PREF_KEY_UNLOCK_LEVEL, nextLevel).apply()
+        Log.i(TAG, "Unlocked ${newCards.size} new cards, unlock level now $nextLevel")
+        return true
+    }
+
+    /**
+     * Get the number of unlocked cards.
+     */
+    suspend fun getUnlockedCount(): Int {
+        return cardDao.countUnlocked()
+    }
+
+    /**
+     * Observe the number of unlocked cards.
+     */
+    fun getUnlockedCountFlow(): Flow<Int> {
+        return cardDao.countUnlockedFlow()
     }
 
     /**
      * Select 4 cards for a review session using the card selection algorithm:
      * 1. Get due cards (dueDate <= now)
-     * 2. Group by octave, pick octave with most due
-     * 3. If <4 due, pad with non-due cards from same octave
+     * 2. Group by (octave, playbackMode), pick group with most due
+     * 3. If <4 due, pad with non-due cards from same group
+     *
+     * Session constraint: All 4 cards must share the same (octave, playbackMode)
      */
     suspend fun selectCardsForReview(): List<Card> {
         val now = System.currentTimeMillis()
@@ -90,26 +160,29 @@ class EarbsRepository(
         Log.i(TAG, "Found ${dueCards.size} due cards")
 
         if (dueCards.isEmpty()) {
-            // No due cards - fall back to all unlocked cards from octave 4
-            Log.i(TAG, "No due cards, selecting from octave 4")
-            val octave4Cards = cardDao.getCardsForOctave(4)
-            return octave4Cards.take(4).map { it.toCard() }
+            // No due cards - fall back to first available group (octave 4, arpeggiated)
+            Log.i(TAG, "No due cards, selecting from octave 4 arpeggiated")
+            val fallbackCards = cardDao.getCardsForGroup(4, PlaybackMode.ARPEGGIATED.name)
+            return fallbackCards.take(4).map { it.toCard() }
         }
 
-        // Group by octave, pick octave with most due
-        val byOctave = dueCards.groupBy { it.octave }
-        val bestOctave = byOctave.maxByOrNull { it.value.size }?.key ?: 4
-        Log.i(TAG, "Best octave: $bestOctave (${byOctave[bestOctave]?.size ?: 0} due)")
+        // Group by (octave, playbackMode), pick group with most due
+        val byGroup = dueCards.groupBy { it.octave to it.playbackMode }
+        val bestGroup = byGroup.maxByOrNull { it.value.size }?.key
+            ?: (4 to PlaybackMode.ARPEGGIATED.name)
+        val (bestOctave, bestMode) = bestGroup
 
-        val octaveDueCards = byOctave[bestOctave] ?: emptyList()
+        Log.i(TAG, "Best group: octave $bestOctave, mode $bestMode (${byGroup[bestGroup]?.size ?: 0} due)")
 
-        val selectedCards = if (octaveDueCards.size >= 4) {
-            octaveDueCards.take(4)
+        val groupDueCards = byGroup[bestGroup] ?: emptyList()
+
+        val selectedCards = if (groupDueCards.size >= 4) {
+            groupDueCards.take(4)
         } else {
-            // Pad with non-due cards from same octave
-            val nonDue = cardDao.getNonDueCardsForOctave(bestOctave, now)
-            Log.i(TAG, "Padding with ${nonDue.size} non-due cards from octave $bestOctave")
-            (octaveDueCards + nonDue).take(4)
+            // Pad with non-due cards from same group
+            val nonDue = cardDao.getNonDueCardsForGroup(bestOctave, bestMode, now)
+            Log.i(TAG, "Padding with ${nonDue.size} non-due cards from octave $bestOctave, mode $bestMode")
+            (groupDueCards + nonDue).take(4)
         }
 
         Log.i(TAG, "Selected ${selectedCards.size} cards for review:")
@@ -123,13 +196,14 @@ class EarbsRepository(
     /**
      * Start a new review session and return its database ID.
      */
-    suspend fun startSession(octave: Int): Long {
+    suspend fun startSession(octave: Int, playbackMode: PlaybackMode): Long {
         val session = ReviewSessionEntity(
             startedAt = System.currentTimeMillis(),
-            octave = octave
+            octave = octave,
+            playbackMode = playbackMode.name
         )
         val sessionId = reviewSessionDao.insert(session)
-        Log.i(TAG, "Started session id=$sessionId for octave $octave")
+        Log.i(TAG, "Started session id=$sessionId for octave $octave, mode $playbackMode")
         return sessionId
     }
 
@@ -285,7 +359,8 @@ class EarbsRepository(
 private fun CardEntity.toCard(): Card {
     return Card(
         chordType = ChordType.valueOf(chordType),
-        octave = octave
+        octave = octave,
+        playbackMode = PlaybackMode.valueOf(playbackMode)
     )
 }
 
@@ -293,7 +368,7 @@ private fun CardEntity.toCard(): Card {
  * Convert domain Card to CardEntity ID format.
  */
 private fun Card.toCardId(): String {
-    return "${chordType.name}_$octave"
+    return "${chordType.name}_${octave}_${playbackMode.name}"
 }
 
 /**
