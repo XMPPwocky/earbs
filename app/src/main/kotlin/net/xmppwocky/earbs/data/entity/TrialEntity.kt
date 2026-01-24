@@ -35,5 +35,6 @@ data class TrialEntity(
     val sessionId: Long,
     val cardId: String,
     val timestamp: Long,                   // epoch millis
-    val wasCorrect: Boolean
+    val wasCorrect: Boolean,
+    val answeredChordType: String? = null  // What user answered (null = correct or legacy data)
 )

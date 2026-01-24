@@ -207,24 +207,27 @@ class EarbsRepository(
      * Record a single trial and immediately update FSRS state.
      * Called after each answer in a session.
      *
+     * @param answeredChordType The chord type the user selected (for tracking wrong answers)
      * @return the new due date for the card
      */
     suspend fun recordTrialAndUpdateFsrs(
         sessionId: Long,
         card: Card,
-        wasCorrect: Boolean
+        wasCorrect: Boolean,
+        answeredChordType: ChordType
     ): Long {
         val timestamp = System.currentTimeMillis()
         val cardId = card.toCardId()
 
-        Log.i(TAG, "Recording trial for $cardId: ${if (wasCorrect) "CORRECT" else "WRONG"}")
+        Log.i(TAG, "Recording trial for $cardId: ${if (wasCorrect) "CORRECT" else "WRONG (answered ${answeredChordType.name})"}")
 
-        // 1. Insert trial record
+        // 1. Insert trial record (only store answeredChordType for wrong answers)
         trialDao.insert(TrialEntity(
             sessionId = sessionId,
             cardId = cardId,
             timestamp = timestamp,
-            wasCorrect = wasCorrect
+            wasCorrect = wasCorrect,
+            answeredChordType = if (wasCorrect) null else answeredChordType.name
         ))
 
         // 2. Get card entity
@@ -359,6 +362,13 @@ class EarbsRepository(
      */
     fun getAllSessions(): Flow<List<ReviewSessionEntity>> {
         return historyDao.getAllSessions()
+    }
+
+    /**
+     * Get trials for a specific session.
+     */
+    suspend fun getTrialsForSession(sessionId: Long): List<TrialEntity> {
+        return trialDao.getTrialsForSession(sessionId)
     }
 }
 

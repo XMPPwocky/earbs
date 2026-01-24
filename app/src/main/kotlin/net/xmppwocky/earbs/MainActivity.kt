@@ -224,6 +224,9 @@ private fun EarbsApp(repository: EarbsRepository, prefs: SharedPreferences) {
                         canUnlockMore = repository.canUnlockMore()
                     }
                     currentScreen = Screen.HOME
+                },
+                onLoadTrials = { sessionId ->
+                    repository.getTrialsForSession(sessionId)
                 }
             )
         }
@@ -316,7 +319,7 @@ private fun ReviewSessionScreen(
 
             // Record trial and update FSRS immediately
             coroutineScope.launch {
-                repository.recordTrialAndUpdateFsrs(sessionId, currentCard, isCorrect)
+                repository.recordTrialAndUpdateFsrs(sessionId, currentCard, isCorrect, answeredType)
             }
 
             // Update session state

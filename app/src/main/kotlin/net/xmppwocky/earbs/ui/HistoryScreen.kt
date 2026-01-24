@@ -1,11 +1,15 @@
 package net.xmppwocky.earbs.ui
 
 import android.util.Log
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import net.xmppwocky.earbs.data.db.CardStatsView
 import net.xmppwocky.earbs.data.db.SessionOverview
 import net.xmppwocky.earbs.data.entity.CardEntity
+import net.xmppwocky.earbs.data.entity.TrialEntity
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -34,7 +39,8 @@ fun HistoryScreen(
     sessions: List<SessionOverview>,
     cards: List<CardEntity>,
     cardStats: List<CardStatsView>,
-    onBackClicked: () -> Unit
+    onBackClicked: () -> Unit,
+    onLoadTrials: (suspend (Long) -> List<TrialEntity>)? = null
 ) {
     var selectedTab by remember { mutableStateOf(HistoryTab.SESSIONS) }
 
@@ -80,7 +86,7 @@ fun HistoryScreen(
             }
 
             when (selectedTab) {
-                HistoryTab.SESSIONS -> SessionsTab(sessions)
+                HistoryTab.SESSIONS -> SessionsTab(sessions, onLoadTrials)
                 HistoryTab.CARDS -> CardsTab(cards)
                 HistoryTab.STATS -> StatsTab(cardStats)
             }
@@ -89,7 +95,10 @@ fun HistoryScreen(
 }
 
 @Composable
-private fun SessionsTab(sessions: List<SessionOverview>) {
+private fun SessionsTab(
+    sessions: List<SessionOverview>,
+    onLoadTrials: (suspend (Long) -> List<TrialEntity>)? = null
+) {
     if (sessions.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -109,18 +118,35 @@ private fun SessionsTab(sessions: List<SessionOverview>) {
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(sessions) { session ->
-            SessionCard(session)
+            SessionCard(session, onLoadTrials)
         }
     }
 }
 
 @Composable
-private fun SessionCard(session: SessionOverview) {
+private fun SessionCard(
+    session: SessionOverview,
+    onLoadTrials: (suspend (Long) -> List<TrialEntity>)? = null
+) {
     val dateFormat = remember { SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()) }
     val date = dateFormat.format(Date(session.startedAt))
+    var expanded by remember { mutableStateOf(false) }
+    var trials by remember { mutableStateOf<List<TrialEntity>?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+
+    // Load trials when expanded
+    LaunchedEffect(expanded) {
+        if (expanded && trials == null && onLoadTrials != null && !isLoading) {
+            isLoading = true
+            trials = onLoadTrials(session.id)
+            isLoading = false
+        }
+    }
 
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = onLoadTrials != null) { expanded = !expanded }
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -134,54 +160,121 @@ private fun SessionCard(session: SessionOverview) {
                     text = date,
                     fontWeight = FontWeight.Medium
                 )
-                Text(
-                    text = "Octave ${session.octave}",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 14.sp
-                )
-            }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val accuracy = (session.accuracy * 100).toInt()
+                    val color = when {
+                        accuracy >= 90 -> Color(0xFF4CAF50)  // Green
+                        accuracy >= 75 -> Color(0xFF8BC34A)  // Light green
+                        accuracy >= 60 -> Color(0xFFFFC107)  // Amber
+                        else -> Color(0xFFF44336)            // Red
+                    }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "${session.correctTrials}/${session.totalTrials} correct",
-                    fontSize = 14.sp
-                )
-
-                val accuracy = (session.accuracy * 100).toInt()
-                val color = when {
-                    accuracy >= 90 -> Color(0xFF4CAF50)  // Green
-                    accuracy >= 75 -> Color(0xFF8BC34A)  // Light green
-                    accuracy >= 60 -> Color(0xFFFFC107)  // Amber
-                    else -> Color(0xFFF44336)            // Red
-                }
-
-                Surface(
-                    color = color.copy(alpha = 0.2f),
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Text(
-                        text = "$accuracy%",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        color = color,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Surface(
+                        color = color.copy(alpha = 0.2f),
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            text = "$accuracy%",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            color = color,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    if (onLoadTrials != null) {
+                        Icon(
+                            imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                            contentDescription = if (expanded) "Collapse" else "Expand",
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
                 }
             }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "${session.correctTrials}/${session.totalTrials} correct",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
             if (session.completedAt == null) {
-                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Incomplete",
                     color = MaterialTheme.colorScheme.error,
                     fontSize = 12.sp
                 )
             }
+
+            // Expandable trials list
+            AnimatedVisibility(visible = expanded) {
+                Column(modifier = Modifier.padding(top = 12.dp)) {
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .align(Alignment.CenterHorizontally)
+                        )
+                    } else {
+                        trials?.forEach { trial ->
+                            TrialRow(trial)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrialRow(trial: TrialEntity) {
+    // Extract chord type from cardId (format: "MAJOR_4_ARPEGGIATED")
+    val cardParts = trial.cardId.split("_")
+    val actualChordType = cardParts.getOrNull(0) ?: "?"
+    val octave = cardParts.getOrNull(1) ?: "?"
+    val mode = cardParts.getOrNull(2)?.lowercase()?.take(3) ?: ""  // "arp" or "blo"
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (trial.wasCorrect) {
+            Text(
+                text = "$actualChordType @ $octave ($mode)",
+                fontSize = 13.sp,
+                color = Color(0xFF4CAF50)
+            )
+            Text(
+                text = "✓",
+                color = Color(0xFF4CAF50),
+                fontWeight = FontWeight.Bold
+            )
+        } else {
+            Column {
+                Text(
+                    text = "$actualChordType @ $octave ($mode)",
+                    fontSize = 13.sp,
+                    color = Color(0xFFF44336)
+                )
+                trial.answeredChordType?.let { answered ->
+                    Text(
+                        text = "You said: $answered",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Text(
+                text = "✗",
+                color = Color(0xFFF44336),
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }

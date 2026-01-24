@@ -19,7 +19,7 @@ private const val TAG = "EarbsDatabase"
         ReviewSessionEntity::class,
         TrialEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class EarbsDatabase : RoomDatabase() {
@@ -128,6 +128,18 @@ abstract class EarbsDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration from version 4 to 5:
+         * - Add answeredChordType column to trials table to track wrong answers
+         */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                Log.i(TAG, "Migrating database from version 4 to 5")
+                db.execSQL("ALTER TABLE trials ADD COLUMN answeredChordType TEXT")
+                Log.i(TAG, "Migration 4->5 complete: added answeredChordType column")
+            }
+        }
+
         fun getDatabase(context: Context): EarbsDatabase {
             return INSTANCE ?: synchronized(this) {
                 Log.i(TAG, "Creating database instance")
@@ -136,7 +148,7 @@ abstract class EarbsDatabase : RoomDatabase() {
                     EarbsDatabase::class.java,
                     "earbs_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
