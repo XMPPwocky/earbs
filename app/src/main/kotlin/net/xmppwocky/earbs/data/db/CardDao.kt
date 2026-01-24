@@ -38,10 +38,23 @@ interface CardDao {
     suspend fun getNonDueCardsForOctave(octave: Int, now: Long): List<CardEntity>
 
     /**
+     * Get non-due cards for a specific (octave, playbackMode) group.
+     * Used to pad sessions when fewer than 4 cards are due.
+     */
+    @Query("SELECT * FROM cards WHERE unlocked = 1 AND octave = :octave AND playbackMode = :mode AND dueDate > :now ORDER BY dueDate ASC")
+    suspend fun getNonDueCardsForGroup(octave: Int, mode: String, now: Long): List<CardEntity>
+
+    /**
      * Get all cards for a specific octave.
      */
     @Query("SELECT * FROM cards WHERE unlocked = 1 AND octave = :octave ORDER BY dueDate ASC")
     suspend fun getCardsForOctave(octave: Int): List<CardEntity>
+
+    /**
+     * Get all cards for a specific (octave, playbackMode) group.
+     */
+    @Query("SELECT * FROM cards WHERE unlocked = 1 AND octave = :octave AND playbackMode = :mode ORDER BY dueDate ASC")
+    suspend fun getCardsForGroup(octave: Int, mode: String): List<CardEntity>
 
     /**
      * Count of due cards.
@@ -81,4 +94,16 @@ interface CardDao {
 
     @Query("SELECT COUNT(*) FROM cards")
     suspend fun count(): Int
+
+    /**
+     * Count of unlocked cards.
+     */
+    @Query("SELECT COUNT(*) FROM cards WHERE unlocked = 1")
+    suspend fun countUnlocked(): Int
+
+    /**
+     * Observe count of unlocked cards for UI updates.
+     */
+    @Query("SELECT COUNT(*) FROM cards WHERE unlocked = 1")
+    fun countUnlockedFlow(): Flow<Int>
 }

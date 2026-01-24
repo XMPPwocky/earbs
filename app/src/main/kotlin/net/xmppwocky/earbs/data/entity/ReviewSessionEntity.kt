@@ -5,11 +5,13 @@ import androidx.room.PrimaryKey
 
 /**
  * Metadata for each 40-trial review session.
+ * All cards in a session share the same (octave, playbackMode).
  */
 @Entity(tableName = "review_sessions")
 data class ReviewSessionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val startedAt: Long,                   // epoch millis
     val completedAt: Long? = null,         // epoch millis
-    val octave: Int                        // which octave this session was for
+    val octave: Int,                       // which octave this session was for
+    val playbackMode: String = "ARPEGGIATED"  // ARPEGGIATED or BLOCK
 )
