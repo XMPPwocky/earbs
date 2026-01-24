@@ -19,7 +19,7 @@ private const val TAG = "EarbsDatabase"
         ReviewSessionEntity::class,
         TrialEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class EarbsDatabase : RoomDatabase() {
@@ -111,6 +111,23 @@ abstract class EarbsDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration from version 3 to 4:
+         * - Fix cards with stability=0.0 which cause NaN crashes
+         * - Reset them to default values (2.5) and Added phase for proper re-initialization
+         */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                Log.i(TAG, "Migrating database from version 3 to 4")
+                db.execSQL("""
+                    UPDATE cards
+                    SET stability = 2.5, difficulty = 2.5, phase = 0
+                    WHERE stability = 0.0 OR stability IS NULL
+                """.trimIndent())
+                Log.i(TAG, "Migration 3->4 complete: fixed cards with zero stability")
+            }
+        }
+
         fun getDatabase(context: Context): EarbsDatabase {
             return INSTANCE ?: synchronized(this) {
                 Log.i(TAG, "Creating database instance")
@@ -119,7 +136,7 @@ abstract class EarbsDatabase : RoomDatabase() {
                     EarbsDatabase::class.java,
                     "earbs_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

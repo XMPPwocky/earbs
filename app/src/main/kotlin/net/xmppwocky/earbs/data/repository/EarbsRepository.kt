@@ -278,13 +278,26 @@ class EarbsRepository(
         // Determine lapses
         val newLapses = if (rating == Rating.Again) cardEntity.lapses + 1 else cardEntity.lapses
 
-        Log.i(TAG, "  FSRS update: stability=${chosenGrade.stability}, difficulty=${chosenGrade.difficulty}")
+        // For Added phase, FSRS returns 0.0 for stability/difficulty (uses fixed intervals).
+        // Keep the card's existing values to avoid NaN crashes on subsequent reviews.
+        val newStability = if (cardEntity.phase == CardPhase.Added.value || chosenGrade.stability == 0.0) {
+            cardEntity.stability
+        } else {
+            chosenGrade.stability
+        }
+        val newDifficulty = if (cardEntity.phase == CardPhase.Added.value || chosenGrade.difficulty == 0.0) {
+            cardEntity.difficulty
+        } else {
+            chosenGrade.difficulty
+        }
+
+        Log.i(TAG, "  FSRS update: stability=$newStability, difficulty=$newDifficulty")
         Log.i(TAG, "  interval=${chosenGrade.interval}d, dueIn=${chosenGrade.durationMillis / 1000 / 60}min")
 
         cardDao.updateFsrsState(
             id = cardEntity.id,
-            stability = chosenGrade.stability,
-            difficulty = chosenGrade.difficulty,
+            stability = newStability,
+            difficulty = newDifficulty,
             interval = chosenGrade.interval,
             dueDate = newDueDate,
             reviewCount = cardEntity.reviewCount + 1,
