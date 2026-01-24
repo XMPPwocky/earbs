@@ -1,7 +1,7 @@
 package net.xmppwocky.earbs.model
 
 import android.util.Log
-import kotlin.random.Random
+import net.xmppwocky.earbs.data.repository.TrialRecord
 
 private const val TAG = "ReviewSession"
 
@@ -31,6 +31,9 @@ class ReviewSession(
 
     private val _scores: MutableMap<Card, CardScore> = cards.associateWith { CardScore(it) }.toMutableMap()
     val scores: Map<Card, CardScore> get() = _scores
+
+    // Trial records for persistence
+    private val _trialRecords = mutableListOf<TrialRecord>()
 
     var currentTrial: Int = 0
         private set
@@ -76,6 +79,13 @@ class ReviewSession(
             score.correct++
         }
 
+        // Record trial for persistence
+        _trialRecords.add(TrialRecord(
+            cardId = card.id,
+            timestamp = System.currentTimeMillis(),
+            wasCorrect = correct
+        ))
+
         Log.i(TAG, "Answer for ${card.displayName}: ${if (correct) "CORRECT" else "WRONG"}")
         Log.i(TAG, "  Score now: ${score.correct}/${score.total} (${(score.hitRate * 100).toInt()}%)")
     }
@@ -93,4 +103,14 @@ class ReviewSession(
             score
         }
     }
+
+    /**
+     * Get all trial records for persistence.
+     */
+    fun getTrialRecords(): List<TrialRecord> = _trialRecords.toList()
+
+    /**
+     * Get the octave for this session (from the first card).
+     */
+    val octave: Int get() = cards.firstOrNull()?.octave ?: 4
 }
