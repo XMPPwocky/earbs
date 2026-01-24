@@ -8,23 +8,36 @@ private const val TAG = "ChordBuilder"
 
 /**
  * Chord types with their intervals (semitones from root).
- * For Epic 1, only the basic 4 types are used.
+ * Triads: MAJOR, MINOR, SUS2, SUS4
+ * 7th chords: DOM7, MAJ7, MIN7, DIM7
  */
 enum class ChordType(val intervals: List<Int>, val displayName: String) {
+    // Triads
     MAJOR(listOf(0, 4, 7), "Major"),
     MINOR(listOf(0, 3, 7), "Minor"),
     SUS2(listOf(0, 2, 7), "Sus2"),
     SUS4(listOf(0, 5, 7), "Sus4"),
-    // Future chord types (not used in Epic 1)
+    // 7th chords
     DOM7(listOf(0, 4, 7, 10), "Dom7"),
     MAJ7(listOf(0, 4, 7, 11), "Maj7"),
-    MIN7(listOf(0, 3, 7, 10), "Min7");
+    MIN7(listOf(0, 3, 7, 10), "Min7"),
+    DIM7(listOf(0, 3, 6, 9), "Dim7");
 
     companion object {
         /**
+         * Triad chord types.
+         */
+        val TRIADS = listOf(MAJOR, MINOR, SUS2, SUS4)
+
+        /**
+         * 7th chord types.
+         */
+        val SEVENTHS = listOf(DOM7, MAJ7, MIN7, DIM7)
+
+        /**
          * Get the basic chord types for Epic 1.
          */
-        val BASIC_TYPES = listOf(MAJOR, MINOR, SUS2, SUS4)
+        val BASIC_TYPES = TRIADS
     }
 }
 
