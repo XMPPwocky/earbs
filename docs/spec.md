@@ -53,11 +53,20 @@ This gives FSRS accurate per-recall feedback rather than aggregated batch scores
 
 ### Card Selection for Reviews
 
-1. Query all cards, compute which are "due" (next_review ≤ now)
-2. If ≥session_size due cards: select the most overdue
-3. If <session_size due cards: pad with non-due cards (reviewing early is fine for FSRS)
-4. Shuffle the cards randomly
-5. Run the review session
+Sessions prefer cards from the same `(octave, playbackMode)` group to keep practice focused:
+
+1. Query all due cards (next_review ≤ now)
+2. Group by `(octave, playbackMode)`
+3. Pick the group with the most due cards (tie-break: most overdue)
+4. If that group has ≥session_size due cards: take session_size from that group
+5. If that group has <session_size due cards:
+   a. Take all due from that group
+   b. Pad with non-due cards from the SAME group first
+   c. If still <session_size, pad with cards from other groups
+6. Shuffle the cards randomly
+7. Run the review session
+
+This keeps sessions focused on one octave and playback mode when possible, improving the learning experience.
 
 ### Progression / Unlocking
 
@@ -230,10 +239,10 @@ Work through these in order. Complete each epic before moving to the next.
    ```
 3. Set up Room database for card state persistence
 4. Implement card selection algorithm:
-   - Get due cards (dueDate ≤ now), ordered by most overdue
-   - If ≥session_size due, take the most overdue
-   - If <session_size due, pad with non-due cards
-   - Shuffle and return mixed cards
+   - Get due cards (dueDate ≤ now), group by (octave, playbackMode)
+   - Pick the group with the most due cards
+   - Pad from same group first, then other groups if needed
+   - Shuffle and return cards
 5. Per-trial FSRS updates (not batch):
    - Correct → Good rating
    - Wrong → Again rating (record what user answered)
