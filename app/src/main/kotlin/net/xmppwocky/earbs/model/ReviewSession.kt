@@ -6,18 +6,27 @@ import kotlin.random.Random
 private const val TAG = "ReviewSession"
 
 /**
- * A review session with 4 cards and 40 total trials (~10 per card).
+ * A review session with 4 cards and 40 total trials (exactly 10 per card).
  */
 class ReviewSession(
     val cards: List<Card>,
-    val totalTrials: Int = 40
+    private val trialsPerCard: Int = 10
 ) {
+    val totalTrials: Int = cards.size * trialsPerCard
+
+    // Pre-shuffled deck: exactly trialsPerCard copies of each card
+    private val trialDeck: MutableList<Card> = cards
+        .flatMap { card -> List(trialsPerCard) { card } }
+        .shuffled()
+        .toMutableList()
+
     init {
         require(cards.size == 4) { "Review session requires exactly 4 cards, got ${cards.size}" }
-        Log.i(TAG, "Starting review session with ${cards.size} cards, $totalTrials trials")
+        Log.i(TAG, "Starting review session with ${cards.size} cards, $totalTrials trials ($trialsPerCard per card)")
         cards.forEach { card ->
             Log.i(TAG, "  - ${card.displayName}")
         }
+        Log.d(TAG, "Shuffled trial order: ${trialDeck.map { it.chordType.displayName }}")
     }
 
     private val _scores: MutableMap<Card, CardScore> = cards.associateWith { CardScore(it) }.toMutableMap()
@@ -30,8 +39,8 @@ class ReviewSession(
         private set
 
     /**
-     * Select the next card for this trial using weighted random selection.
-     * Cards with fewer trials get higher weights to ensure roughly even distribution.
+     * Get the next card from the pre-shuffled deck.
+     * Guarantees exactly trialsPerCard trials per card.
      */
     fun nextTrial(): Card? {
         if (isComplete()) {
@@ -40,35 +49,10 @@ class ReviewSession(
         }
 
         currentTrial++
-
-        // Weight cards inversely by how many trials they've had
-        // Cards with fewer trials are more likely to be selected
-        val trialsPerCard = cards.map { _scores[it]?.total ?: 0 }
-        val maxTrials = trialsPerCard.maxOrNull() ?: 0
-
-        val weights = trialsPerCard.map { trials ->
-            // Give higher weight to cards that have had fewer trials
-            // Add 1 to avoid zero weights
-            (maxTrials - trials + 1).toFloat()
-        }
-
-        val totalWeight = weights.sum()
-        val random = Random.nextFloat() * totalWeight
-
-        var cumulative = 0f
-        var selectedIndex = 0
-        for (i in weights.indices) {
-            cumulative += weights[i]
-            if (random < cumulative) {
-                selectedIndex = i
-                break
-            }
-        }
-
-        currentCard = cards[selectedIndex]
+        currentCard = trialDeck.removeAt(0)
 
         Log.i(TAG, "Trial $currentTrial/$totalTrials: Selected ${currentCard?.displayName}")
-        Log.d(TAG, "  Trial counts: ${cards.map { "${it.chordType.displayName}=${_scores[it]?.total}" }}")
+        Log.d(TAG, "  Remaining in deck: ${trialDeck.size}")
 
         return currentCard
     }
