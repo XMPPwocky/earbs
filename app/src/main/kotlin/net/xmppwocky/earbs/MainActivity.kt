@@ -247,11 +247,13 @@ private fun ReviewSessionScreen(
     prefs: SharedPreferences,
     onSessionComplete: (SessionResult) -> Unit
 ) {
+    val initialCard = session.getCurrentCard()
     var reviewState by remember {
         mutableStateOf(
             ReviewScreenState(
                 session = session,
-                currentCard = session.getCurrentCard()
+                currentCard = initialCard,
+                currentRootSemitones = initialCard?.let { ChordBuilder.randomRootInOctave(it.octave) }
             )
         )
     }
@@ -261,10 +263,10 @@ private fun ReviewSessionScreen(
         state = reviewState,
         onPlayClicked = {
             val currentCard = reviewState.currentCard ?: return@ReviewScreen
+            val rootSemitones = reviewState.currentRootSemitones ?: return@ReviewScreen
 
             Log.i(TAG, "Play button clicked for trial ${session.currentTrial + 1}")
 
-            val rootSemitones = ChordBuilder.randomRootInOctave(currentCard.octave)
             val frequencies = ChordBuilder.buildChord(currentCard.chordType, rootSemitones)
 
             // Use the card's playback mode (not a user toggle)
@@ -327,10 +329,12 @@ private fun ReviewSessionScreen(
         },
         onTrialComplete = {
             val nextCard = session.getCurrentCard()
-            Log.i(TAG, "Trial complete, next card: ${nextCard?.displayName}")
+            val nextRootSemitones = nextCard?.let { ChordBuilder.randomRootInOctave(it.octave) }
+            Log.i(TAG, "Trial complete, next card: ${nextCard?.displayName}, root: $nextRootSemitones")
 
             reviewState = reviewState.copy(
                 currentCard = nextCard,
+                currentRootSemitones = nextRootSemitones,
                 lastAnswer = null,
                 hasPlayedThisTrial = false,
                 showingFeedback = false

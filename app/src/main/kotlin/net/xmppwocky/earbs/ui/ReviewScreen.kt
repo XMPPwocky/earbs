@@ -26,6 +26,7 @@ private const val FEEDBACK_DELAY_MS = 500L
 data class ReviewScreenState(
     val session: ReviewSession,
     val currentCard: Card? = null,
+    val currentRootSemitones: Int? = null,  // Root note for current trial (fixed for replays)
     val lastAnswer: AnswerResult? = null,
     val isPlaying: Boolean = false,
     val hasPlayedThisTrial: Boolean = false,
