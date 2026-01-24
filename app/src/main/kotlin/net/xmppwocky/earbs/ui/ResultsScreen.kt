@@ -12,55 +12,91 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import net.xmppwocky.earbs.model.CardScore
-import net.xmppwocky.earbs.model.Grade
 
 @Composable
 fun ResultsScreen(
-    results: List<CardScore>,
+    result: SessionResult,
     onDoneClicked: () -> Unit
 ) {
+    val accuracy = if (result.totalTrials > 0) {
+        result.correctCount.toFloat() / result.totalTrials
+    } else {
+        0f
+    }
+    val accuracyPercent = (accuracy * 100).toInt()
+
+    // Determine color based on accuracy
+    val (backgroundColor, textColor) = when {
+        accuracy >= 0.9f -> Color(0xFFE8F5E9) to Color(0xFF4CAF50)  // Green
+        accuracy >= 0.7f -> Color(0xFFFFF8E1) to Color(0xFFFFC107)  // Amber
+        else -> Color(0xFFFFEBEE) to Color(0xFFF44336)             // Red
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
         // Title
         Text(
             text = "Session Complete",
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 8.dp)
+            modifier = Modifier.padding(bottom = 32.dp)
         )
 
-        // Summary stats
-        val totalCorrect = results.sumOf { it.correct }
-        val totalTrials = results.sumOf { it.total }
-        Text(
-            text = "Overall: $totalCorrect / $totalTrials correct",
-            fontSize = 18.sp,
-            color = Color.Gray,
-            modifier = Modifier.padding(bottom = 24.dp)
-        )
-
-        // Results cards
-        Column(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.weight(1f)
+        // Result card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 32.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = backgroundColor)
         ) {
-            results.forEach { score ->
-                ResultCard(score = score)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Score
+                Text(
+                    text = "${result.correctCount} / ${result.totalTrials}",
+                    fontSize = 48.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textColor
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "correct",
+                    fontSize = 20.sp,
+                    color = Color.Gray
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Accuracy percentage
+                Text(
+                    text = "$accuracyPercent%",
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = textColor
+                )
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(48.dp))
 
         // Done button
         Button(
             onClick = onDoneClicked,
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(horizontal = 32.dp)
                 .height(56.dp)
         ) {
             Text(
@@ -68,77 +104,6 @@ fun ResultsScreen(
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
-        }
-    }
-}
-
-@Composable
-private fun ResultCard(score: CardScore) {
-    val gradeColor = when (score.grade) {
-        Grade.EASY -> Color(0xFF4CAF50)  // Green
-        Grade.GOOD -> Color(0xFF8BC34A)  // Light green
-        Grade.HARD -> Color(0xFFFFC107)  // Amber
-        Grade.AGAIN -> Color(0xFFF44336) // Red
-    }
-
-    val gradeBackgroundColor = when (score.grade) {
-        Grade.EASY -> Color(0xFFE8F5E9)  // Light green background
-        Grade.GOOD -> Color(0xFFF1F8E9)  // Lighter green background
-        Grade.HARD -> Color(0xFFFFF8E1)  // Light amber background
-        Grade.AGAIN -> Color(0xFFFFEBEE) // Light red background
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = gradeBackgroundColor)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Card name
-            Column {
-                Text(
-                    text = score.card.chordType.displayName,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Octave ${score.card.octave}",
-                    fontSize = 14.sp,
-                    color = Color.Gray
-                )
-            }
-
-            // Score
-            Text(
-                text = "${score.correct}/${score.total}",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-
-            // Grade badge
-            Box(
-                modifier = Modifier
-                    .background(
-                        color = gradeColor,
-                        shape = RoundedCornerShape(8.dp)
-                    )
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = score.grade.displayName,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    textAlign = TextAlign.Center
-                )
-            }
         }
     }
 }

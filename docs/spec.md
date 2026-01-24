@@ -38,21 +38,25 @@ Octaves 3, 4, and 5. Octave 4 is the starting point (most familiar register).
 ### Review Sessions
 
 A **review session** consists of:
-- 4 cards, all from the **same octave AND same playback mode** (to prevent guessing by register or playback style)
-- 40 trials total, interleaved randomly (~10 per card)
-- After all trials, each card is graded based on hit rate:
-  - 10/10 correct → Easy
-  - 9/10 correct → Good
-  - 8/10 correct → Hard
-  - ≤7/10 correct → Again
+- 20 cards, 1 trial each
+- Cards are mixed (can include different octaves and playback modes)
+- Order is randomized at session start
+- Answer buttons show the chord types present in the session's cards
+
+**Per-trial FSRS updates:**
+Each answer immediately updates FSRS for that card:
+- **Correct answer** → Good rating (extends interval)
+- **Wrong answer** → Again rating (card becomes due soon)
+
+This gives FSRS accurate per-recall feedback rather than aggregated batch scores.
 
 ### Card Selection for Reviews
 
 1. Query all cards, compute which are "due" (next_review ≤ now)
-2. Group due cards by (octave, playback_mode) pairs
-3. Pick the group with the most due cards
-4. If that group has <4 due cards, pad with non-due cards from the same group (reviewing early is fine for FSRS)
-5. Run the review session with those 4 cards
+2. If ≥20 due cards: select the 20 most overdue
+3. If <20 due cards: pad with non-due cards (reviewing early is fine for FSRS)
+4. Shuffle the 20 cards randomly
+5. Run the review session
 
 ### Progression / Unlocking
 
@@ -120,12 +124,17 @@ The root note should be randomized within the octave (any of the 12 semitones) s
 - Shows deck overview (X/48 cards unlocked, how many due)
 
 **Review screen:**
-- Playback mode indicator (shows Block or Arpeggiated, based on cards)
+- Playback mode indicator (shows Block or Arpeggiated, based on current card)
 - "Play" button (plays current chord using the card's playback mode)
 - Can replay as many times as desired
-- Answer buttons for each chord type in the current session's 4 cards
-- After tapping answer: brief feedback (correct/incorrect), then next trial
-- After 40 trials: show summary (per-card results), then return to main screen
+- Answer buttons for each chord type in the session's cards
+- After tapping answer: brief feedback (correct/incorrect), FSRS update, then next trial
+- After 20 trials: show session summary (X/20 correct), then return to main screen
+
+**Results screen:**
+- Shows total correct / total trials (e.g., "15 / 20 correct")
+- Shows accuracy percentage
+- Color-coded based on performance
 
 ---
 

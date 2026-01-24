@@ -15,9 +15,9 @@ Android app (Kotlin, Jetpack Compose) for ear training chord recognition using F
 
 ## Core Concepts
 
-- **Card**: A `(chord_type, octave)` pair. User answers chord type only.
+- **Card**: A `(chord_type, octave, playback_mode)` tuple. User answers chord type only.
 - **Octaves**: 3, 4, 5 (octave 4 is starting point)
-- **Review session**: 4 cards from same octave, 40 trials total (~10 per card)
+- **Review session**: 20 cards, 1 trial each, shuffled randomly
 
 ## Chord Types & Intervals (semitones from root)
 
@@ -31,34 +31,33 @@ Android app (Kotlin, Jetpack Compose) for ear training chord recognition using F
 | Maj7   | 0, 4, 7, 11    |
 | Min7   | 0, 3, 7, 10    |
 
-## Grading (per card after session)
+## Per-Trial FSRS Grading
 
-- 10/10 correct → Easy
-- 9/10 correct → Good
-- 8/10 correct → Hard
-- ≤7/10 correct → Again
+Each trial immediately updates FSRS for that card:
+- **Correct** → Good rating (interval extends)
+- **Wrong** → Again rating (card becomes due soon)
 
 ## Card Selection Algorithm
 
 1. Get due cards (next_review ≤ now)
-2. Group by octave, pick octave with most due
-3. If <4 due, pad with non-due cards from same octave
-4. Run session with those 4 cards
+2. If ≥20 due, take the 20 most overdue
+3. If <20 due, pad with non-due cards (reviewing early)
+4. Shuffle randomly
+5. Run session with those 20 cards
 
 ## Starting Deck & Unlock Order
 
-1. Major, Minor, Sus2, Sus4 @ octave 4 *(starting deck)*
-2. Major, Minor @ octave 3
-3. Sus2, Sus4 @ octave 3
-4. Major, Minor @ octave 5
-5. Sus2, Sus4 @ octave 5
-6. Dom7, Maj7 @ octave 4
-7. Min7 @ octave 4, Dom7 @ octave 3
-8. (continues interleaving new types with octave expansion)
+Cards unlock in groups of 4:
+1. Major, Minor, Sus2, Sus4 @ octave 4, arpeggiated *(starting deck)*
+2. Major, Minor, Sus2, Sus4 @ octave 4, block
+3. Major, Minor, Sus2, Sus4 @ octave 3, arpeggiated
+4. (continues expanding octaves and modes, then 7th chords)
+
+Total: 48 cards (8 types × 3 octaves × 2 modes)
 
 ## Audio
 
 - Square wave synthesis via AudioTrack
-- Block (simultaneous) or arpeggiated playback modes
+- Block (simultaneous) or arpeggiated playback modes (per-card property)
 - Root note randomized within octave (prevents memorizing absolute pitches)
 - Reference: A4 = 440Hz, frequency = `440 * 2^(semitones_from_A4 / 12)`

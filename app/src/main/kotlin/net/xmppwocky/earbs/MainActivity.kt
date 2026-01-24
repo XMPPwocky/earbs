@@ -17,8 +17,6 @@ import net.xmppwocky.earbs.audio.AudioEngine
 import net.xmppwocky.earbs.audio.ChordBuilder
 import net.xmppwocky.earbs.data.db.EarbsDatabase
 import net.xmppwocky.earbs.data.repository.EarbsRepository
-import net.xmppwocky.earbs.model.Card
-import net.xmppwocky.earbs.model.CardScore
 import net.xmppwocky.earbs.model.ReviewSession
 import net.xmppwocky.earbs.ui.AnswerResult
 import net.xmppwocky.earbs.ui.HistoryScreen
@@ -26,6 +24,7 @@ import net.xmppwocky.earbs.ui.HomeScreen
 import net.xmppwocky.earbs.ui.ResultsScreen
 import net.xmppwocky.earbs.ui.ReviewScreen
 import net.xmppwocky.earbs.ui.ReviewScreenState
+import net.xmppwocky.earbs.ui.SessionResult
 import kotlinx.coroutines.launch
 
 private const val PREFS_NAME = "earbs_prefs"
@@ -56,7 +55,6 @@ class MainActivity : ComponentActivity() {
             cardDao = database.cardDao(),
             reviewSessionDao = database.reviewSessionDao(),
             trialDao = database.trialDao(),
-            sessionCardSummaryDao = database.sessionCardSummaryDao(),
             historyDao = database.historyDao(),
             prefs = prefs
         )
@@ -79,7 +77,7 @@ private fun EarbsApp(repository: EarbsRepository) {
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     var session by remember { mutableStateOf<ReviewSession?>(null) }
     var dbSessionId by remember { mutableStateOf<Long?>(null) }
-    var sessionResults by remember { mutableStateOf<List<CardScore>>(emptyList()) }
+    var sessionResult by remember { mutableStateOf<SessionResult?>(null) }
     var dueCount by remember { mutableIntStateOf(0) }
     var unlockedCount by remember { mutableIntStateOf(4) }
     var canUnlockMore by remember { mutableStateOf(true) }
@@ -120,19 +118,16 @@ private fun EarbsApp(repository: EarbsRepository) {
                         Log.i(TAG, "Starting new review session")
                         val cards = repository.selectCardsForReview()
 
-                        if (cards.size < 4) {
-                            Log.w(TAG, "Not enough cards for session: ${cards.size}")
+                        if (cards.isEmpty()) {
+                            Log.w(TAG, "No cards available for session")
                             return@launch
                         }
 
                         val newSession = ReviewSession(cards)
-                        val octave = newSession.octave
-                        val playbackMode = newSession.playbackMode
-                        val sessionId = repository.startSession(octave, playbackMode)
+                        val sessionId = repository.startSession()
 
                         session = newSession
                         dbSessionId = sessionId
-                        session?.nextTrial()
                         currentScreen = Screen.REVIEW
                     }
                 },
@@ -158,18 +153,16 @@ private fun EarbsApp(repository: EarbsRepository) {
             session?.let { activeSession ->
                 ReviewSessionScreen(
                     session = activeSession,
-                    onSessionComplete = { results ->
+                    sessionId = dbSessionId ?: 0L,
+                    repository = repository,
+                    onSessionComplete = { result ->
                         coroutineScope.launch {
-                            Log.i(TAG, "Session complete, persisting results")
+                            Log.i(TAG, "Session complete: ${result.correctCount}/${result.totalTrials}")
 
-                            // Persist the session
+                            // Mark session complete
                             val sessionId = dbSessionId
                             if (sessionId != null) {
-                                repository.completeSession(
-                                    sessionId = sessionId,
-                                    trialRecords = activeSession.getTrialRecords(),
-                                    cardScores = results
-                                )
+                                repository.completeSession(sessionId)
                             } else {
                                 Log.e(TAG, "No session ID for persistence!")
                             }
@@ -177,7 +170,7 @@ private fun EarbsApp(repository: EarbsRepository) {
                             // Update due count for home screen
                             dueCount = repository.getDueCount()
 
-                            sessionResults = results
+                            sessionResult = result
                             currentScreen = Screen.RESULTS
                         }
                     }
@@ -189,16 +182,21 @@ private fun EarbsApp(repository: EarbsRepository) {
         }
 
         Screen.RESULTS -> {
-            ResultsScreen(
-                results = sessionResults,
-                onDoneClicked = {
-                    Log.i(TAG, "Results acknowledged, returning to home")
-                    session = null
-                    dbSessionId = null
-                    sessionResults = emptyList()
-                    currentScreen = Screen.HOME
-                }
-            )
+            sessionResult?.let { result ->
+                ResultsScreen(
+                    result = result,
+                    onDoneClicked = {
+                        Log.i(TAG, "Results acknowledged, returning to home")
+                        session = null
+                        dbSessionId = null
+                        sessionResult = null
+                        currentScreen = Screen.HOME
+                    }
+                )
+            } ?: run {
+                Log.w(TAG, "Results screen but no result, returning to home")
+                currentScreen = Screen.HOME
+            }
         }
 
         Screen.HISTORY -> {
@@ -226,13 +224,15 @@ private fun EarbsApp(repository: EarbsRepository) {
 @Composable
 private fun ReviewSessionScreen(
     session: ReviewSession,
-    onSessionComplete: (List<CardScore>) -> Unit
+    sessionId: Long,
+    repository: EarbsRepository,
+    onSessionComplete: (SessionResult) -> Unit
 ) {
     var reviewState by remember {
         mutableStateOf(
             ReviewScreenState(
                 session = session,
-                currentCard = session.currentCard
+                currentCard = session.getCurrentCard()
             )
         )
     }
@@ -243,7 +243,7 @@ private fun ReviewSessionScreen(
         onPlayClicked = {
             val currentCard = reviewState.currentCard ?: return@ReviewScreen
 
-            Log.i(TAG, "Play button clicked for trial ${session.currentTrial}")
+            Log.i(TAG, "Play button clicked for trial ${session.currentTrial + 1}")
 
             val rootSemitones = ChordBuilder.randomRootInOctave(currentCard.octave)
             val frequencies = ChordBuilder.buildChord(currentCard.chordType, rootSemitones)
@@ -283,7 +283,6 @@ private fun ReviewSessionScreen(
             Log.i(TAG, "Answer clicked: ${answeredType.displayName}")
 
             val isCorrect = answeredType == currentCard.chordType
-            session.recordAnswer(isCorrect)
 
             val result = if (isCorrect) {
                 Log.i(TAG, "CORRECT! User answered ${answeredType.displayName}")
@@ -293,13 +292,21 @@ private fun ReviewSessionScreen(
                 AnswerResult.Wrong(currentCard.chordType)
             }
 
+            // Record trial and update FSRS immediately
+            coroutineScope.launch {
+                repository.recordTrialAndUpdateFsrs(sessionId, currentCard, isCorrect)
+            }
+
+            // Update session state
+            session.recordAnswer(isCorrect)
+
             reviewState = reviewState.copy(
                 lastAnswer = result,
                 showingFeedback = true
             )
         },
         onTrialComplete = {
-            val nextCard = session.nextTrial()
+            val nextCard = session.getCurrentCard()
             Log.i(TAG, "Trial complete, next card: ${nextCard?.displayName}")
 
             reviewState = reviewState.copy(
@@ -309,6 +316,11 @@ private fun ReviewSessionScreen(
                 showingFeedback = false
             )
         },
-        onSessionComplete = onSessionComplete
+        onSessionComplete = {
+            onSessionComplete(SessionResult(
+                correctCount = session.correctCount,
+                totalTrials = session.totalTrials
+            ))
+        }
     )
 }

@@ -9,7 +9,6 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import net.xmppwocky.earbs.data.entity.CardEntity
 import net.xmppwocky.earbs.data.entity.ReviewSessionEntity
-import net.xmppwocky.earbs.data.entity.SessionCardSummaryEntity
 import net.xmppwocky.earbs.data.entity.TrialEntity
 
 private const val TAG = "EarbsDatabase"
@@ -18,17 +17,15 @@ private const val TAG = "EarbsDatabase"
     entities = [
         CardEntity::class,
         ReviewSessionEntity::class,
-        TrialEntity::class,
-        SessionCardSummaryEntity::class
+        TrialEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class EarbsDatabase : RoomDatabase() {
     abstract fun cardDao(): CardDao
     abstract fun reviewSessionDao(): ReviewSessionDao
     abstract fun trialDao(): TrialDao
-    abstract fun sessionCardSummaryDao(): SessionCardSummaryDao
     abstract fun historyDao(): HistoryDao
 
     companion object {
@@ -39,16 +36,11 @@ abstract class EarbsDatabase : RoomDatabase() {
          * Migration from version 1 to 2:
          * - Add playbackMode column to cards table
          * - Update card IDs to include playback mode
-         *
-         * Note: For simplicity, we use destructive migration which drops and recreates
-         * the database. This is acceptable during development but would need proper
-         * migration for production releases.
          */
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 Log.i(TAG, "Migrating database from version 1 to 2")
                 // Drop and recreate is simpler for this schema change
-                // Production would need proper data migration
                 db.execSQL("DROP TABLE IF EXISTS cards")
                 db.execSQL("DROP TABLE IF EXISTS trials")
                 db.execSQL("DROP TABLE IF EXISTS session_card_summaries")
@@ -107,6 +99,18 @@ abstract class EarbsDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration from version 2 to 3:
+         * - Remove session_card_summaries table (no longer needed with per-trial FSRS)
+         */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                Log.i(TAG, "Migrating database from version 2 to 3")
+                db.execSQL("DROP TABLE IF EXISTS session_card_summaries")
+                Log.i(TAG, "Migration 2->3 complete: removed session_card_summaries table")
+            }
+        }
+
         fun getDatabase(context: Context): EarbsDatabase {
             return INSTANCE ?: synchronized(this) {
                 Log.i(TAG, "Creating database instance")
@@ -115,7 +119,7 @@ abstract class EarbsDatabase : RoomDatabase() {
                     EarbsDatabase::class.java,
                     "earbs_database"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

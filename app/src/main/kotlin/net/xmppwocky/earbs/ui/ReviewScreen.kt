@@ -15,7 +15,6 @@ import kotlinx.coroutines.delay
 import net.xmppwocky.earbs.audio.ChordType
 import net.xmppwocky.earbs.audio.PlaybackMode
 import net.xmppwocky.earbs.model.Card
-import net.xmppwocky.earbs.model.CardScore
 import net.xmppwocky.earbs.model.ReviewSession
 
 private const val TAG = "ReviewScreen"
@@ -23,7 +22,6 @@ private const val FEEDBACK_DELAY_MS = 500L
 
 /**
  * State for the review screen UI.
- * Note: playbackMode is now a property of the card, not a user toggle.
  */
 data class ReviewScreenState(
     val session: ReviewSession,
@@ -33,12 +31,20 @@ data class ReviewScreenState(
     val hasPlayedThisTrial: Boolean = false,
     val showingFeedback: Boolean = false
 ) {
-    val trialNumber: Int get() = session.currentTrial
+    val trialNumber: Int get() = session.currentTrial + 1  // 1-indexed for display
     val totalTrials: Int get() = session.totalTrials
     val isComplete: Boolean get() = session.isComplete()
-    // Playback mode comes from the current card (all cards in session share the same mode)
-    val playbackMode: PlaybackMode get() = currentCard?.playbackMode ?: session.playbackMode
+    // Playback mode comes from the current card
+    val playbackMode: PlaybackMode get() = currentCard?.playbackMode ?: PlaybackMode.ARPEGGIATED
 }
+
+/**
+ * Simple result data for session completion.
+ */
+data class SessionResult(
+    val correctCount: Int,
+    val totalTrials: Int
+)
 
 @Composable
 fun ReviewScreen(
@@ -46,7 +52,7 @@ fun ReviewScreen(
     onPlayClicked: () -> Unit,
     onAnswerClicked: (ChordType) -> Unit,
     onTrialComplete: () -> Unit,
-    onSessionComplete: (List<CardScore>) -> Unit
+    onSessionComplete: () -> Unit
 ) {
     // Auto-advance after showing feedback
     LaunchedEffect(state.showingFeedback) {
@@ -56,7 +62,7 @@ fun ReviewScreen(
 
             if (state.session.isComplete()) {
                 Log.i(TAG, "Session complete, navigating to results")
-                onSessionComplete(state.session.getResults())
+                onSessionComplete()
             } else {
                 Log.d(TAG, "Advancing to next trial")
                 onTrialComplete()
@@ -108,7 +114,7 @@ fun ReviewScreen(
 
         // Answer Buttons
         ReviewAnswerButtons(
-            cards = state.session.cards,
+            chordTypes = state.session.getChordTypes(),
             enabled = state.hasPlayedThisTrial && !state.isPlaying && !state.showingFeedback,
             onAnswerClicked = onAnswerClicked
         )
@@ -202,7 +208,7 @@ private fun ReviewFeedbackArea(
         answerResult == null && !hasPlayedThisTrial -> "Tap Play to hear the chord" to Color.Gray
         answerResult == null -> "What chord type is this?" to Color.Gray
         answerResult is AnswerResult.Correct -> "Correct!" to Color(0xFF4CAF50)
-        answerResult is AnswerResult.Wrong -> "Wrong — it was ${answerResult.actualType.displayName}" to Color(0xFFF44336)
+        answerResult is AnswerResult.Wrong -> "Wrong - it was ${answerResult.actualType.displayName}" to Color(0xFFF44336)
         else -> "" to Color.Gray
     }
 
@@ -218,13 +224,10 @@ private fun ReviewFeedbackArea(
 
 @Composable
 private fun ReviewAnswerButtons(
-    cards: List<Card>,
+    chordTypes: List<ChordType>,
     enabled: Boolean,
     onAnswerClicked: (ChordType) -> Unit
 ) {
-    // Get unique chord types from the session's cards
-    val chordTypes = cards.map { it.chordType }.distinct()
-
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -232,7 +235,7 @@ private fun ReviewAnswerButtons(
         Row(
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            if (chordTypes.size > 0) {
+            if (chordTypes.isNotEmpty()) {
                 ReviewAnswerButton(
                     chordType = chordTypes[0],
                     enabled = enabled,
@@ -267,6 +270,52 @@ private fun ReviewAnswerButtons(
                     enabled = enabled,
                     onClick = { onAnswerClicked(chordTypes[3]) }
                 )
+            }
+        }
+
+        // Third row (for sessions with more than 4 chord types)
+        if (chordTypes.size > 4) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                if (chordTypes.size > 4) {
+                    ReviewAnswerButton(
+                        chordType = chordTypes[4],
+                        enabled = enabled,
+                        onClick = { onAnswerClicked(chordTypes[4]) }
+                    )
+                }
+                if (chordTypes.size > 5) {
+                    ReviewAnswerButton(
+                        chordType = chordTypes[5],
+                        enabled = enabled,
+                        onClick = { onAnswerClicked(chordTypes[5]) }
+                    )
+                }
+            }
+        }
+
+        // Fourth row (for sessions with more than 6 chord types)
+        if (chordTypes.size > 6) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                if (chordTypes.size > 6) {
+                    ReviewAnswerButton(
+                        chordType = chordTypes[6],
+                        enabled = enabled,
+                        onClick = { onAnswerClicked(chordTypes[6]) }
+                    )
+                }
+                if (chordTypes.size > 7) {
+                    ReviewAnswerButton(
+                        chordType = chordTypes[7],
+                        enabled = enabled,
+                        onClick = { onAnswerClicked(chordTypes[7]) }
+                    )
+                }
             }
         }
     }

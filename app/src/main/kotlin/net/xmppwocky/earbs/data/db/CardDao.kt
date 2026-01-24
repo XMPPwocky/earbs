@@ -45,6 +45,13 @@ interface CardDao {
     suspend fun getNonDueCardsForGroup(octave: Int, mode: String, now: Long): List<CardEntity>
 
     /**
+     * Get non-due cards (reviewing early) to pad session to 20 cards.
+     * Ordered by due date so cards closest to being due are selected first.
+     */
+    @Query("SELECT * FROM cards WHERE unlocked = 1 AND dueDate > :now ORDER BY dueDate ASC LIMIT :limit")
+    suspend fun getNonDueCards(now: Long, limit: Int): List<CardEntity>
+
+    /**
      * Get all cards for a specific octave.
      */
     @Query("SELECT * FROM cards WHERE unlocked = 1 AND octave = :octave ORDER BY dueDate ASC")
