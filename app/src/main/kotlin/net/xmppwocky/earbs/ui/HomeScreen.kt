@@ -18,7 +18,8 @@ fun HomeScreen(
     canUnlockMore: Boolean = true,
     onStartReviewClicked: () -> Unit,
     onAddCardsClicked: () -> Unit = {},
-    onHistoryClicked: () -> Unit = {}
+    onHistoryClicked: () -> Unit = {},
+    onSettingsClicked: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -112,6 +113,21 @@ fun HomeScreen(
         ) {
             Text(
                 text = "History",
+                fontSize = 18.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Settings button
+        OutlinedButton(
+            onClick = onSettingsClicked,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+        ) {
+            Text(
+                text = "Settings",
                 fontSize = 18.sp
             )
         }

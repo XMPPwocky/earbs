@@ -1,6 +1,7 @@
 package net.xmppwocky.earbs
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -25,6 +26,9 @@ import net.xmppwocky.earbs.ui.ResultsScreen
 import net.xmppwocky.earbs.ui.ReviewScreen
 import net.xmppwocky.earbs.ui.ReviewScreenState
 import net.xmppwocky.earbs.ui.SessionResult
+import net.xmppwocky.earbs.ui.SettingsScreen
+import net.xmppwocky.earbs.ui.DEFAULT_PLAYBACK_DURATION
+import net.xmppwocky.earbs.ui.PREF_KEY_PLAYBACK_DURATION
 import kotlinx.coroutines.launch
 
 private const val PREFS_NAME = "earbs_prefs"
@@ -38,7 +42,8 @@ enum class Screen {
     HOME,
     REVIEW,
     RESULTS,
-    HISTORY
+    HISTORY,
+    SETTINGS
 }
 
 class MainActivity : ComponentActivity() {
@@ -65,7 +70,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    EarbsApp(repository)
+                    EarbsApp(repository, prefs)
                 }
             }
         }
@@ -73,7 +78,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun EarbsApp(repository: EarbsRepository) {
+private fun EarbsApp(repository: EarbsRepository, prefs: SharedPreferences) {
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     var session by remember { mutableStateOf<ReviewSession?>(null) }
     var dbSessionId by remember { mutableStateOf<Long?>(null) }
@@ -145,6 +150,9 @@ private fun EarbsApp(repository: EarbsRepository) {
                 },
                 onHistoryClicked = {
                     currentScreen = Screen.HISTORY
+                },
+                onSettingsClicked = {
+                    currentScreen = Screen.SETTINGS
                 }
             )
         }
@@ -155,6 +163,7 @@ private fun EarbsApp(repository: EarbsRepository) {
                     session = activeSession,
                     sessionId = dbSessionId ?: 0L,
                     repository = repository,
+                    prefs = prefs,
                     onSessionComplete = { result ->
                         coroutineScope.launch {
                             Log.i(TAG, "Session complete: ${result.correctCount}/${result.totalTrials}")
@@ -218,6 +227,15 @@ private fun EarbsApp(repository: EarbsRepository) {
                 }
             )
         }
+
+        Screen.SETTINGS -> {
+            SettingsScreen(
+                prefs = prefs,
+                onBackClicked = {
+                    currentScreen = Screen.HOME
+                }
+            )
+        }
     }
 }
 
@@ -226,6 +244,7 @@ private fun ReviewSessionScreen(
     session: ReviewSession,
     sessionId: Long,
     repository: EarbsRepository,
+    prefs: SharedPreferences,
     onSessionComplete: (SessionResult) -> Unit
 ) {
     var reviewState by remember {
@@ -259,10 +278,11 @@ private fun ReviewSessionScreen(
 
             coroutineScope.launch {
                 try {
+                    val playbackDuration = prefs.getInt(PREF_KEY_PLAYBACK_DURATION, DEFAULT_PLAYBACK_DURATION)
                     AudioEngine.playChord(
                         frequencies = frequencies,
                         mode = playbackMode,
-                        durationMs = 500,
+                        durationMs = playbackDuration,
                         chordType = currentCard.chordType.displayName,
                         rootSemitones = rootSemitones
                     )

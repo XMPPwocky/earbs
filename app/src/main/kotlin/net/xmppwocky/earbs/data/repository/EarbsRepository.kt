@@ -25,6 +25,10 @@ import java.time.LocalDateTime
 
 private const val TAG = "EarbsRepository"
 private const val PREF_KEY_UNLOCK_LEVEL = "unlock_level"
+private const val PREF_KEY_SESSION_SIZE = "session_size"
+private const val PREF_KEY_TARGET_RETENTION = "target_retention"
+private const val DEFAULT_SESSION_SIZE = 20
+private const val DEFAULT_TARGET_RETENTION = 0.9f
 
 class EarbsRepository(
     private val cardDao: CardDao,
@@ -33,7 +37,21 @@ class EarbsRepository(
     private val historyDao: HistoryDao,
     private val prefs: SharedPreferences
 ) {
-    private val fsrs = FSRS(requestRetention = 0.9, params = DEFAULT_PARAMS)
+    /**
+     * Get FSRS instance with current target retention setting.
+     */
+    private fun getFsrs(): FSRS {
+        val targetRetention = prefs.getFloat(PREF_KEY_TARGET_RETENTION, DEFAULT_TARGET_RETENTION).toDouble()
+        Log.d(TAG, "Creating FSRS with target retention: $targetRetention")
+        return FSRS(requestRetention = targetRetention, params = DEFAULT_PARAMS)
+    }
+
+    /**
+     * Get configured session size from settings.
+     */
+    fun getSessionSize(): Int {
+        return prefs.getInt(PREF_KEY_SESSION_SIZE, DEFAULT_SESSION_SIZE)
+    }
 
     /**
      * Initialize the starting deck on first launch.
@@ -129,34 +147,31 @@ class EarbsRepository(
         return cardDao.countUnlockedFlow()
     }
 
-    companion object {
-        const val SESSION_SIZE = 20
-    }
-
     /**
-     * Select 20 cards for a review session:
+     * Select cards for a review session:
      * 1. Get due cards (dueDate <= now)
-     * 2. If <20 due, pad with non-due cards (reviewing early)
+     * 2. If fewer than session size, pad with non-due cards (reviewing early)
      * 3. Shuffle randomly
      */
     suspend fun selectCardsForReview(): List<Card> {
+        val sessionSize = getSessionSize()
         val now = System.currentTimeMillis()
-        Log.i(TAG, "Selecting cards for review (now=$now)")
+        Log.i(TAG, "Selecting $sessionSize cards for review (now=$now)")
 
         val dueCards = cardDao.getDueCards(now)
         Log.i(TAG, "Found ${dueCards.size} due cards")
 
-        val selectedCards = if (dueCards.size >= SESSION_SIZE) {
+        val selectedCards = if (dueCards.size >= sessionSize) {
             // More than enough due cards - take the most overdue
-            dueCards.take(SESSION_SIZE)
+            dueCards.take(sessionSize)
         } else if (dueCards.isEmpty()) {
             // No due cards - select from all unlocked cards
             Log.i(TAG, "No due cards, selecting from all unlocked cards")
             val allCards = cardDao.getAllUnlocked()
-            allCards.take(SESSION_SIZE)
+            allCards.take(sessionSize)
         } else {
             // Pad with non-due cards (reviewing early)
-            val needed = SESSION_SIZE - dueCards.size
+            val needed = sessionSize - dueCards.size
             val nonDue = cardDao.getNonDueCards(now, needed)
             Log.i(TAG, "Padding with ${nonDue.size} non-due cards")
             dueCards + nonDue
@@ -245,7 +260,8 @@ class EarbsRepository(
             phase = cardEntity.phase
         )
 
-        // Calculate new FSRS state
+        // Calculate new FSRS state using current target retention setting
+        val fsrs = getFsrs()
         val grades = fsrs.calculate(flashCard)
         val chosenGrade = grades.first { it.choice == rating }
 
