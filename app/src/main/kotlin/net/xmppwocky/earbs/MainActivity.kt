@@ -20,6 +20,7 @@ import net.xmppwocky.earbs.model.Card
 import net.xmppwocky.earbs.model.CardScore
 import net.xmppwocky.earbs.model.ReviewSession
 import net.xmppwocky.earbs.ui.AnswerResult
+import net.xmppwocky.earbs.ui.HistoryScreen
 import net.xmppwocky.earbs.ui.HomeScreen
 import net.xmppwocky.earbs.ui.ResultsScreen
 import net.xmppwocky.earbs.ui.ReviewScreen
@@ -177,11 +178,21 @@ private fun EarbsApp(repository: EarbsRepository) {
         }
 
         Screen.HISTORY -> {
-            // TODO: Implement HistoryScreen
-            // For now, go back to home
-            LaunchedEffect(Unit) {
-                currentScreen = Screen.HOME
-            }
+            val sessions by repository.getSessionOverviews().collectAsState(initial = emptyList())
+            val cards by repository.getAllCardsFlow().collectAsState(initial = emptyList())
+            val cardStats by repository.getCardStats().collectAsState(initial = emptyList())
+
+            HistoryScreen(
+                sessions = sessions,
+                cards = cards,
+                cardStats = cardStats,
+                onBackClicked = {
+                    coroutineScope.launch {
+                        dueCount = repository.getDueCount()
+                    }
+                    currentScreen = Screen.HOME
+                }
+            )
         }
     }
 }
