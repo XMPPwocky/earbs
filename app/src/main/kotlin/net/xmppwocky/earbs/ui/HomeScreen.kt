@@ -159,7 +159,7 @@ fun HomeScreen(
 
         // Info text
         Text(
-            text = "40 trials per session",
+            text = "1 trial per card",
             fontSize = 14.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
