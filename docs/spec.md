@@ -8,23 +8,28 @@ Build an Android app (Kotlin, Jetpack Compose) for ear training focused on chord
 
 ### Cards
 
-A **card** is a `(chord_type, octave)` pair. Examples:
-- Major @ octave 4
-- Minor @ octave 3
-- Sus4 @ octave 5
+A **card** is a `(chord_type, octave, playback_mode)` tuple. Examples:
+- Major @ octave 4, arpeggiated
+- Minor @ octave 3, block
+- Sus4 @ octave 5, arpeggiated
 
-The user only answers the **chord type** — octave affects the sound but isn't part of the answer. This trains recognition of chord *quality* across different registers.
+The user only answers the **chord type** — octave and playback mode affect the sound but aren't part of the answer. This trains recognition of chord *quality* across different registers and playback styles.
 
-### Chord Types (in unlock order)
+**Playback mode is a card property, not a user toggle.** This prevents users from "cheesing" by identifying the playback mode instead of the chord quality.
 
+### Chord Types (8 total)
+
+**Triads:**
 1. Major
 2. Minor
 3. Sus2
 4. Sus4
-5. Dominant 7th
-6. Major 7th
-7. Minor 7th
-8. (More can be added later: 9ths, diminished, augmented, etc.)
+
+**7th Chords:**
+5. Dominant 7th (Dom7)
+6. Major 7th (Maj7)
+7. Minor 7th (Min7)
+8. Diminished 7th (Dim7)
 
 ### Octave Range
 
@@ -33,7 +38,7 @@ Octaves 3, 4, and 5. Octave 4 is the starting point (most familiar register).
 ### Review Sessions
 
 A **review session** consists of:
-- 4 cards, all from the **same octave** (to prevent guessing by register)
+- 4 cards, all from the **same octave AND same playback mode** (to prevent guessing by register or playback style)
 - 40 trials total, interleaved randomly (~10 per card)
 - After all trials, each card is graded based on hit rate:
   - 10/10 correct → Easy
@@ -44,49 +49,66 @@ A **review session** consists of:
 ### Card Selection for Reviews
 
 1. Query all cards, compute which are "due" (next_review ≤ now)
-2. Group due cards by octave
-3. Pick the octave with the most due cards
-4. If that octave has <4 due cards, pad with non-due cards from the same octave (reviewing early is fine for FSRS)
+2. Group due cards by (octave, playback_mode) pairs
+3. Pick the group with the most due cards
+4. If that group has <4 due cards, pad with non-due cards from the same group (reviewing early is fine for FSRS)
 5. Run the review session with those 4 cards
 
 ### Progression / Unlocking
 
-The user starts with a minimal deck and can tap "Add 2 cards" to expand.
+The user starts with a minimal deck and can tap "Add 4 Cards" to expand.
 
-**Unlock order:**
-1. Major, Minor, Sus2, Sus4 @ octave 4 *(starting deck)*
-2. Major @ octave 3, Minor @ octave 3
-3. Sus2 @ octave 3, Sus4 @ octave 3
-4. Major @ octave 5, Minor @ octave 5
-5. Sus2 @ octave 5, Sus4 @ octave 5
-6. Dom7 @ octave 4, Maj7 @ octave 4
-7. Min7 @ octave 4, Dom7 @ octave 3
-8. ...continue interleaving new chord types with octave expansion
+**Total cards:** 8 chord types × 3 octaves × 2 playback modes = 48 cards
 
-This keeps things interesting — the user gets new chord types before fully grinding all octaves.
+**Unlock order (12 groups of 4 cards each):**
+
+| # | Cards | Octave | Mode | Notes |
+|---|-------|--------|------|-------|
+| 1 | Major, Minor, Sus2, Sus4 | 4 | Arpeggiated | **Starting deck** |
+| 2 | Major, Minor, Sus2, Sus4 | 4 | Block | |
+| 3 | Major, Minor, Sus2, Sus4 | 3 | Arpeggiated | |
+| 4 | Major, Minor, Sus2, Sus4 | 3 | Block | |
+| 5 | Major, Minor, Sus2, Sus4 | 5 | Arpeggiated | |
+| 6 | Major, Minor, Sus2, Sus4 | 5 | Block | |
+| 7 | Dom7, Maj7, Min7, Dim7 | 4 | Arpeggiated | |
+| 8 | Dom7, Maj7, Min7, Dim7 | 4 | Block | |
+| 9 | Dom7, Maj7, Min7, Dim7 | 3 | Arpeggiated | |
+| 10 | Dom7, Maj7, Min7, Dim7 | 3 | Block | |
+| 11 | Dom7, Maj7, Min7, Dim7 | 5 | Arpeggiated | |
+| 12 | Dom7, Maj7, Min7, Dim7 | 5 | Block | **Full deck** |
+
+This order ensures:
+- All triads are learned before 7th chords
+- Each playback mode is practiced separately
+- Octave expansion happens gradually
 
 ### Audio Synthesis
 
 - **Square wave synthesis** (simple, distinctive tone)
 - Sum square waves at the appropriate frequencies for each chord tone
-- Support two playback modes:
+- Two playback modes (determined by the card, not user choice):
   - **Block**: all notes simultaneously
-  - **Arpeggiated**: notes played in sequence (e.g., 100ms apart)
-- User can toggle between modes
+  - **Arpeggiated**: notes played in sequence
 
 ### Chord Construction (for synthesis)
 
 All chords are built from intervals above the root. Semitone offsets from root:
 
+**Triads:**
 | Chord Type | Intervals (semitones) |
 |------------|----------------------|
 | Major | 0, 4, 7 |
 | Minor | 0, 3, 7 |
 | Sus2 | 0, 2, 7 |
 | Sus4 | 0, 5, 7 |
+
+**7th Chords:**
+| Chord Type | Intervals (semitones) |
+|------------|----------------------|
 | Dom7 | 0, 4, 7, 10 |
 | Maj7 | 0, 4, 7, 11 |
 | Min7 | 0, 3, 7, 10 |
+| Dim7 | 0, 3, 6, 9 |
 
 The root note should be randomized within the octave (any of the 12 semitones) so the user can't memorize absolute pitches.
 
@@ -94,13 +116,14 @@ The root note should be randomized within the octave (any of the 12 semitones) s
 
 **Main screen:**
 - "Start Review" button (if cards are due or available)
-- "Add 2 Cards" button (to unlock next cards in progression)
-- Shows deck overview (how many cards, how many due)
+- "Add 4 Cards" button (to unlock next 4 cards in progression)
+- Shows deck overview (X/48 cards unlocked, how many due)
 
 **Review screen:**
-- "Play" button (plays current chord)
+- Playback mode indicator (shows Block or Arpeggiated, based on cards)
+- "Play" button (plays current chord using the card's playback mode)
 - Can replay as many times as desired
-- Answer buttons for each chord type in the current deck
+- Answer buttons for each chord type in the current session's 4 cards
 - After tapping answer: brief feedback (correct/incorrect), then next trial
 - After 40 trials: show summary (per-card results), then return to main screen
 
@@ -193,21 +216,26 @@ Work through these in order. Complete each epic before moving to the next.
 
 ---
 
-### Epic 4: Progression + Unlock
+### Epic 4: Progression + Unlock with Playback Mode as Card Property
 
-**Goal:** User can expand their deck gradually.
+**Goal:** User can expand their deck gradually. Playback mode is now a card property.
+
+**Key Changes:**
+- Card model: `(chord_type, octave, playback_mode)` instead of `(chord_type, octave)`
+- Total cards: 48 (8 types × 3 octaves × 2 modes)
+- Session constraint: All 4 cards share the same (octave, playback_mode)
+- New chord type: Dim7 (0, 3, 6, 9)
 
 **Tasks:**
-1. Define full unlock order (see spec above)
-2. Track unlock progress (persisted)
-3. "Add 2 Cards" button:
-   - Unlocks next 2 cards in progression
-   - Initializes their FSRS state as "new" (due immediately)
-4. Handle edge case: what if no cards are due?
-   - Show "No cards due — come back later" or allow early review
-5. Update answer buttons to only show chord types that exist in the user's deck
+1. Add Dim7 chord type and playbackMode to Card model
+2. Update CardEntity with playbackMode column, database migration
+3. Define 12-group unlock order (4 cards per group)
+4. Update card selection to group by (octave, playbackMode)
+5. "Add 4 Cards" button with unlock progress display
+6. Replace playback mode toggle with read-only mode indicator
+7. Update spec.md
 
-**Milestone:** User starts with 4 cards, can grow deck over time. Full app loop works.
+**Milestone:** User starts with 4 arpeggiated triads @ octave 4, can grow deck via "Add 4 Cards" button. Full app loop works with playback mode per card.
 
 ---
 
