@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Earbs"
 include(":app")
+include(":lib:fsrs-kotlin")
