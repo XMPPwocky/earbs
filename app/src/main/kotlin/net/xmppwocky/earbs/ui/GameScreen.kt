@@ -1,4 +1,4 @@
-package com.earbs.ui
+package net.xmppwocky.earbs.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -10,8 +10,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.earbs.audio.ChordType
-import com.earbs.audio.PlaybackMode
+import net.xmppwocky.earbs.audio.ChordType
+import net.xmppwocky.earbs.audio.PlaybackMode
 
 /**
  * Represents the result of an answer.

@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.earbs"
+    namespace = "net.xmppwocky.earbs"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.earbs"
+        applicationId = "net.xmppwocky.earbs"
         minSdk = 26
         targetSdk = 34
         versionCode = 1

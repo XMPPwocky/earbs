@@ -1,4 +1,4 @@
-package com.earbs.audio
+package net.xmppwocky.earbs.audio
 
 import android.util.Log
 import kotlin.math.pow

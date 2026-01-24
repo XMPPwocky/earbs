@@ -1,4 +1,4 @@
-package com.earbs
+package net.xmppwocky.earbs
 
 import android.os.Bundle
 import android.util.Log
@@ -9,13 +9,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import com.earbs.audio.AudioEngine
-import com.earbs.audio.ChordBuilder
-import com.earbs.audio.ChordType
-import com.earbs.audio.PlaybackMode
-import com.earbs.ui.AnswerResult
-import com.earbs.ui.GameScreen
-import com.earbs.ui.GameState
+import net.xmppwocky.earbs.audio.AudioEngine
+import net.xmppwocky.earbs.audio.ChordBuilder
+import net.xmppwocky.earbs.audio.ChordType
+import net.xmppwocky.earbs.audio.PlaybackMode
+import net.xmppwocky.earbs.ui.AnswerResult
+import net.xmppwocky.earbs.ui.GameScreen
+import net.xmppwocky.earbs.ui.GameState
 import kotlinx.coroutines.launch
 
 private const val TAG = "Earbs"
