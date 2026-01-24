@@ -38,7 +38,8 @@ Octaves 3, 4, and 5. Octave 4 is the starting point (most familiar register).
 ### Review Sessions
 
 A **review session** consists of:
-- 20 cards, 1 trial each
+- Configurable session size (10, 20, or 30 cards; default 20)
+- 1 trial per card
 - Cards are mixed (can include different octaves and playback modes)
 - Order is randomized at session start
 - Answer buttons show the chord types present in the session's cards
@@ -46,16 +47,16 @@ A **review session** consists of:
 **Per-trial FSRS updates:**
 Each answer immediately updates FSRS for that card:
 - **Correct answer** → Good rating (extends interval)
-- **Wrong answer** → Again rating (card becomes due soon)
+- **Wrong answer** → Again rating (card becomes due soon), wrong answer is recorded
 
 This gives FSRS accurate per-recall feedback rather than aggregated batch scores.
 
 ### Card Selection for Reviews
 
 1. Query all cards, compute which are "due" (next_review ≤ now)
-2. If ≥20 due cards: select the 20 most overdue
-3. If <20 due cards: pad with non-due cards (reviewing early is fine for FSRS)
-4. Shuffle the 20 cards randomly
+2. If ≥session_size due cards: select the most overdue
+3. If <session_size due cards: pad with non-due cards (reviewing early is fine for FSRS)
+4. Shuffle the cards randomly
 5. Run the review session
 
 ### Progression / Unlocking
@@ -118,23 +119,38 @@ The root note should be randomized within the octave (any of the 12 semitones) s
 
 ### UX Flow
 
-**Main screen:**
-- "Start Review" button (if cards are due or available)
+**Home screen:**
+- "Start Review" / "Practice Early" button (label depends on whether cards are due)
 - "Add 4 Cards" button (to unlock next 4 cards in progression)
 - Shows deck overview (X/48 cards unlocked, how many due)
+- "History" button (view past sessions and card stats)
+- "Settings" button (configure playback, session, and FSRS settings)
 
 **Review screen:**
+- Progress indicator (e.g., "Trial 5 / 20")
+- Current card info (octave)
 - Playback mode indicator (shows Block or Arpeggiated, based on current card)
-- "Play" button (plays current chord using the card's playback mode)
-- Can replay as many times as desired
+- "Play" / "Replay" button (plays current chord using the card's playback mode)
+- Can replay as many times as desired (same root note on replay)
 - Answer buttons for each chord type in the session's cards
-- After tapping answer: brief feedback (correct/incorrect), FSRS update, then next trial
-- After 20 trials: show session summary (X/20 correct), then return to main screen
+- After tapping answer: brief feedback (correct/incorrect with actual answer if wrong), FSRS update, auto-advance after 500ms
+- After all trials: navigate to results screen
 
 **Results screen:**
 - Shows total correct / total trials (e.g., "15 / 20 correct")
 - Shows accuracy percentage
-- Color-coded based on performance
+- Color-coded based on performance (green ≥90%, amber ≥70%, red <70%)
+- "Done" button returns to home screen
+
+**History screen (3 tabs):**
+- **Sessions tab:** List of past sessions with accuracy, expandable to show individual trials (including wrong answers given)
+- **Cards tab:** All unlocked cards with FSRS state (stability, difficulty, interval, due date)
+- **Stats tab:** Overall accuracy and per-card lifetime accuracy
+
+**Settings screen:**
+- Playback duration (300-1000ms slider)
+- Session size (10, 20, or 30 cards)
+- Target retention (0.70-0.95 slider, default 0.90)
 
 ---
 
@@ -176,20 +192,18 @@ Work through these in order. Complete each epic before moving to the next.
 1. Define data classes:
    ```kotlin
    data class Card(val chordType: ChordType, val octave: Int)
-   enum class ChordType { MAJOR, MINOR, SUS2, SUS4, DOM7, MAJ7, MIN7 }
+   enum class ChordType { MAJOR, MINOR, SUS2, SUS4, DOM7, MAJ7, MIN7, DIM7 }
    ```
 2. Create initial deck: Major, Minor, Sus2, Sus4 @ octave 4
 3. Implement trial logic:
-   - Randomly pick a card from the deck
-   - Track correct/incorrect counts per card within session
+   - Select cards for session, shuffle randomly
+   - 1 trial per card, track correct/incorrect
 4. Implement review session flow:
-   - 40 trials
-   - Interleave 4 cards randomly (for now, all 4 starting cards)
-   - After 40 trials, show per-card hit rates
-5. Compute grades from hit rates (just display, don't store yet):
-   - 10/10 → Easy, 9/10 → Good, 8/10 → Hard, else → Again
+   - 20 cards, 1 trial each
+   - Show progress during session
+   - After all trials, show accuracy
 
-**Milestone:** Full 40-trial review session with 4 cards, shows grades at end. Still no persistence.
+**Milestone:** Full review session with starting cards, shows results at end. Still no persistence.
 
 ---
 
@@ -198,28 +212,32 @@ Work through these in order. Complete each epic before moving to the next.
 **Goal:** Real spaced repetition with persistence.
 
 **Tasks:**
-1. Integrate FSRS
-   - Option A: Use existing library (search for `fsrs-kt` or JVM port)
-   - Option B: Implement core FSRS algorithm directly (~50 lines of math)
-2. Define persistent card state:
+1. Integrate FSRS (use fsrs-kotlin submodule)
+2. Define persistent card state in Room:
    ```kotlin
-   data class CardState(
-       val card: Card,
-       val stability: Float,
-       val difficulty: Float,
-       val lastReview: Instant?,
-       val nextReview: Instant,
-       val reps: Int
+   data class CardEntity(
+       val id: String,  // "MAJOR_4_ARPEGGIATED"
+       val chordType: String,
+       val octave: Int,
+       val playbackMode: String,
+       val stability: Double,
+       val difficulty: Double,
+       val interval: Int,
+       val dueDate: Long,
+       val phase: Int,  // Added, ReLearning, Review
+       val lapses: Int
    )
    ```
 3. Set up Room database for card state persistence
 4. Implement card selection algorithm:
-   - Get all cards, filter to due (nextReview ≤ now)
-   - Group by octave, pick octave with most due
-   - If <4 due in that octave, pad with non-due cards from same octave
-   - Return 4 cards for review
-5. After review session, call FSRS update for each card with its grade
-6. Update main screen to show due count
+   - Get due cards (dueDate ≤ now), ordered by most overdue
+   - If ≥session_size due, take the most overdue
+   - If <session_size due, pad with non-due cards
+   - Shuffle and return mixed cards
+5. Per-trial FSRS updates (not batch):
+   - Correct → Good rating
+   - Wrong → Again rating (record what user answered)
+6. Update home screen to show due count
 
 **Milestone:** Spaced repetition fully functional. Cards come due at appropriate intervals.
 
@@ -227,22 +245,20 @@ Work through these in order. Complete each epic before moving to the next.
 
 ### Epic 4: Progression + Unlock with Playback Mode as Card Property
 
-**Goal:** User can expand their deck gradually. Playback mode is now a card property.
+**Goal:** User can expand their deck gradually. Playback mode is a card property.
 
 **Key Changes:**
-- Card model: `(chord_type, octave, playback_mode)` instead of `(chord_type, octave)`
+- Card model: `(chord_type, octave, playback_mode)` tuple
 - Total cards: 48 (8 types × 3 octaves × 2 modes)
-- Session constraint: All 4 cards share the same (octave, playback_mode)
-- New chord type: Dim7 (0, 3, 6, 9)
+- Sessions mix cards across octaves and playback modes
+- Dim7 chord type: (0, 3, 6, 9)
 
 **Tasks:**
 1. Add Dim7 chord type and playbackMode to Card model
 2. Update CardEntity with playbackMode column, database migration
 3. Define 12-group unlock order (4 cards per group)
-4. Update card selection to group by (octave, playbackMode)
-5. "Add 4 Cards" button with unlock progress display
-6. Replace playback mode toggle with read-only mode indicator
-7. Update spec.md
+4. "Add 4 Cards" button with unlock progress display
+5. Replace playback mode toggle with read-only mode indicator
 
 **Milestone:** User starts with 4 arpeggiated triads @ octave 4, can grow deck via "Add 4 Cards" button. Full app loop works with playback mode per card.
 
@@ -254,16 +270,20 @@ Work through these in order. Complete each epic before moving to the next.
 
 **Tasks:**
 1. Settings screen:
-   - Default playback mode (block/arpeggiated)
+   - Playback duration (300-1000ms)
+   - Session size (10, 20, 30 cards)
+   - Target retention (0.70-0.95)
    - (Future: volume, audio waveform choice)
-2. Session history / stats:
-   - Track reviews completed, accuracy over time
-3. UI polish:
-   - Better visual feedback on correct/incorrect
+2. History screen with 3 tabs:
+   - Sessions: past sessions with accuracy, expandable to show trials
+   - Cards: all unlocked cards with FSRS state
+   - Stats: overall and per-card accuracy
+3. Track wrong answers (what user said when incorrect)
+4. UI polish:
+   - Visual feedback on correct/incorrect with actual answer shown
    - Progress indicators during review
-   - Nicer main screen layout
-4. Handle app lifecycle properly (audio cleanup, state restoration)
-5. Error handling and edge cases
+   - Color-coded accuracy display
+5. Replay uses same root note (doesn't re-randomize)
 
 **Milestone:** App is pleasant to use and robust.
 
