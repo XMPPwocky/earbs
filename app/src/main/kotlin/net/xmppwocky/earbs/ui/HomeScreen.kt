@@ -12,7 +12,9 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun HomeScreen(
-    onStartReviewClicked: () -> Unit
+    dueCount: Int = 0,
+    onStartReviewClicked: () -> Unit,
+    onHistoryClicked: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -34,8 +36,38 @@ fun HomeScreen(
             text = "Chord Ear Training",
             fontSize = 20.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 48.dp)
+            modifier = Modifier.padding(bottom = 24.dp)
         )
+
+        // Due count badge
+        if (dueCount > 0) {
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.padding(bottom = 24.dp)
+            ) {
+                Text(
+                    text = "$dueCount cards due",
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        } else {
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.padding(bottom = 24.dp)
+            ) {
+                Text(
+                    text = "No cards due",
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
 
         // Start Review button
         Button(
@@ -45,9 +77,24 @@ fun HomeScreen(
                 .height(64.dp)
         ) {
             Text(
-                text = "Start Review",
+                text = if (dueCount > 0) "Start Review" else "Practice Early",
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // History button
+        OutlinedButton(
+            onClick = onHistoryClicked,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+        ) {
+            Text(
+                text = "History",
+                fontSize = 18.sp
             )
         }
 
@@ -55,7 +102,7 @@ fun HomeScreen(
 
         // Info text
         Text(
-            text = "40 trials • 4 chord types\nMajor • Minor • Sus2 • Sus4",
+            text = "40 trials per session",
             fontSize = 14.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
