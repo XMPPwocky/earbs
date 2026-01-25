@@ -3,6 +3,7 @@ package net.xmppwocky.earbs.ui
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,6 +16,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -57,7 +59,8 @@ fun HistoryScreen(
     onLoadChordConfusion: (suspend (Int?) -> List<ConfusionEntry>)? = null,
     onLoadFunctionConfusion: (suspend (String) -> List<ConfusionEntry>)? = null,
     onResetFsrs: (suspend (String) -> Unit)? = null,
-    onCardClicked: ((String) -> Unit)? = null
+    onCardClicked: ((String) -> Unit)? = null,
+    onCardUnlockToggled: (suspend (String, Boolean) -> Unit)? = null
 ) {
     BackHandler { onBackClicked() }
 
@@ -106,7 +109,7 @@ fun HistoryScreen(
 
             when (selectedTab) {
                 HistoryTab.SESSIONS -> SessionsTab(sessions, onLoadTrials)
-                HistoryTab.CARDS -> CardsTab(cards, onResetFsrs, onCardClicked)
+                HistoryTab.CARDS -> CardsTab(cards, onResetFsrs, onCardClicked, onCardUnlockToggled)
                 HistoryTab.STATS -> StatsTab(
                     cardStats = cardStats,
                     onLoadChordConfusion = onLoadChordConfusion,
@@ -342,7 +345,8 @@ private fun TrialRow(trial: TrialEntity) {
 private fun CardsTab(
     cards: List<CardWithFsrs>,
     onResetFsrs: (suspend (String) -> Unit)? = null,
-    onCardClicked: ((String) -> Unit)? = null
+    onCardClicked: ((String) -> Unit)? = null,
+    onCardUnlockToggled: (suspend (String, Boolean) -> Unit)? = null
 ) {
     if (cards.isEmpty()) {
         Box(
@@ -359,19 +363,166 @@ private fun CardsTab(
 
     val coroutineScope = rememberCoroutineScope()
 
+    // Group cards by unlock group
+    val groupedCards = remember(cards) {
+        cards.groupBy { card ->
+            // Determine group based on chord type category, octave, and playback mode
+            val chordType = ChordType.valueOf(card.chordType)
+            val isTriad = chordType in ChordType.TRIADS
+            val category = if (isTriad) "Triads" else "7ths"
+            val mode = card.playbackMode.lowercase().replaceFirstChar { it.uppercase() }
+            Triple(category, card.octave, mode)
+        }.toSortedMap(compareBy(
+            { if (it.first == "Triads") 0 else 1 },  // Triads first
+            { if (it.third == "Arpeggiated") 0 else 1 },  // Arpeggiated first within each category
+            { it.second }  // Then by octave
+        ))
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(cards) { card ->
-            CardWithFsrsRow(
-                card = card,
-                onResetFsrs = if (onResetFsrs != null) {
-                    { coroutineScope.launch { onResetFsrs(card.id) } }
-                } else null,
-                onCardClicked = onCardClicked
+        groupedCards.forEach { (groupKey, groupCards) ->
+            val (category, octave, mode) = groupKey
+            val groupName = "$category @ Octave $octave, $mode"
+
+            // Group header
+            item(key = "header_${category}_${octave}_$mode") {
+                Text(
+                    text = groupName,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                )
+            }
+
+            // Cards in this group
+            items(groupCards, key = { it.id }) { card ->
+                UnlockableCardRow(
+                    card = card,
+                    onUnlockToggled = if (onCardUnlockToggled != null) {
+                        { unlocked -> coroutineScope.launch { onCardUnlockToggled(card.id, unlocked) } }
+                    } else null,
+                    onCardClicked = onCardClicked,
+                    onResetFsrs = if (onResetFsrs != null) {
+                        { coroutineScope.launch { onResetFsrs(card.id) } }
+                    } else null
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A card row with unlock checkbox for the unlock management screen.
+ * Locked cards are grayed out and show minimal info.
+ */
+@Composable
+private fun UnlockableCardRow(
+    card: CardWithFsrs,
+    onUnlockToggled: ((Boolean) -> Unit)? = null,
+    onCardClicked: ((String) -> Unit)? = null,
+    onResetFsrs: (() -> Unit)? = null
+) {
+    val isLocked = !card.unlocked
+    val alpha = if (isLocked) 0.5f else 1f
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(alpha)
+            .then(
+                if (onCardClicked != null) {
+                    Modifier.clickable { onCardClicked(card.id) }
+                } else {
+                    Modifier
+                }
             )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Unlock checkbox
+            if (onUnlockToggled != null) {
+                Checkbox(
+                    checked = card.unlocked,
+                    onCheckedChange = { onUnlockToggled(it) },
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+            }
+
+            // Card info
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = card.chordType,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 16.sp
+                )
+
+                if (card.unlocked) {
+                    // Show FSRS info for unlocked cards
+                    val now = System.currentTimeMillis()
+                    val isDue = card.dueDate <= now
+                    val dueText = if (isDue) {
+                        "Due now"
+                    } else {
+                        val daysUntilDue = ((card.dueDate - now) / (24 * 60 * 60 * 1000)).toInt()
+                        when {
+                            daysUntilDue == 0 -> "Due today"
+                            daysUntilDue == 1 -> "Due tomorrow"
+                            else -> "Due in ${daysUntilDue}d"
+                        }
+                    }
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = dueText,
+                            fontSize = 12.sp,
+                            color = if (isDue) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Stability: ${String.format("%.1f", card.stability)}",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    // Minimal info for locked cards
+                    Text(
+                        text = "(locked)",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Due badge for unlocked cards
+            if (card.unlocked) {
+                val now = System.currentTimeMillis()
+                val isDue = card.dueDate <= now
+                if (isDue) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            text = "DUE",
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
         }
     }
 }

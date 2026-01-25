@@ -407,7 +407,8 @@ private fun EarbsApp(
 
         Screen.HISTORY -> {
             val sessions by repository.getSessionOverviews().collectAsState(initial = emptyList())
-            val cards by repository.getAllCardsWithFsrsFlow().collectAsState(initial = emptyList())
+            // Use the new flow that includes all cards (locked and unlocked)
+            val cards by repository.getAllCardsForUnlockScreen().collectAsState(initial = emptyList())
             val cardStats by repository.getCardStats().collectAsState(initial = emptyList())
 
             HistoryScreen(
@@ -440,6 +441,10 @@ private fun EarbsApp(
                     Log.i(TAG, "Card clicked: $cardId")
                     selectedCardId = cardId
                     currentScreen = Screen.CARD_DETAILS
+                },
+                onCardUnlockToggled = { cardId, unlocked ->
+                    Log.i(TAG, "Card unlock toggled: $cardId -> $unlocked")
+                    repository.setCardUnlocked(cardId, unlocked)
                 }
             )
         }
