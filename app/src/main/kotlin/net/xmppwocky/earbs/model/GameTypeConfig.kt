@@ -137,6 +137,46 @@ sealed class GameTypeConfig<C : GameCard, A : GameAnswer> {
         }
     }
 
+    /**
+     * Configuration for the Chord Progression recognition game.
+     * User hears a sequence of chords and identifies the progression.
+     * Key quality is randomized at playback and hidden from user.
+     */
+    data object ProgressionGame : GameTypeConfig<ProgressionCard, GameAnswer.ProgressionAnswer>() {
+        override val gameType: GameType = GameType.CHORD_PROGRESSION
+        override val totalCards: Int = ProgressionDeck.TOTAL_CARDS
+        override val cardsPerUnlock: Int = ProgressionDeck.CARDS_PER_GROUP
+        override val maxUnlockLevel: Int = ProgressionDeck.MAX_UNLOCK_LEVEL
+        override val displayName: String = "Chord Progressions"
+        override val description: String = "Identify chord progression (I-IV-V-I, etc.)"
+        override val unlockGroupCount: Int = ProgressionDeck.UNLOCK_ORDER.size
+
+        override fun getAnswerOptions(session: GenericReviewSession<ProgressionCard>): List<GameAnswer.ProgressionAnswer> {
+            // Show only progressions in the current session (like chord type game)
+            return session.cards
+                .map { it.progression }
+                .distinct()
+                .sortedBy { it.ordinal }
+                .map { GameAnswer.ProgressionAnswer(it) }
+        }
+
+        override fun isCorrectAnswer(card: ProgressionCard, answer: GameAnswer.ProgressionAnswer): Boolean {
+            return card.progression == answer.progression
+        }
+
+        override fun getCorrectAnswer(card: ProgressionCard): GameAnswer.ProgressionAnswer {
+            return GameAnswer.ProgressionAnswer(card.progression)
+        }
+
+        override fun getUnlockGroupIndex(card: ProgressionCard): Int {
+            return ProgressionDeck.getGroupIndex(card)
+        }
+
+        override fun getUnlockGroupName(groupIndex: Int): String {
+            return ProgressionDeck.getGroupName(groupIndex)
+        }
+    }
+
     companion object {
         /**
          * Get the config for a given game type.
@@ -144,6 +184,7 @@ sealed class GameTypeConfig<C : GameCard, A : GameAnswer> {
         fun forGameType(gameType: GameType): GameTypeConfig<*, *> = when (gameType) {
             GameType.CHORD_TYPE -> ChordTypeGame
             GameType.CHORD_FUNCTION -> FunctionGame
+            GameType.CHORD_PROGRESSION -> ProgressionGame
         }
     }
 }

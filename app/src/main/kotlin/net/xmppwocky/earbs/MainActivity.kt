@@ -34,6 +34,8 @@ import net.xmppwocky.earbs.model.Card
 import net.xmppwocky.earbs.model.ChordFunction
 import net.xmppwocky.earbs.model.FunctionCard
 import net.xmppwocky.earbs.model.GenericReviewSession
+import net.xmppwocky.earbs.model.ProgressionCard
+import net.xmppwocky.earbs.model.ProgressionType
 import net.xmppwocky.earbs.ui.AnswerResult
 import net.xmppwocky.earbs.ui.CardDetailsScreen
 import net.xmppwocky.earbs.ui.DEFAULT_AUTO_ADVANCE_DELAY
@@ -64,6 +66,7 @@ enum class Screen {
     HOME,
     REVIEW,
     FUNCTION_REVIEW,
+    PROGRESSION_REVIEW,
     RESULTS,
     HISTORY,
     CARD_DETAILS,
@@ -115,6 +118,7 @@ class MainActivity : ComponentActivity() {
         repository = EarbsRepository(
             cardDao = database.cardDao(),
             functionCardDao = database.functionCardDao(),
+            progressionCardDao = database.progressionCardDao(),
             fsrsStateDao = database.fsrsStateDao(),
             reviewSessionDao = database.reviewSessionDao(),
             trialDao = database.trialDao(),
@@ -201,6 +205,7 @@ class MainActivity : ComponentActivity() {
         repository = EarbsRepository(
             cardDao = database.cardDao(),
             functionCardDao = database.functionCardDao(),
+            progressionCardDao = database.progressionCardDao(),
             fsrsStateDao = database.fsrsStateDao(),
             reviewSessionDao = database.reviewSessionDao(),
             trialDao = database.trialDao(),
@@ -243,6 +248,11 @@ private fun EarbsApp(
     var functionDueCount by remember { mutableIntStateOf(0) }
     var functionUnlockedCount by remember { mutableIntStateOf(0) }
 
+    // Progression game state
+    var progressionSession by remember { mutableStateOf<GenericReviewSession<ProgressionCard>?>(null) }
+    var progressionDueCount by remember { mutableIntStateOf(0) }
+    var progressionUnlockedCount by remember { mutableIntStateOf(0) }
+
     // Shared state
     var dbSessionId by remember { mutableStateOf<Long?>(null) }
     var sessionResult by remember { mutableStateOf<SessionResult?>(null) }
@@ -264,10 +274,16 @@ private fun EarbsApp(
         functionDueCount = repository.getFunctionDueCount()
         functionUnlockedCount = repository.getFunctionUnlockedCount()
 
+        // Initialize progression game (verify FSRS state exists for all cards)
+        repository.initializeProgressionStartingDeck()
+        progressionDueCount = repository.getProgressionDueCount()
+        progressionUnlockedCount = repository.getProgressionUnlockedCount()
+
         isLoading = false
         Log.i(TAG, "Initialization complete")
         Log.i(TAG, "  Chord type: $chordTypeDueCount due, $chordTypeUnlockedCount unlocked")
         Log.i(TAG, "  Function: $functionDueCount due, $functionUnlockedCount unlocked")
+        Log.i(TAG, "  Progression: $progressionDueCount due, $progressionUnlockedCount unlocked")
     }
 
     Log.d(TAG, "EarbsApp composing, screen: $currentScreen, gameMode: $selectedGameMode")
@@ -315,6 +331,17 @@ private fun EarbsApp(
                                 functionSession = GenericReviewSession(cards, "function")
                                 dbSessionId = repository.startSession(GameType.CHORD_FUNCTION)
                                 currentScreen = Screen.FUNCTION_REVIEW
+                            }
+                            GameType.CHORD_PROGRESSION -> {
+                                Log.i(TAG, "Starting progression review session")
+                                val cards = repository.selectProgressionCardsForReview()
+                                if (cards.isEmpty()) {
+                                    Log.w(TAG, "No progression cards available for session")
+                                    return@launch
+                                }
+                                progressionSession = GenericReviewSession(cards, "progression")
+                                dbSessionId = repository.startSession(GameType.CHORD_PROGRESSION)
+                                currentScreen = Screen.PROGRESSION_REVIEW
                             }
                         }
                     }
@@ -386,6 +413,28 @@ private fun EarbsApp(
             }
         }
 
+        Screen.PROGRESSION_REVIEW -> {
+            progressionSession?.let { activeSession ->
+                // TODO: Implement ProgressionReviewSessionScreen in Phase 4
+                // For now, show a placeholder and go back to home
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Progression Review Screen - Coming Soon")
+                }
+                LaunchedEffect(Unit) {
+                    Log.w(TAG, "Progression review screen not yet implemented")
+                    progressionSession = null
+                    dbSessionId = null
+                    currentScreen = Screen.HOME
+                }
+            } ?: run {
+                Log.w(TAG, "Progression review screen but no session, returning to home")
+                currentScreen = Screen.HOME
+            }
+        }
+
         Screen.RESULTS -> {
             sessionResult?.let { result ->
                 ResultsScreen(
@@ -395,6 +444,7 @@ private fun EarbsApp(
                         Log.i(TAG, "Results acknowledged, returning to home")
                         chordTypeSession = null
                         functionSession = null
+                        progressionSession = null
                         dbSessionId = null
                         sessionResult = null
                         currentScreen = Screen.HOME
@@ -425,6 +475,8 @@ private fun EarbsApp(
                         chordTypeUnlockedCount = repository.getUnlockedCount()
                         functionDueCount = repository.getFunctionDueCount()
                         functionUnlockedCount = repository.getFunctionUnlockedCount()
+                        progressionDueCount = repository.getProgressionDueCount()
+                        progressionUnlockedCount = repository.getProgressionUnlockedCount()
                     }
                     currentScreen = Screen.HOME
                 },

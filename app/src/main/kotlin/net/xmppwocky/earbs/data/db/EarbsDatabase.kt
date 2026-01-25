@@ -10,6 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import net.xmppwocky.earbs.data.entity.CardEntity
 import net.xmppwocky.earbs.data.entity.FunctionCardEntity
 import net.xmppwocky.earbs.data.entity.FsrsStateEntity
+import net.xmppwocky.earbs.data.entity.ProgressionCardEntity
 import net.xmppwocky.earbs.data.entity.ReviewSessionEntity
 import net.xmppwocky.earbs.data.entity.TrialEntity
 
@@ -19,16 +20,18 @@ private const val TAG = "EarbsDatabase"
     entities = [
         CardEntity::class,
         FunctionCardEntity::class,
+        ProgressionCardEntity::class,
         FsrsStateEntity::class,
         ReviewSessionEntity::class,
         TrialEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class EarbsDatabase : RoomDatabase() {
     abstract fun cardDao(): CardDao
     abstract fun functionCardDao(): FunctionCardDao
+    abstract fun progressionCardDao(): ProgressionCardDao
     abstract fun fsrsStateDao(): FsrsStateDao
     abstract fun reviewSessionDao(): ReviewSessionDao
     abstract fun trialDao(): TrialDao
@@ -415,6 +418,94 @@ abstract class EarbsDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration from version 7 to 8:
+         * - Create progression_cards table for chord progression game
+         * - Pre-create all 48 progression cards
+         * - Create FSRS state for all progression cards
+         * - Add answeredProgression column to trials table
+         */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                Log.i(TAG, "Migrating database from version 7 to 8: adding chord progression game")
+
+                // 1. Create progression_cards table
+                Log.i(TAG, "Creating progression_cards table")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS progression_cards (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        progression TEXT NOT NULL,
+                        octave INTEGER NOT NULL,
+                        playbackMode TEXT NOT NULL,
+                        unlocked INTEGER NOT NULL DEFAULT 1
+                    )
+                """.trimIndent())
+
+                // 2. Add answeredProgression column to trials table
+                Log.i(TAG, "Adding answeredProgression column to trials table")
+                db.execSQL("ALTER TABLE trials ADD COLUMN answeredProgression TEXT")
+
+                // 3. Pre-create all 48 progression cards
+                // 8 progressions × 3 octaves × 2 modes = 48 cards
+                // Group 0 (starting deck): 3-chord @ octave 4, arpeggiated (unlocked)
+                Log.i(TAG, "Pre-creating progression cards")
+
+                val progressionTypes = listOf(
+                    "I_IV_I", "I_V_I",                          // 3-chord
+                    "I_IV_V_I", "I_ii_V_I",                     // 4-chord resolving
+                    "I_vi_ii_V_I", "I_vi_IV_V_I",               // 5-chord
+                    "I_V_vi_IV", "I_vi_IV_V"                    // loops
+                )
+
+                // 3-chord progressions (starting deck at oct 4 arp)
+                val threeChord = listOf("I_IV_I", "I_V_I")
+                // Other progressions (locked by default)
+                val fourChordResolving = listOf("I_IV_V_I", "I_ii_V_I")
+                val fiveChord = listOf("I_vi_ii_V_I", "I_vi_IV_V_I")
+                val loops = listOf("I_V_vi_IV", "I_vi_IV_V")
+
+                val octaves = listOf(4, 3, 5)
+                val playbackModes = listOf("ARPEGGIATED", "BLOCK")
+
+                fun insertProgressionCard(progression: String, octave: Int, mode: String, unlocked: Int) {
+                    val id = "${progression}_${octave}_$mode"
+                    db.execSQL("""
+                        INSERT OR IGNORE INTO progression_cards (id, progression, octave, playbackMode, unlocked)
+                        VALUES ('$id', '$progression', $octave, '$mode', $unlocked)
+                    """.trimIndent())
+                }
+
+                // Insert cards by complexity group
+                for (octave in octaves) {
+                    for (mode in playbackModes) {
+                        // 3-chord: starting deck is oct 4, arpeggiated
+                        for (prog in threeChord) {
+                            val unlocked = if (octave == 4 && mode == "ARPEGGIATED") 1 else 0
+                            insertProgressionCard(prog, octave, mode, unlocked)
+                        }
+                        // All other progressions are locked
+                        for (prog in fourChordResolving + fiveChord + loops) {
+                            insertProgressionCard(prog, octave, mode, 0)
+                        }
+                    }
+                }
+
+                Log.i(TAG, "Inserted progression cards")
+
+                // 4. Create FSRS state for all progression cards
+                val now = System.currentTimeMillis()
+                db.execSQL("""
+                    INSERT OR IGNORE INTO fsrs_state (cardId, gameType, stability, difficulty, `interval`, dueDate, reviewCount, lastReview, phase, lapses)
+                    SELECT id, 'CHORD_PROGRESSION', 2.5, 2.5, 0, $now, 0, NULL, 0, 0
+                    FROM progression_cards
+                    WHERE id NOT IN (SELECT cardId FROM fsrs_state WHERE gameType = 'CHORD_PROGRESSION')
+                """.trimIndent())
+
+                Log.i(TAG, "Created FSRS state for progression cards")
+                Log.i(TAG, "Migration 7->8 complete: added chord progression game support")
+            }
+        }
+
         fun getDatabase(context: Context): EarbsDatabase {
             return INSTANCE ?: synchronized(this) {
                 Log.i(TAG, "Creating database instance")
@@ -423,7 +514,7 @@ abstract class EarbsDatabase : RoomDatabase() {
                     EarbsDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

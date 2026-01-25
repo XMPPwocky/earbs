@@ -6,6 +6,8 @@ import net.xmppwocky.earbs.data.db.CardDao
 import net.xmppwocky.earbs.data.db.CardWithFsrs
 import net.xmppwocky.earbs.data.db.FunctionCardDao
 import net.xmppwocky.earbs.data.db.FunctionCardWithFsrs
+import net.xmppwocky.earbs.data.db.ProgressionCardDao
+import net.xmppwocky.earbs.data.db.ProgressionCardWithFsrs
 import net.xmppwocky.earbs.data.entity.CardEntity
 import net.xmppwocky.earbs.data.entity.FunctionCardEntity
 import net.xmppwocky.earbs.model.Card
@@ -13,6 +15,7 @@ import net.xmppwocky.earbs.model.ChordFunction
 import net.xmppwocky.earbs.model.FunctionCard
 import net.xmppwocky.earbs.model.GameCard
 import net.xmppwocky.earbs.model.KeyQuality
+import net.xmppwocky.earbs.model.ProgressionCard
 
 /**
  * Common data structure for cards with FSRS state used in selection algorithm.
@@ -166,5 +169,53 @@ class FunctionCardOperations(
         playbackMode = playbackMode,
         dueDate = dueDate,
         groupKey = keyQuality  // keyQuality is the additional grouping key
+    )
+}
+
+/**
+ * Adapter wrapping ProgressionCardDao for progression game.
+ */
+class ProgressionCardOperations(
+    private val progressionCardDao: ProgressionCardDao
+) : GameCardOperations<ProgressionCard> {
+
+    override suspend fun count(): Int = progressionCardDao.count()
+
+    override suspend fun getDueCards(now: Long): List<CardWithFsrsData> {
+        return progressionCardDao.getDueCards(now).map { it.toCardWithFsrsData() }
+    }
+
+    override suspend fun getAllUnlockedWithFsrs(): List<CardWithFsrsData> {
+        return progressionCardDao.getAllUnlockedWithFsrs().map { it.toCardWithFsrsData() }
+    }
+
+    override suspend fun getNonDueCardsByGroup(
+        now: Long,
+        groupKey: String?,
+        octave: Int,
+        mode: String,
+        limit: Int
+    ): List<CardWithFsrsData> {
+        // groupKey is ignored for progression game (grouping is octave+mode only, like chord type)
+        return progressionCardDao.getNonDueCardsByGroup(now, octave, mode, limit)
+            .map { it.toCardWithFsrsData() }
+    }
+
+    override suspend fun getNonDueCards(now: Long, limit: Int): List<CardWithFsrsData> {
+        return progressionCardDao.getNonDueCards(now, limit).map { it.toCardWithFsrsData() }
+    }
+
+    override fun toDomainCard(data: CardWithFsrsData): ProgressionCard {
+        // Parse from card ID format
+        return ProgressionCard.fromId(data.id)
+            ?: throw IllegalArgumentException("Invalid progression card ID: ${data.id}")
+    }
+
+    private fun ProgressionCardWithFsrs.toCardWithFsrsData() = CardWithFsrsData(
+        id = id,
+        octave = octave,
+        playbackMode = playbackMode,
+        dueDate = dueDate,
+        groupKey = null  // No additional grouping for progression game
     )
 }

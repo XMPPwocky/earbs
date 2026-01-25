@@ -23,6 +23,7 @@ class CardSelectionTest : DatabaseTestBase() {
         repository = EarbsRepository(
             cardDao = cardDao,
             functionCardDao = functionCardDao,
+            progressionCardDao = progressionCardDao,
             fsrsStateDao = fsrsStateDao,
             reviewSessionDao = reviewSessionDao,
             trialDao = trialDao,

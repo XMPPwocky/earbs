@@ -28,6 +28,8 @@ import net.xmppwocky.earbs.fsrs.FSRS
 import net.xmppwocky.earbs.fsrs.FlashCard
 import net.xmppwocky.earbs.fsrs.Rating
 import net.xmppwocky.earbs.data.db.FunctionCardWithFsrs
+import net.xmppwocky.earbs.data.db.ProgressionCardDao
+import net.xmppwocky.earbs.data.db.ProgressionCardWithFsrs
 import net.xmppwocky.earbs.data.entity.FunctionCardEntity
 import net.xmppwocky.earbs.model.Card
 import net.xmppwocky.earbs.model.ChordFunction
@@ -36,6 +38,9 @@ import net.xmppwocky.earbs.model.FunctionCard
 import net.xmppwocky.earbs.model.FunctionDeck
 import net.xmppwocky.earbs.model.GameCard
 import net.xmppwocky.earbs.model.KeyQuality
+import net.xmppwocky.earbs.model.ProgressionCard
+import net.xmppwocky.earbs.model.ProgressionDeck
+import net.xmppwocky.earbs.model.ProgressionType
 import java.time.LocalDateTime
 
 private const val TAG = "EarbsRepository"
@@ -47,6 +52,7 @@ private const val DEFAULT_TARGET_RETENTION = 0.9f
 class EarbsRepository(
     private val cardDao: CardDao,
     private val functionCardDao: FunctionCardDao,
+    private val progressionCardDao: ProgressionCardDao,
     private val fsrsStateDao: FsrsStateDao,
     private val reviewSessionDao: ReviewSessionDao,
     private val trialDao: TrialDao,
@@ -90,6 +96,9 @@ class EarbsRepository(
     /** Adapter for function card operations */
     private val functionOps by lazy { FunctionCardOperations(functionCardDao) }
 
+    /** Adapter for progression card operations */
+    private val progressionOps by lazy { ProgressionCardOperations(progressionCardDao) }
+
     // ========== Generic Methods with GameType Dispatch ==========
 
     /**
@@ -100,6 +109,7 @@ class EarbsRepository(
         when (gameType) {
             GameType.CHORD_TYPE -> initializeStartingDeck()
             GameType.CHORD_FUNCTION -> initializeFunctionStartingDeck()
+            GameType.CHORD_PROGRESSION -> initializeProgressionStartingDeck()
         }
     }
 
@@ -126,6 +136,7 @@ class EarbsRepository(
         return when (gameType) {
             GameType.CHORD_TYPE -> cardDao.countUnlocked()
             GameType.CHORD_FUNCTION -> functionCardDao.countUnlocked()
+            GameType.CHORD_PROGRESSION -> progressionCardDao.countUnlocked()
         }
     }
 
@@ -136,6 +147,7 @@ class EarbsRepository(
         return when (gameType) {
             GameType.CHORD_TYPE -> cardDao.countUnlockedFlow()
             GameType.CHORD_FUNCTION -> functionCardDao.countUnlockedFlow()
+            GameType.CHORD_PROGRESSION -> progressionCardDao.countUnlockedFlow()
         }
     }
 
@@ -147,6 +159,7 @@ class EarbsRepository(
         when (gameType) {
             GameType.CHORD_TYPE -> cardDao.setUnlocked(cardId, unlocked)
             GameType.CHORD_FUNCTION -> functionCardDao.setUnlocked(cardId, unlocked)
+            GameType.CHORD_PROGRESSION -> progressionCardDao.setUnlocked(cardId, unlocked)
         }
     }
 
@@ -721,6 +734,145 @@ class EarbsRepository(
         return functionCardDao.getAllUnlockedWithFsrsFlow()
     }
 
+    // ========== Chord Progression Game (Game 3) ==========
+
+    /**
+     * Ensure progression cards are properly initialized.
+     * Cards are pre-created by the database migration (v8).
+     * This method is kept for safety in case FSRS state is missing.
+     */
+    suspend fun initializeProgressionStartingDeck() {
+        val cardCount = progressionCardDao.count()
+        Log.i(TAG, "Progression cards in database: $cardCount")
+
+        // Cards should be pre-created by migration. Just verify FSRS state exists.
+        if (cardCount > 0) {
+            val now = System.currentTimeMillis()
+            val cards = progressionCardDao.getAllCardsOrdered()
+            var createdCount = 0
+            for (card in cards) {
+                val fsrsState = fsrsStateDao.getByCardId(card.id)
+                if (fsrsState == null) {
+                    Log.w(TAG, "Creating missing FSRS state for ${card.id}")
+                    fsrsStateDao.insert(FsrsStateEntity(
+                        cardId = card.id,
+                        gameType = GameType.CHORD_PROGRESSION.name,
+                        dueDate = now
+                    ))
+                    createdCount++
+                }
+            }
+            if (createdCount > 0) {
+                Log.i(TAG, "Created $createdCount missing FSRS states for progression cards")
+            }
+        }
+    }
+
+    // ========== Progression Card Unlock Management ==========
+
+    /**
+     * Set the unlock status for a progression card.
+     * FSRS state is preserved when locking/unlocking.
+     * @see setCardUnlocked(GameType, String, Boolean) for generic version
+     */
+    suspend fun setProgressionCardUnlocked(cardId: String, unlocked: Boolean) =
+        setCardUnlocked(GameType.CHORD_PROGRESSION, cardId, unlocked)
+
+    /**
+     * Get all progression cards for the unlock management screen.
+     * Includes both locked and unlocked cards with their FSRS state.
+     */
+    fun getAllProgressionCardsForUnlockScreen(): Flow<List<ProgressionCardWithFsrs>> {
+        return progressionCardDao.getAllCardsWithFsrsOrderedFlow()
+    }
+
+    /**
+     * Get all progression cards for the unlock management screen (suspend version).
+     */
+    suspend fun getAllProgressionCardsForUnlockScreenSuspend(): List<ProgressionCardWithFsrs> {
+        return progressionCardDao.getAllCardsWithFsrsOrdered()
+    }
+
+    /**
+     * Get the number of unlocked progression cards.
+     * @see getUnlockedCount(GameType) for generic version
+     */
+    suspend fun getProgressionUnlockedCount(): Int = getUnlockedCount(GameType.CHORD_PROGRESSION)
+
+    /**
+     * Observe the number of unlocked progression cards.
+     * @see getUnlockedCountFlow(GameType) for generic version
+     */
+    fun getProgressionUnlockedCountFlow(): Flow<Int> = getUnlockedCountFlow(GameType.CHORD_PROGRESSION)
+
+    /**
+     * Select progression cards for a review session.
+     * Uses the generic selection algorithm with progression card operations.
+     */
+    suspend fun selectProgressionCardsForReview(): List<ProgressionCard> {
+        return selectCardsGeneric(progressionOps, "progression")
+    }
+
+    /**
+     * Record a progression game trial and update FSRS state.
+     *
+     * @param answeredProgression The progression the user selected
+     * @return the new due date for the card
+     */
+    suspend fun recordProgressionTrialAndUpdateFsrs(
+        sessionId: Long,
+        card: ProgressionCard,
+        wasCorrect: Boolean,
+        answeredProgression: ProgressionType
+    ): Long {
+        val timestamp = System.currentTimeMillis()
+        val cardId = card.id
+
+        Log.i(TAG, "Recording progression trial for $cardId: ${if (wasCorrect) "CORRECT" else "WRONG (answered ${answeredProgression.displayName})"}")
+
+        // 1. Insert trial record
+        trialDao.insert(TrialEntity(
+            sessionId = sessionId,
+            cardId = cardId,
+            timestamp = timestamp,
+            wasCorrect = wasCorrect,
+            gameType = GameType.CHORD_PROGRESSION.name,
+            answeredProgression = if (wasCorrect) null else answeredProgression.name
+        ))
+
+        // 2. Get FSRS state
+        val fsrsState = fsrsStateDao.getByCardId(cardId)
+        if (fsrsState == null) {
+            Log.e(TAG, "FSRS state not found: $cardId")
+            return timestamp
+        }
+
+        // 3. Calculate rating: correct=Good, wrong=Again
+        val rating = if (wasCorrect) Rating.Good else Rating.Again
+
+        // 4. Apply FSRS update
+        return applyFsrsUpdate(fsrsState, rating)
+    }
+
+    /**
+     * Get count of due progression cards.
+     * @see getDueCount(GameType) for generic version
+     */
+    suspend fun getProgressionDueCount(): Int = getDueCount(GameType.CHORD_PROGRESSION)
+
+    /**
+     * Observe due count for progression game.
+     * @see getDueCountFlow(GameType) for generic version
+     */
+    fun getProgressionDueCountFlow(): Flow<Int> = getDueCountFlow(GameType.CHORD_PROGRESSION)
+
+    /**
+     * Get all progression cards with FSRS flow for UI.
+     */
+    fun getAllProgressionCardsWithFsrsFlow(): Flow<List<ProgressionCardWithFsrs>> {
+        return progressionCardDao.getAllUnlockedWithFsrsFlow()
+    }
+
     /**
      * Reset FSRS state for a card to initial values.
      * Review history is preserved.
@@ -805,6 +957,17 @@ private fun FunctionCardWithFsrs.toFunctionCard(): FunctionCard {
     return FunctionCard(
         function = ChordFunction.valueOf(function),
         keyQuality = KeyQuality.valueOf(keyQuality),
+        octave = octave,
+        playbackMode = PlaybackMode.valueOf(playbackMode)
+    )
+}
+
+/**
+ * Convert ProgressionCardWithFsrs to domain ProgressionCard.
+ */
+private fun ProgressionCardWithFsrs.toProgressionCard(): ProgressionCard {
+    return ProgressionCard(
+        progression = ProgressionType.valueOf(progression),
         octave = octave,
         playbackMode = PlaybackMode.valueOf(playbackMode)
     )

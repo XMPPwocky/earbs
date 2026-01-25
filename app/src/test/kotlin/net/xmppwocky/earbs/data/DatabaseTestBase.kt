@@ -9,12 +9,14 @@ import net.xmppwocky.earbs.data.db.EarbsDatabase
 import net.xmppwocky.earbs.data.db.FsrsStateDao
 import net.xmppwocky.earbs.data.db.FunctionCardDao
 import net.xmppwocky.earbs.data.db.HistoryDao
+import net.xmppwocky.earbs.data.db.ProgressionCardDao
 import net.xmppwocky.earbs.data.db.ReviewSessionDao
 import net.xmppwocky.earbs.data.db.TrialDao
 import net.xmppwocky.earbs.data.entity.CardEntity
 import net.xmppwocky.earbs.data.entity.FsrsStateEntity
 import net.xmppwocky.earbs.data.entity.FunctionCardEntity
 import net.xmppwocky.earbs.data.entity.GameType
+import net.xmppwocky.earbs.data.entity.ProgressionCardEntity
 import org.junit.After
 import org.junit.Before
 import org.junit.runner.RunWith
@@ -31,6 +33,7 @@ abstract class DatabaseTestBase {
     protected lateinit var db: EarbsDatabase
     protected lateinit var cardDao: CardDao
     protected lateinit var functionCardDao: FunctionCardDao
+    protected lateinit var progressionCardDao: ProgressionCardDao
     protected lateinit var fsrsStateDao: FsrsStateDao
     protected lateinit var reviewSessionDao: ReviewSessionDao
     protected lateinit var trialDao: TrialDao
@@ -46,6 +49,7 @@ abstract class DatabaseTestBase {
             .build()
         cardDao = db.cardDao()
         functionCardDao = db.functionCardDao()
+        progressionCardDao = db.progressionCardDao()
         fsrsStateDao = db.fsrsStateDao()
         reviewSessionDao = db.reviewSessionDao()
         trialDao = db.trialDao()
