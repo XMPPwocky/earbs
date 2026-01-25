@@ -238,6 +238,61 @@ object AudioEngine {
         Log.i(TAG, "============================")
     }
 
+    /**
+     * Play a chord progression: a sequence of chords with pauses between them.
+     * Used for the chord progression recognition game.
+     *
+     * @param chords List of chords, each chord being a list of frequencies
+     * @param mode BLOCK plays notes simultaneously, ARPEGGIATED plays sequentially
+     * @param chordDurationMs Duration of each chord
+     * @param pauseMs Pause between chords
+     * @param progressionName For logging purposes
+     * @param keyQuality For logging purposes
+     * @param rootSemitones For logging purposes
+     */
+    suspend fun playProgression(
+        chords: List<List<Float>>,
+        mode: PlaybackMode,
+        chordDurationMs: Int = 400,
+        pauseMs: Int = 200,
+        progressionName: String = "unknown",
+        keyQuality: String = "unknown",
+        rootSemitones: Int = 0
+    ) = withContext(Dispatchers.IO) {
+        val timestamp = System.currentTimeMillis()
+
+        // Log synthesis details
+        Log.i(TAG, "=== PROGRESSION SYNTHESIS ===")
+        Log.i(TAG, "Timestamp: $timestamp")
+        Log.i(TAG, "Progression: $progressionName")
+        Log.i(TAG, "Key quality: $keyQuality")
+        Log.i(TAG, "Root semitones from A4: $rootSemitones")
+        Log.i(TAG, "Mode: $mode")
+        Log.i(TAG, "Chord duration: ${chordDurationMs}ms, Pause: ${pauseMs}ms")
+        Log.i(TAG, "Number of chords: ${chords.size}")
+        chords.forEachIndexed { index, freqs ->
+            Log.i(TAG, "  Chord $index: ${freqs.map { "%.2f Hz".format(it) }}")
+        }
+
+        // Play each chord in sequence
+        chords.forEachIndexed { index, frequencies ->
+            Log.i(TAG, "Playing chord ${index + 1}/${chords.size}...")
+            when (mode) {
+                PlaybackMode.BLOCK -> playBlockChord(frequencies, chordDurationMs)
+                PlaybackMode.ARPEGGIATED -> playArpeggiatedChord(frequencies, chordDurationMs)
+            }
+
+            // Pause between chords (but not after the last one)
+            if (index < chords.size - 1) {
+                Log.i(TAG, "Pausing for ${pauseMs}ms...")
+                Thread.sleep(pauseMs.toLong())
+            }
+        }
+
+        Log.i(TAG, "Progression playback complete at ${System.currentTimeMillis()}")
+        Log.i(TAG, "=============================")
+    }
+
     private fun playBlockChord(frequencies: List<Float>, durationMs: Int) {
         Log.d(TAG, "Playing block chord with ${frequencies.size} notes")
 

@@ -4,6 +4,7 @@ import android.util.Log
 import net.xmppwocky.earbs.model.ChordFunction
 import net.xmppwocky.earbs.model.ChordQuality
 import net.xmppwocky.earbs.model.KeyQuality
+import net.xmppwocky.earbs.model.ProgressionType
 import kotlin.math.pow
 import kotlin.random.Random
 
@@ -166,5 +167,43 @@ object ChordBuilder {
         Log.d(TAG, "Frequencies: ${frequencies.map { "%.2f".format(it) }}")
 
         return frequencies
+    }
+
+    // ========== Chord progressions for chord progression game ==========
+
+    /**
+     * Build a chord progression for the given progression type.
+     * Returns a list of chords, each chord being a list of frequencies.
+     *
+     * @param keyRootSemitones The root of the key (semitones from A4)
+     * @param progression The progression type - includes fixed key quality and chord qualities
+     * @return List of chords, each chord being a List<Float> of frequencies
+     */
+    fun buildProgression(
+        keyRootSemitones: Int,
+        progression: ProgressionType
+    ): List<List<Float>> {
+        Log.d(TAG, "Building progression ${progression.displayName} in ${progression.keyQuality.name} key")
+        Log.d(TAG, "Key root: $keyRootSemitones semitones from A4")
+
+        val chordQualities = progression.chordQualities
+        val semitoneOffsets = progression.semitoneOffsets
+
+        val chords = semitoneOffsets.mapIndexed { index, offset ->
+            val chordRoot = keyRootSemitones + offset
+            val quality = chordQualities[index]
+            val intervals = quality.intervals
+
+            val frequencies = intervals.map { interval ->
+                noteFrequency(chordRoot + interval)
+            }
+
+            Log.d(TAG, "  Chord $index: offset=$offset, quality=${quality.name}, freqs=${frequencies.map { "%.2f".format(it) }}")
+
+            frequencies
+        }
+
+        Log.d(TAG, "Progression built: ${chords.size} chords")
+        return chords
     }
 }

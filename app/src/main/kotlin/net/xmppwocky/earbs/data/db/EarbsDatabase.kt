@@ -421,7 +421,7 @@ abstract class EarbsDatabase : RoomDatabase() {
         /**
          * Migration from version 7 to 8:
          * - Create progression_cards table for chord progression game
-         * - Pre-create all 48 progression cards
+         * - Pre-create all 96 progression cards (16 progressions × 3 octaves × 2 modes)
          * - Create FSRS state for all progression cards
          * - Add answeredProgression column to trials table
          */
@@ -445,24 +445,22 @@ abstract class EarbsDatabase : RoomDatabase() {
                 Log.i(TAG, "Adding answeredProgression column to trials table")
                 db.execSQL("ALTER TABLE trials ADD COLUMN answeredProgression TEXT")
 
-                // 3. Pre-create all 48 progression cards
-                // 8 progressions × 3 octaves × 2 modes = 48 cards
-                // Group 0 (starting deck): 3-chord @ octave 4, arpeggiated (unlocked)
+                // 3. Pre-create all 96 progression cards
+                // 16 progressions × 3 octaves × 2 modes = 96 cards
+                // Group 0 (starting deck): 3-chord major @ octave 4, arpeggiated (unlocked)
                 Log.i(TAG, "Pre-creating progression cards")
 
-                val progressionTypes = listOf(
-                    "I_IV_I", "I_V_I",                          // 3-chord
-                    "I_IV_V_I", "I_ii_V_I",                     // 4-chord resolving
-                    "I_vi_ii_V_I", "I_vi_IV_V_I",               // 5-chord
-                    "I_V_vi_IV", "I_vi_IV_V"                    // loops
-                )
+                // 8 major progressions
+                val threeChordMajor = listOf("I_IV_I_MAJOR", "I_V_I_MAJOR")
+                val fourChordMajor = listOf("I_IV_V_I_MAJOR", "I_ii_V_I_MAJOR")
+                val fiveChordMajor = listOf("I_vi_ii_V_I_MAJOR", "I_vi_IV_V_I_MAJOR")
+                val loopsMajor = listOf("I_V_vi_IV_MAJOR", "I_vi_IV_V_MAJOR")
 
-                // 3-chord progressions (starting deck at oct 4 arp)
-                val threeChord = listOf("I_IV_I", "I_V_I")
-                // Other progressions (locked by default)
-                val fourChordResolving = listOf("I_IV_V_I", "I_ii_V_I")
-                val fiveChord = listOf("I_vi_ii_V_I", "I_vi_IV_V_I")
-                val loops = listOf("I_V_vi_IV", "I_vi_IV_V")
+                // 8 minor progressions
+                val threeChordMinor = listOf("i_iv_i_MINOR", "i_v_i_MINOR")
+                val fourChordMinor = listOf("i_iv_v_i_MINOR", "i_iio_v_i_MINOR")
+                val fiveChordMinor = listOf("i_VI_iio_v_i_MINOR", "i_VI_iv_v_i_MINOR")
+                val loopsMinor = listOf("i_v_VI_iv_MINOR", "i_VI_iv_v_MINOR")
 
                 val octaves = listOf(4, 3, 5)
                 val playbackModes = listOf("ARPEGGIATED", "BLOCK")
@@ -478,19 +476,20 @@ abstract class EarbsDatabase : RoomDatabase() {
                 // Insert cards by complexity group
                 for (octave in octaves) {
                     for (mode in playbackModes) {
-                        // 3-chord: starting deck is oct 4, arpeggiated
-                        for (prog in threeChord) {
+                        // 3-chord major: starting deck is oct 4, arpeggiated
+                        for (prog in threeChordMajor) {
                             val unlocked = if (octave == 4 && mode == "ARPEGGIATED") 1 else 0
                             insertProgressionCard(prog, octave, mode, unlocked)
                         }
                         // All other progressions are locked
-                        for (prog in fourChordResolving + fiveChord + loops) {
+                        for (prog in threeChordMinor + fourChordMajor + fourChordMinor +
+                                     fiveChordMajor + fiveChordMinor + loopsMajor + loopsMinor) {
                             insertProgressionCard(prog, octave, mode, 0)
                         }
                     }
                 }
 
-                Log.i(TAG, "Inserted progression cards")
+                Log.i(TAG, "Inserted 96 progression cards")
 
                 // 4. Create FSRS state for all progression cards
                 val now = System.currentTimeMillis()

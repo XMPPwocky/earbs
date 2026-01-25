@@ -1,11 +1,10 @@
 package net.xmppwocky.earbs.audio
 
 import net.xmppwocky.earbs.model.Card
-import net.xmppwocky.earbs.model.ChordFunction
 import net.xmppwocky.earbs.model.FunctionCard
 import net.xmppwocky.earbs.model.GameAnswer
 import net.xmppwocky.earbs.model.GameCard
-import net.xmppwocky.earbs.model.KeyQuality
+import net.xmppwocky.earbs.model.ProgressionCard
 
 /**
  * Strategy interface for game-specific audio playback.
@@ -105,5 +104,73 @@ sealed interface AudioPlaybackStrategy<C : GameCard, A : GameAnswer> {
                 rootSemitones = rootSemitones
             )
         }
+    }
+}
+
+/**
+ * Strategy for progression game.
+ * Plays a sequence of chords as a progression.
+ *
+ * Each progression has a fixed key quality (major or minor) defined in ProgressionType,
+ * so no key quality parameter is needed.
+ */
+object ProgressionStrategy : AudioPlaybackStrategy<ProgressionCard, GameAnswer.ProgressionAnswer> {
+    private const val CHORD_DURATION_MS = 400
+    private const val PAUSE_MS = 200
+
+    /**
+     * Play audio for a progression card.
+     *
+     * @param card The progression card to play
+     * @param rootSemitones The root note in semitones from A4
+     * @param durationMs Duration for each chord
+     */
+    override suspend fun playCard(
+        card: ProgressionCard,
+        rootSemitones: Int,
+        durationMs: Int
+    ) {
+        val chords = ChordBuilder.buildProgression(
+            keyRootSemitones = rootSemitones,
+            progression = card.progression
+        )
+        AudioEngine.playProgression(
+            chords = chords,
+            mode = card.playbackMode,
+            chordDurationMs = durationMs,
+            pauseMs = PAUSE_MS,
+            progressionName = card.progression.displayName,
+            keyQuality = card.progression.keyQuality.name,
+            rootSemitones = rootSemitones
+        )
+    }
+
+    /**
+     * Play audio for a specific progression answer (for learning mode).
+     *
+     * @param answer The progression answer to play
+     * @param card The current card context (for playback mode)
+     * @param rootSemitones The root note in semitones from A4
+     * @param durationMs Duration for each chord
+     */
+    override suspend fun playAnswer(
+        answer: GameAnswer.ProgressionAnswer,
+        card: ProgressionCard,
+        rootSemitones: Int,
+        durationMs: Int
+    ) {
+        val chords = ChordBuilder.buildProgression(
+            keyRootSemitones = rootSemitones,
+            progression = answer.progression
+        )
+        AudioEngine.playProgression(
+            chords = chords,
+            mode = card.playbackMode,
+            chordDurationMs = durationMs,
+            pauseMs = PAUSE_MS,
+            progressionName = answer.progression.displayName,
+            keyQuality = answer.progression.keyQuality.name,
+            rootSemitones = rootSemitones
+        )
     }
 }

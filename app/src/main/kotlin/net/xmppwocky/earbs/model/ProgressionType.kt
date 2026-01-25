@@ -11,160 +11,215 @@ enum class ProgressionCategory {
 /**
  * Chord progression types for ear training.
  *
- * Each progression is a sequence of chord functions that can be played in either
- * major or minor keys. The semitone offsets define the root of each chord relative
- * to the key tonic, and the chordQualities function computes the quality (major/minor/dim)
- * of each chord based on the key quality.
+ * Each progression has a fixed key quality (major or minor) and fixed chord qualities.
+ * There are 8 progression patterns, each available in both major and minor keys,
+ * for 16 total progressions.
  *
- * Progressions List:
- * - Resolving (end on I): I-IV-I, I-V-I, I-IV-V-I, I-ii-V-I, I-vi-ii-V-I, I-vi-IV-V-I
- * - Loops: I-V-vi-IV, I-vi-IV-V
+ * Major progressions use uppercase Roman numerals: I-IV-V-I
+ * Minor progressions use lowercase Roman numerals: i-iv-v-i
+ *
+ * Progression patterns:
+ * - 3-chord resolving: I-IV-I, I-V-I
+ * - 4-chord resolving: I-IV-V-I, I-ii-V-I
+ * - 5-chord resolving: I-vi-ii-V-I, I-vi-IV-V-I
+ * - 4-chord loops: I-V-vi-IV, I-vi-IV-V
  */
 enum class ProgressionType(
     val displayName: String,
     val semitoneOffsets: List<Int>,
     val category: ProgressionCategory,
-    val chordQualities: (KeyQuality) -> List<ChordQuality>
+    val keyQuality: KeyQuality,
+    val chordQualities: List<ChordQuality>
 ) {
+    // ========== MAJOR KEY PROGRESSIONS ==========
+
     // 3-chord progressions (resolving)
-    I_IV_I(
+    I_IV_I_MAJOR(
         displayName = "I - IV - I",
         semitoneOffsets = listOf(0, 5, 0),
         category = ProgressionCategory.RESOLVING,
-        chordQualities = { key ->
-            when (key) {
-                KeyQuality.MAJOR -> listOf(ChordQuality.MAJOR, ChordQuality.MAJOR, ChordQuality.MAJOR)
-                KeyQuality.MINOR -> listOf(ChordQuality.MINOR, ChordQuality.MINOR, ChordQuality.MINOR)
-            }
-        }
+        keyQuality = KeyQuality.MAJOR,
+        chordQualities = listOf(ChordQuality.MAJOR, ChordQuality.MAJOR, ChordQuality.MAJOR)
     ),
 
-    I_V_I(
+    I_V_I_MAJOR(
         displayName = "I - V - I",
         semitoneOffsets = listOf(0, 7, 0),
         category = ProgressionCategory.RESOLVING,
-        chordQualities = { key ->
-            when (key) {
-                KeyQuality.MAJOR -> listOf(ChordQuality.MAJOR, ChordQuality.MAJOR, ChordQuality.MAJOR)
-                KeyQuality.MINOR -> listOf(ChordQuality.MINOR, ChordQuality.MINOR, ChordQuality.MINOR)
-            }
-        }
+        keyQuality = KeyQuality.MAJOR,
+        chordQualities = listOf(ChordQuality.MAJOR, ChordQuality.MAJOR, ChordQuality.MAJOR)
     ),
 
     // 4-chord progressions (resolving)
-    I_IV_V_I(
+    I_IV_V_I_MAJOR(
         displayName = "I - IV - V - I",
         semitoneOffsets = listOf(0, 5, 7, 0),
         category = ProgressionCategory.RESOLVING,
-        chordQualities = { key ->
-            when (key) {
-                KeyQuality.MAJOR -> listOf(
-                    ChordQuality.MAJOR, ChordQuality.MAJOR, ChordQuality.MAJOR, ChordQuality.MAJOR
-                )
-                KeyQuality.MINOR -> listOf(
-                    ChordQuality.MINOR, ChordQuality.MINOR, ChordQuality.MINOR, ChordQuality.MINOR
-                )
-            }
-        }
+        keyQuality = KeyQuality.MAJOR,
+        chordQualities = listOf(
+            ChordQuality.MAJOR, ChordQuality.MAJOR, ChordQuality.MAJOR, ChordQuality.MAJOR
+        )
     ),
 
-    I_ii_V_I(
+    I_ii_V_I_MAJOR(
         displayName = "I - ii - V - I",
         semitoneOffsets = listOf(0, 2, 7, 0),
         category = ProgressionCategory.RESOLVING,
-        chordQualities = { key ->
-            when (key) {
-                // ii is minor in major key
-                KeyQuality.MAJOR -> listOf(
-                    ChordQuality.MAJOR, ChordQuality.MINOR, ChordQuality.MAJOR, ChordQuality.MAJOR
-                )
-                // ii° is diminished in minor key
-                KeyQuality.MINOR -> listOf(
-                    ChordQuality.MINOR, ChordQuality.DIMINISHED, ChordQuality.MINOR, ChordQuality.MINOR
-                )
-            }
-        }
+        keyQuality = KeyQuality.MAJOR,
+        // ii is minor in major key
+        chordQualities = listOf(
+            ChordQuality.MAJOR, ChordQuality.MINOR, ChordQuality.MAJOR, ChordQuality.MAJOR
+        )
     ),
 
     // 5-chord progressions (resolving)
-    I_vi_ii_V_I(
+    I_vi_ii_V_I_MAJOR(
         displayName = "I - vi - ii - V - I",
         semitoneOffsets = listOf(0, 9, 2, 7, 0),
         category = ProgressionCategory.RESOLVING,
-        chordQualities = { key ->
-            when (key) {
-                // vi is minor, ii is minor in major key
-                KeyQuality.MAJOR -> listOf(
-                    ChordQuality.MAJOR, ChordQuality.MINOR, ChordQuality.MINOR,
-                    ChordQuality.MAJOR, ChordQuality.MAJOR
-                )
-                // VI is major, ii° is diminished in minor key
-                KeyQuality.MINOR -> listOf(
-                    ChordQuality.MINOR, ChordQuality.MAJOR, ChordQuality.DIMINISHED,
-                    ChordQuality.MINOR, ChordQuality.MINOR
-                )
-            }
-        }
+        keyQuality = KeyQuality.MAJOR,
+        // vi is minor, ii is minor in major key
+        chordQualities = listOf(
+            ChordQuality.MAJOR, ChordQuality.MINOR, ChordQuality.MINOR,
+            ChordQuality.MAJOR, ChordQuality.MAJOR
+        )
     ),
 
-    I_vi_IV_V_I(
+    I_vi_IV_V_I_MAJOR(
         displayName = "I - vi - IV - V - I",
         semitoneOffsets = listOf(0, 9, 5, 7, 0),
         category = ProgressionCategory.RESOLVING,
-        chordQualities = { key ->
-            when (key) {
-                // vi is minor in major key
-                KeyQuality.MAJOR -> listOf(
-                    ChordQuality.MAJOR, ChordQuality.MINOR, ChordQuality.MAJOR,
-                    ChordQuality.MAJOR, ChordQuality.MAJOR
-                )
-                // VI is major in minor key
-                KeyQuality.MINOR -> listOf(
-                    ChordQuality.MINOR, ChordQuality.MAJOR, ChordQuality.MINOR,
-                    ChordQuality.MINOR, ChordQuality.MINOR
-                )
-            }
-        }
+        keyQuality = KeyQuality.MAJOR,
+        // vi is minor in major key
+        chordQualities = listOf(
+            ChordQuality.MAJOR, ChordQuality.MINOR, ChordQuality.MAJOR,
+            ChordQuality.MAJOR, ChordQuality.MAJOR
+        )
     ),
 
     // 4-chord loops (do not resolve to I)
-    I_V_vi_IV(
+    I_V_vi_IV_MAJOR(
         displayName = "I - V - vi - IV",
         semitoneOffsets = listOf(0, 7, 9, 5),
         category = ProgressionCategory.LOOP,
-        chordQualities = { key ->
-            when (key) {
-                // vi is minor in major key
-                KeyQuality.MAJOR -> listOf(
-                    ChordQuality.MAJOR, ChordQuality.MAJOR, ChordQuality.MINOR, ChordQuality.MAJOR
-                )
-                // VI is major in minor key
-                KeyQuality.MINOR -> listOf(
-                    ChordQuality.MINOR, ChordQuality.MINOR, ChordQuality.MAJOR, ChordQuality.MINOR
-                )
-            }
-        }
+        keyQuality = KeyQuality.MAJOR,
+        // vi is minor in major key
+        chordQualities = listOf(
+            ChordQuality.MAJOR, ChordQuality.MAJOR, ChordQuality.MINOR, ChordQuality.MAJOR
+        )
     ),
 
-    I_vi_IV_V(
+    I_vi_IV_V_MAJOR(
         displayName = "I - vi - IV - V",
         semitoneOffsets = listOf(0, 9, 5, 7),
         category = ProgressionCategory.LOOP,
-        chordQualities = { key ->
-            when (key) {
-                // vi is minor in major key
-                KeyQuality.MAJOR -> listOf(
-                    ChordQuality.MAJOR, ChordQuality.MINOR, ChordQuality.MAJOR, ChordQuality.MAJOR
-                )
-                // VI is major in minor key
-                KeyQuality.MINOR -> listOf(
-                    ChordQuality.MINOR, ChordQuality.MAJOR, ChordQuality.MINOR, ChordQuality.MINOR
-                )
-            }
-        }
+        keyQuality = KeyQuality.MAJOR,
+        // vi is minor in major key
+        chordQualities = listOf(
+            ChordQuality.MAJOR, ChordQuality.MINOR, ChordQuality.MAJOR, ChordQuality.MAJOR
+        )
+    ),
+
+    // ========== MINOR KEY PROGRESSIONS ==========
+
+    // 3-chord progressions (resolving)
+    i_iv_i_MINOR(
+        displayName = "i - iv - i",
+        semitoneOffsets = listOf(0, 5, 0),
+        category = ProgressionCategory.RESOLVING,
+        keyQuality = KeyQuality.MINOR,
+        chordQualities = listOf(ChordQuality.MINOR, ChordQuality.MINOR, ChordQuality.MINOR)
+    ),
+
+    i_v_i_MINOR(
+        displayName = "i - v - i",
+        semitoneOffsets = listOf(0, 7, 0),
+        category = ProgressionCategory.RESOLVING,
+        keyQuality = KeyQuality.MINOR,
+        chordQualities = listOf(ChordQuality.MINOR, ChordQuality.MINOR, ChordQuality.MINOR)
+    ),
+
+    // 4-chord progressions (resolving)
+    i_iv_v_i_MINOR(
+        displayName = "i - iv - v - i",
+        semitoneOffsets = listOf(0, 5, 7, 0),
+        category = ProgressionCategory.RESOLVING,
+        keyQuality = KeyQuality.MINOR,
+        chordQualities = listOf(
+            ChordQuality.MINOR, ChordQuality.MINOR, ChordQuality.MINOR, ChordQuality.MINOR
+        )
+    ),
+
+    i_iio_v_i_MINOR(
+        displayName = "i - ii° - v - i",
+        semitoneOffsets = listOf(0, 2, 7, 0),
+        category = ProgressionCategory.RESOLVING,
+        keyQuality = KeyQuality.MINOR,
+        // ii° is diminished in minor key
+        chordQualities = listOf(
+            ChordQuality.MINOR, ChordQuality.DIMINISHED, ChordQuality.MINOR, ChordQuality.MINOR
+        )
+    ),
+
+    // 5-chord progressions (resolving)
+    i_VI_iio_v_i_MINOR(
+        displayName = "i - VI - ii° - v - i",
+        semitoneOffsets = listOf(0, 9, 2, 7, 0),
+        category = ProgressionCategory.RESOLVING,
+        keyQuality = KeyQuality.MINOR,
+        // VI is major, ii° is diminished in minor key
+        chordQualities = listOf(
+            ChordQuality.MINOR, ChordQuality.MAJOR, ChordQuality.DIMINISHED,
+            ChordQuality.MINOR, ChordQuality.MINOR
+        )
+    ),
+
+    i_VI_iv_v_i_MINOR(
+        displayName = "i - VI - iv - v - i",
+        semitoneOffsets = listOf(0, 9, 5, 7, 0),
+        category = ProgressionCategory.RESOLVING,
+        keyQuality = KeyQuality.MINOR,
+        // VI is major in minor key
+        chordQualities = listOf(
+            ChordQuality.MINOR, ChordQuality.MAJOR, ChordQuality.MINOR,
+            ChordQuality.MINOR, ChordQuality.MINOR
+        )
+    ),
+
+    // 4-chord loops (do not resolve to i)
+    i_v_VI_iv_MINOR(
+        displayName = "i - v - VI - iv",
+        semitoneOffsets = listOf(0, 7, 9, 5),
+        category = ProgressionCategory.LOOP,
+        keyQuality = KeyQuality.MINOR,
+        // VI is major in minor key
+        chordQualities = listOf(
+            ChordQuality.MINOR, ChordQuality.MINOR, ChordQuality.MAJOR, ChordQuality.MINOR
+        )
+    ),
+
+    i_VI_iv_v_MINOR(
+        displayName = "i - VI - iv - v",
+        semitoneOffsets = listOf(0, 9, 5, 7),
+        category = ProgressionCategory.LOOP,
+        keyQuality = KeyQuality.MINOR,
+        // VI is major in minor key
+        chordQualities = listOf(
+            ChordQuality.MINOR, ChordQuality.MAJOR, ChordQuality.MINOR, ChordQuality.MINOR
+        )
     );
 
     companion object {
+        /**
+         * All major key progressions.
+         */
+        val MAJOR_PROGRESSIONS = entries.filter { it.keyQuality == KeyQuality.MAJOR }
+
+        /**
+         * All minor key progressions.
+         */
+        val MINOR_PROGRESSIONS = entries.filter { it.keyQuality == KeyQuality.MINOR }
+
         /**
          * 3-chord progressions (simplest, unlock first).
          */
