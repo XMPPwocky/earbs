@@ -27,6 +27,23 @@ object AccuracyThresholds {
 }
 
 /**
+ * Colors for mastery level visualization.
+ */
+object MasteryColors {
+    val Learning = Color(0xFF9E9E9E)   // Gray
+    val Familiar = Color(0xFF2196F3)   // Blue
+    val Confident = Color(0xFF8BC34A)  // Light Green
+    val Mastered = Color(0xFF4CAF50)   // Green
+
+    fun forLevel(level: net.xmppwocky.earbs.model.MasteryLevel): Color = when (level) {
+        net.xmppwocky.earbs.model.MasteryLevel.LEARNING -> Learning
+        net.xmppwocky.earbs.model.MasteryLevel.FAMILIAR -> Familiar
+        net.xmppwocky.earbs.model.MasteryLevel.CONFIDENT -> Confident
+        net.xmppwocky.earbs.model.MasteryLevel.MASTERED -> Mastered
+    }
+}
+
+/**
  * Timing constants.
  */
 object Timing {

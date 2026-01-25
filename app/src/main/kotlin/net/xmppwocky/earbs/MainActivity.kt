@@ -409,11 +409,13 @@ private fun EarbsApp(
             val sessions by repository.getSessionOverviews().collectAsState(initial = emptyList())
             // Use the new flow that includes all cards (locked and unlocked)
             val cards by repository.getAllCardsForUnlockScreen().collectAsState(initial = emptyList())
+            val functionCards by repository.getAllFunctionCardsForUnlockScreen().collectAsState(initial = emptyList())
             val cardStats by repository.getCardStats().collectAsState(initial = emptyList())
 
             HistoryScreen(
                 sessions = sessions,
                 cards = cards,
+                functionCards = functionCards,
                 cardStats = cardStats,
                 onBackClicked = {
                     coroutineScope.launch {

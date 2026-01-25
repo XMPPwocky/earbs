@@ -27,13 +27,17 @@ import net.xmppwocky.earbs.audio.ChordType
 import net.xmppwocky.earbs.data.db.CardStatsView
 import net.xmppwocky.earbs.data.db.CardWithFsrs
 import net.xmppwocky.earbs.data.db.ConfusionEntry
+import net.xmppwocky.earbs.data.db.FunctionCardWithFsrs
 import net.xmppwocky.earbs.data.db.SessionOverview
 import net.xmppwocky.earbs.data.entity.TrialEntity
 import net.xmppwocky.earbs.model.ChordFunction
+import net.xmppwocky.earbs.model.computeFunctionMasteryDistribution
+import net.xmppwocky.earbs.model.computeMasteryDistribution
 import net.xmppwocky.earbs.ui.components.ConfusionMatrix
 import net.xmppwocky.earbs.ui.components.ConfusionMatrixData
 import net.xmppwocky.earbs.ui.components.FilterChipRow
 import net.xmppwocky.earbs.ui.components.FilterOption
+import net.xmppwocky.earbs.ui.components.MasteryProgressBar
 import net.xmppwocky.earbs.ui.components.buildConfusionMatrix
 import net.xmppwocky.earbs.ui.theme.AccuracyThresholds
 import net.xmppwocky.earbs.ui.theme.AppColors
@@ -53,6 +57,7 @@ enum class HistoryTab {
 fun HistoryScreen(
     sessions: List<SessionOverview>,
     cards: List<CardWithFsrs>,
+    functionCards: List<FunctionCardWithFsrs> = emptyList(),
     cardStats: List<CardStatsView>,
     onBackClicked: () -> Unit,
     onLoadTrials: (suspend (Long) -> List<TrialEntity>)? = null,
@@ -112,6 +117,8 @@ fun HistoryScreen(
                 HistoryTab.CARDS -> CardsTab(cards, onResetFsrs, onCardClicked, onCardUnlockToggled)
                 HistoryTab.STATS -> StatsTab(
                     cardStats = cardStats,
+                    chordTypeCards = cards,
+                    functionCards = functionCards,
                     onLoadChordConfusion = onLoadChordConfusion,
                     onLoadFunctionConfusion = onLoadFunctionConfusion
                 )
@@ -674,6 +681,8 @@ private fun CardWithFsrsRow(
 @Composable
 private fun StatsTab(
     cardStats: List<CardStatsView>,
+    chordTypeCards: List<CardWithFsrs> = emptyList(),
+    functionCards: List<FunctionCardWithFsrs> = emptyList(),
     onLoadChordConfusion: (suspend (Int?) -> List<ConfusionEntry>)? = null,
     onLoadFunctionConfusion: (suspend (String) -> List<ConfusionEntry>)? = null
 ) {
@@ -720,11 +729,53 @@ private fun StatsTab(
     val totalCorrect = cardStats.sumOf { it.correctTrials }
     val overallAccuracy = if (totalTrials > 0) (totalCorrect.toFloat() / totalTrials * 100).toInt() else 0
 
+    // Compute mastery distributions
+    val chordDist = remember(chordTypeCards) {
+        computeMasteryDistribution(chordTypeCards)
+    }
+    val funcDist = remember(functionCards) {
+        computeFunctionMasteryDistribution(functionCards)
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        // Mastery progress section
+        if (chordDist.total > 0 || funcDist.total > 0) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "MASTERY PROGRESS",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+
+                        if (chordDist.total > 0) {
+                            MasteryProgressBar(
+                                distribution = chordDist,
+                                title = "Chord Type (${chordDist.total} cards)"
+                            )
+                        }
+
+                        if (chordDist.total > 0 && funcDist.total > 0) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+
+                        if (funcDist.total > 0) {
+                            MasteryProgressBar(
+                                distribution = funcDist,
+                                title = "Chord Function (${funcDist.total} cards)"
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         // Overall stats
         item {
             Card(
