@@ -1,47 +1,56 @@
 package net.xmppwocky.earbs
 
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import net.xmppwocky.earbs.audio.AudioEngine
 import net.xmppwocky.earbs.audio.ChordBuilder
+import net.xmppwocky.earbs.audio.ChordType
+import net.xmppwocky.earbs.data.backup.DatabaseBackupManager
 import net.xmppwocky.earbs.data.db.EarbsDatabase
 import net.xmppwocky.earbs.data.entity.GameType
 import net.xmppwocky.earbs.data.repository.EarbsRepository
+import net.xmppwocky.earbs.model.ChordFunction
 import net.xmppwocky.earbs.model.FunctionReviewSession
 import net.xmppwocky.earbs.model.ReviewSession
 import net.xmppwocky.earbs.ui.AnswerResult
 import net.xmppwocky.earbs.ui.CardDetailsScreen
+import net.xmppwocky.earbs.ui.DEFAULT_AUTO_ADVANCE_DELAY
+import net.xmppwocky.earbs.ui.DEFAULT_LEARN_FROM_MISTAKES
+import net.xmppwocky.earbs.ui.DEFAULT_PLAYBACK_DURATION
 import net.xmppwocky.earbs.ui.FunctionAnswerResult
 import net.xmppwocky.earbs.ui.FunctionReviewScreen
 import net.xmppwocky.earbs.ui.FunctionReviewScreenState
 import net.xmppwocky.earbs.ui.HistoryScreen
 import net.xmppwocky.earbs.ui.HomeScreen
+import net.xmppwocky.earbs.ui.PREF_KEY_AUTO_ADVANCE_DELAY
+import net.xmppwocky.earbs.ui.PREF_KEY_LEARN_FROM_MISTAKES
+import net.xmppwocky.earbs.ui.PREF_KEY_PLAYBACK_DURATION
 import net.xmppwocky.earbs.ui.ResultsScreen
 import net.xmppwocky.earbs.ui.ReviewScreen
 import net.xmppwocky.earbs.ui.ReviewScreenState
 import net.xmppwocky.earbs.ui.SessionResult
 import net.xmppwocky.earbs.ui.SettingsScreen
-import net.xmppwocky.earbs.ui.DEFAULT_PLAYBACK_DURATION
-import net.xmppwocky.earbs.ui.PREF_KEY_PLAYBACK_DURATION
-import net.xmppwocky.earbs.ui.DEFAULT_AUTO_ADVANCE_DELAY
-import net.xmppwocky.earbs.ui.PREF_KEY_AUTO_ADVANCE_DELAY
-import net.xmppwocky.earbs.ui.DEFAULT_LEARN_FROM_MISTAKES
-import net.xmppwocky.earbs.ui.PREF_KEY_LEARN_FROM_MISTAKES
-import net.xmppwocky.earbs.audio.ChordType
-import net.xmppwocky.earbs.model.ChordFunction
-import kotlinx.coroutines.launch
 
 private const val PREFS_NAME = "earbs_prefs"
 
@@ -62,14 +71,46 @@ enum class Screen {
 
 class MainActivity : ComponentActivity() {
     private lateinit var repository: EarbsRepository
+    private lateinit var backupManager: DatabaseBackupManager
+    private lateinit var prefs: SharedPreferences
+
+    // Mutable state for restore confirmation dialog
+    private var showRestoreConfirmation = mutableStateOf(false)
+
+    // SAF launcher for creating backup file
+    private val createBackupLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri: Uri? ->
+        if (uri != null) {
+            Log.i(TAG, "Backup location selected: $uri")
+            performBackup(uri)
+        } else {
+            Log.i(TAG, "Backup cancelled by user")
+        }
+    }
+
+    // SAF launcher for opening backup file to restore
+    private val openBackupLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            Log.i(TAG, "Restore file selected: $uri")
+            performRestore(uri)
+        } else {
+            Log.i(TAG, "Restore cancelled by user")
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "MainActivity.onCreate() - app starting")
 
+        // Initialize backup manager
+        backupManager = DatabaseBackupManager(applicationContext)
+
         // Initialize database and repository
         val database = EarbsDatabase.getDatabase(applicationContext)
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         repository = EarbsRepository(
             cardDao = database.cardDao(),
             functionCardDao = database.functionCardDao(),
@@ -86,15 +127,108 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    EarbsApp(repository, prefs)
+                    EarbsApp(
+                        repository = repository,
+                        prefs = prefs,
+                        showRestoreConfirmation = showRestoreConfirmation.value,
+                        onBackupClicked = { startBackup() },
+                        onRestoreClicked = { showRestoreConfirmation.value = true },
+                        onRestoreConfirmed = {
+                            showRestoreConfirmation.value = false
+                            startRestore()
+                        },
+                        onRestoreCancelled = { showRestoreConfirmation.value = false }
+                    )
                 }
             }
         }
     }
+
+    private fun startBackup() {
+        Log.i(TAG, "Starting backup process")
+        val filename = backupManager.generateBackupFilename()
+        createBackupLauncher.launch(filename)
+    }
+
+    private fun performBackup(uri: Uri) {
+        lifecycleScope.launch {
+            Log.i(TAG, "Performing backup to $uri")
+            when (val result = backupManager.createBackup(uri)) {
+                is DatabaseBackupManager.Result.Success -> {
+                    Log.i(TAG, "Backup completed successfully")
+                    Toast.makeText(this@MainActivity, "Backup saved successfully", Toast.LENGTH_SHORT).show()
+                    // Re-initialize repository after database was closed for backup
+                    reinitializeRepository()
+                }
+                is DatabaseBackupManager.Result.Error -> {
+                    Log.e(TAG, "Backup failed: ${result.message}")
+                    Toast.makeText(this@MainActivity, "Backup failed: ${result.message}", Toast.LENGTH_LONG).show()
+                    // Re-initialize repository to ensure database is accessible
+                    reinitializeRepository()
+                }
+            }
+        }
+    }
+
+    private fun startRestore() {
+        Log.i(TAG, "Starting restore process")
+        openBackupLauncher.launch(arrayOf("application/octet-stream", "*/*"))
+    }
+
+    private fun performRestore(uri: Uri) {
+        lifecycleScope.launch {
+            Log.i(TAG, "Performing restore from $uri")
+            when (val result = backupManager.restoreBackup(uri)) {
+                is DatabaseBackupManager.Result.Success -> {
+                    Log.i(TAG, "Restore completed successfully, restarting app")
+                    Toast.makeText(this@MainActivity, "Restore successful, restarting...", Toast.LENGTH_SHORT).show()
+                    restartApp()
+                }
+                is DatabaseBackupManager.Result.Error -> {
+                    Log.e(TAG, "Restore failed: ${result.message}")
+                    Toast.makeText(this@MainActivity, "Restore failed: ${result.message}", Toast.LENGTH_LONG).show()
+                    // Re-initialize repository to ensure database is accessible
+                    reinitializeRepository()
+                }
+            }
+        }
+    }
+
+    private fun reinitializeRepository() {
+        Log.i(TAG, "Re-initializing repository after backup operation")
+        val database = EarbsDatabase.getDatabase(applicationContext)
+        repository = EarbsRepository(
+            cardDao = database.cardDao(),
+            functionCardDao = database.functionCardDao(),
+            fsrsStateDao = database.fsrsStateDao(),
+            reviewSessionDao = database.reviewSessionDao(),
+            trialDao = database.trialDao(),
+            historyDao = database.historyDao(),
+            prefs = prefs
+        )
+    }
+
+    private fun restartApp() {
+        Log.i(TAG, "Restarting app for clean state after restore")
+        val intent = packageManager.getLaunchIntentForPackage(packageName)
+        intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(intent)
+        finish()
+        // Force process termination to ensure clean restart
+        Runtime.getRuntime().exit(0)
+    }
 }
 
 @Composable
-private fun EarbsApp(repository: EarbsRepository, prefs: SharedPreferences) {
+private fun EarbsApp(
+    repository: EarbsRepository,
+    prefs: SharedPreferences,
+    showRestoreConfirmation: Boolean = false,
+    onBackupClicked: () -> Unit = {},
+    onRestoreClicked: () -> Unit = {},
+    onRestoreConfirmed: () -> Unit = {},
+    onRestoreCancelled: () -> Unit = {}
+) {
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     var selectedGameMode by remember { mutableStateOf(GameType.CHORD_TYPE) }
 
@@ -360,9 +494,30 @@ private fun EarbsApp(repository: EarbsRepository, prefs: SharedPreferences) {
                 prefs = prefs,
                 onBackClicked = {
                     currentScreen = Screen.HOME
-                }
+                },
+                onBackupClicked = onBackupClicked,
+                onRestoreClicked = onRestoreClicked
             )
         }
+    }
+
+    // Restore confirmation dialog
+    if (showRestoreConfirmation) {
+        AlertDialog(
+            onDismissRequest = onRestoreCancelled,
+            title = { Text("Restore Database?") },
+            text = { Text("This will replace all current progress with the backup. This action cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = onRestoreConfirmed) {
+                    Text("Restore", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onRestoreCancelled) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

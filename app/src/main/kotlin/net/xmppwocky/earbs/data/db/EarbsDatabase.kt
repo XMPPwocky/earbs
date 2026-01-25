@@ -273,7 +273,7 @@ abstract class EarbsDatabase : RoomDatabase() {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     EarbsDatabase::class.java,
-                    "earbs_database"
+                    DATABASE_NAME
                 )
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .fallbackToDestructiveMigration()
@@ -283,5 +283,27 @@ abstract class EarbsDatabase : RoomDatabase() {
                 instance
             }
         }
+
+        /**
+         * Closes the database connection and clears the singleton instance.
+         * This is needed for backup/restore operations to safely access the database file.
+         */
+        fun closeDatabase() {
+            synchronized(this) {
+                Log.i(TAG, "Closing database")
+                INSTANCE?.close()
+                INSTANCE = null
+                Log.i(TAG, "Database closed and instance cleared")
+            }
+        }
+
+        /**
+         * Gets the database file path for backup/restore operations.
+         */
+        fun getDatabasePath(context: Context): java.io.File {
+            return context.getDatabasePath(DATABASE_NAME)
+        }
+
+        const val DATABASE_NAME = "earbs_database"
     }
 }

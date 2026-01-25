@@ -45,7 +45,9 @@ val SESSION_SIZE_OPTIONS = listOf(10, 20, 30)
 @Composable
 fun SettingsScreen(
     prefs: SharedPreferences,
-    onBackClicked: () -> Unit
+    onBackClicked: () -> Unit,
+    onBackupClicked: () -> Unit = {},
+    onRestoreClicked: () -> Unit = {}
 ) {
     BackHandler { onBackClicked() }
 
@@ -276,6 +278,48 @@ fun SettingsScreen(
                     )
                     Text(
                         text = "Higher = more frequent reviews, better retention",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Data Backup/Restore Section
+            SettingSection(title = "Data") {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            Log.i(TAG, "Backup button clicked")
+                            onBackupClicked()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Backup Database")
+                    }
+                    Text(
+                        text = "Save your progress to a file",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            Log.i(TAG, "Restore button clicked")
+                            onRestoreClicked()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("Restore Database")
+                    }
+                    Text(
+                        text = "Replace current data with a backup",
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
