@@ -19,8 +19,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import net.xmppwocky.earbs.data.db.CardStatsView
+import net.xmppwocky.earbs.data.db.CardWithFsrs
 import net.xmppwocky.earbs.data.db.SessionOverview
-import net.xmppwocky.earbs.data.entity.CardEntity
 import net.xmppwocky.earbs.data.entity.TrialEntity
 import java.text.SimpleDateFormat
 import java.util.*
@@ -37,7 +37,7 @@ enum class HistoryTab {
 @Composable
 fun HistoryScreen(
     sessions: List<SessionOverview>,
-    cards: List<CardEntity>,
+    cards: List<CardWithFsrs>,
     cardStats: List<CardStatsView>,
     onBackClicked: () -> Unit,
     onLoadTrials: (suspend (Long) -> List<TrialEntity>)? = null
@@ -280,7 +280,7 @@ private fun TrialRow(trial: TrialEntity) {
 }
 
 @Composable
-private fun CardsTab(cards: List<CardEntity>) {
+private fun CardsTab(cards: List<CardWithFsrs>) {
     if (cards.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -300,13 +300,13 @@ private fun CardsTab(cards: List<CardEntity>) {
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(cards) { card ->
-            CardEntityRow(card)
+            CardWithFsrsRow(card)
         }
     }
 }
 
 @Composable
-private fun CardEntityRow(card: CardEntity) {
+private fun CardWithFsrsRow(card: CardWithFsrs) {
     val dateFormat = remember { SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()) }
     val dueDate = dateFormat.format(Date(card.dueDate))
     val now = System.currentTimeMillis()

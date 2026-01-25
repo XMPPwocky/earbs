@@ -4,24 +4,18 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 /**
- * FSRS state for a card (chord_type, octave, playback_mode tuple).
- * Each card tracks its spaced repetition state independently.
+ * Card for the chord type identification game.
+ * A card is a (chord_type, octave, playback_mode) tuple.
+ *
+ * FSRS state is stored separately in the fsrs_state table.
  *
  * Card ID format: "CHORDTYPE_OCTAVE_PLAYBACKMODE" (e.g., "MAJOR_4_ARPEGGIATED")
  */
 @Entity(tableName = "cards")
 data class CardEntity(
-    @PrimaryKey val id: String,           // e.g., "MAJOR_4_ARPEGGIATED"
-    val chordType: String,                 // MAJOR, MINOR, SUS2, SUS4, DOM7, MAJ7, MIN7, DIM7
-    val octave: Int,                       // 3, 4, or 5
-    val playbackMode: String,              // ARPEGGIATED or BLOCK
-    val stability: Double = 2.5,
-    val difficulty: Double = 2.5,
-    val interval: Int = 0,
-    val dueDate: Long,                     // epoch millis
-    val reviewCount: Int = 0,
-    val lastReview: Long? = null,          // epoch millis
-    val phase: Int = 0,                    // 0=Added, 1=ReLearning, 2=Review
-    val lapses: Int = 0,
+    @PrimaryKey val id: String,            // e.g., "MAJOR_4_ARPEGGIATED"
+    val chordType: String,                  // MAJOR, MINOR, SUS2, SUS4, DOM7, MAJ7, MIN7, DIM7
+    val octave: Int,                        // 3, 4, or 5
+    val playbackMode: String,               // ARPEGGIATED or BLOCK
     val unlocked: Boolean = true
 )

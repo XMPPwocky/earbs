@@ -7,11 +7,16 @@ import net.xmppwocky.earbs.audio.ChordType
 import net.xmppwocky.earbs.audio.PlaybackMode
 import net.xmppwocky.earbs.data.db.CardDao
 import net.xmppwocky.earbs.data.db.CardStatsView
+import net.xmppwocky.earbs.data.db.CardWithFsrs
+import net.xmppwocky.earbs.data.db.FsrsStateDao
+import net.xmppwocky.earbs.data.db.FunctionCardDao
 import net.xmppwocky.earbs.data.db.HistoryDao
 import net.xmppwocky.earbs.data.db.ReviewSessionDao
 import net.xmppwocky.earbs.data.db.SessionOverview
 import net.xmppwocky.earbs.data.db.TrialDao
 import net.xmppwocky.earbs.data.entity.CardEntity
+import net.xmppwocky.earbs.data.entity.FsrsStateEntity
+import net.xmppwocky.earbs.data.entity.GameType
 import net.xmppwocky.earbs.data.entity.ReviewSessionEntity
 import net.xmppwocky.earbs.data.entity.TrialEntity
 import net.xmppwocky.earbs.fsrs.CardPhase
@@ -32,6 +37,8 @@ private const val DEFAULT_TARGET_RETENTION = 0.9f
 
 class EarbsRepository(
     private val cardDao: CardDao,
+    private val functionCardDao: FunctionCardDao,
+    private val fsrsStateDao: FsrsStateDao,
     private val reviewSessionDao: ReviewSessionDao,
     private val trialDao: TrialDao,
     private val historyDao: HistoryDao,
@@ -53,6 +60,8 @@ class EarbsRepository(
         return prefs.getInt(PREF_KEY_SESSION_SIZE, DEFAULT_SESSION_SIZE)
     }
 
+    // ========== Chord Type Game (Game 1) ==========
+
     /**
      * Initialize the starting deck on first launch.
      * Creates 4 cards: MAJOR, MINOR, SUS2, SUS4 @ octave 4, arpeggiated.
@@ -70,18 +79,28 @@ class EarbsRepository(
         // Starting deck is group 0: triads @ octave 4, arpeggiated
         val startingGroup = Deck.UNLOCK_ORDER[0]
         val startingCards = startingGroup.chordTypes.map { chordType ->
+            val cardId = "${chordType.name}_${startingGroup.octave}_${startingGroup.playbackMode.name}"
             CardEntity(
-                id = "${chordType.name}_${startingGroup.octave}_${startingGroup.playbackMode.name}",
+                id = cardId,
                 chordType = chordType.name,
                 octave = startingGroup.octave,
-                playbackMode = startingGroup.playbackMode.name,
+                playbackMode = startingGroup.playbackMode.name
+            )
+        }
+
+        // Create FSRS state for each card
+        val fsrsStates = startingCards.map { card ->
+            FsrsStateEntity(
+                cardId = card.id,
+                gameType = GameType.CHORD_TYPE.name,
                 dueDate = now  // Immediately due
             )
         }
 
         cardDao.insertAll(startingCards)
+        fsrsStateDao.insertAll(fsrsStates)
         prefs.edit().putInt(PREF_KEY_UNLOCK_LEVEL, 0).apply()
-        Log.i(TAG, "Inserted ${startingCards.size} starting cards, unlock level set to 0")
+        Log.i(TAG, "Inserted ${startingCards.size} starting cards with FSRS state, unlock level set to 0")
     }
 
     /**
@@ -118,18 +137,27 @@ class EarbsRepository(
         Log.i(TAG, "Unlocking group $nextLevel: ${nextGroup.chordTypes.map { it.displayName }} @ octave ${nextGroup.octave}, ${nextGroup.playbackMode}")
 
         val newCards = nextGroup.chordTypes.map { chordType ->
+            val cardId = "${chordType.name}_${nextGroup.octave}_${nextGroup.playbackMode.name}"
             CardEntity(
-                id = "${chordType.name}_${nextGroup.octave}_${nextGroup.playbackMode.name}",
+                id = cardId,
                 chordType = chordType.name,
                 octave = nextGroup.octave,
-                playbackMode = nextGroup.playbackMode.name,
+                playbackMode = nextGroup.playbackMode.name
+            )
+        }
+
+        val fsrsStates = newCards.map { card ->
+            FsrsStateEntity(
+                cardId = card.id,
+                gameType = GameType.CHORD_TYPE.name,
                 dueDate = now  // Due immediately
             )
         }
 
         cardDao.insertAll(newCards)
+        fsrsStateDao.insertAll(fsrsStates)
         prefs.edit().putInt(PREF_KEY_UNLOCK_LEVEL, nextLevel).apply()
-        Log.i(TAG, "Unlocked ${newCards.size} new cards, unlock level now $nextLevel")
+        Log.i(TAG, "Unlocked ${newCards.size} new cards with FSRS state, unlock level now $nextLevel")
         return true
     }
 
@@ -187,7 +215,7 @@ class EarbsRepository(
         val (octave, mode) = bestGroup
         Log.i(TAG, "Selected best group: octave=$octave, mode=$mode with ${bestDue.size} due cards")
 
-        val selected = mutableListOf<CardEntity>()
+        val selected = mutableListOf<CardWithFsrs>()
         selected.addAll(bestDue.sortedBy { it.dueDate }.take(sessionSize))
         Log.i(TAG, "Added ${selected.size} due cards from best group")
 
@@ -229,7 +257,7 @@ class EarbsRepository(
      * Select cards when no cards are due. Prefers a single group.
      */
     private suspend fun selectFromAllUnlocked(sessionSize: Int): List<Card> {
-        val allCards = cardDao.getAllUnlocked()
+        val allCards = cardDao.getAllUnlockedWithFsrs()
         if (allCards.isEmpty()) {
             Log.w(TAG, "No unlocked cards available")
             return emptyList()
@@ -244,7 +272,7 @@ class EarbsRepository(
 
         Log.i(TAG, "No due cards - selected group: octave=${bestGroup.first}, mode=${bestGroup.second} with ${bestCards.size} cards")
 
-        val selected = mutableListOf<CardEntity>()
+        val selected = mutableListOf<CardWithFsrs>()
         selected.addAll(bestCards.sortedBy { it.dueDate }.take(sessionSize))
 
         if (selected.size < sessionSize) {
@@ -269,16 +297,16 @@ class EarbsRepository(
 
     /**
      * Start a new review session and return its database ID.
-     * Sessions now contain mixed cards, so octave/mode are set to defaults.
      */
-    suspend fun startSession(): Long {
+    suspend fun startSession(gameType: GameType = GameType.CHORD_TYPE): Long {
         val session = ReviewSessionEntity(
             startedAt = System.currentTimeMillis(),
+            gameType = gameType.name,
             octave = 0,  // Mixed cards - not meaningful
             playbackMode = "MIXED"
         )
         val sessionId = reviewSessionDao.insert(session)
-        Log.i(TAG, "Started session id=$sessionId")
+        Log.i(TAG, "Started ${gameType.name} session id=$sessionId")
         return sessionId
     }
 
@@ -306,13 +334,14 @@ class EarbsRepository(
             cardId = cardId,
             timestamp = timestamp,
             wasCorrect = wasCorrect,
+            gameType = GameType.CHORD_TYPE.name,
             answeredChordType = if (wasCorrect) null else answeredChordType.name
         ))
 
-        // 2. Get card entity
-        val cardEntity = cardDao.getById(cardId)
-        if (cardEntity == null) {
-            Log.e(TAG, "Card not found: $cardId")
+        // 2. Get FSRS state
+        val fsrsState = fsrsStateDao.getByCardId(cardId)
+        if (fsrsState == null) {
+            Log.e(TAG, "FSRS state not found: $cardId")
             return timestamp
         }
 
@@ -320,26 +349,26 @@ class EarbsRepository(
         val rating = if (wasCorrect) Rating.Good else Rating.Again
 
         // 4. Apply FSRS update immediately
-        return applyFsrsUpdate(cardEntity, rating)
+        return applyFsrsUpdate(fsrsState, rating)
     }
 
     /**
      * Apply FSRS update for a card with the given rating.
      * @return the new due date
      */
-    private suspend fun applyFsrsUpdate(cardEntity: CardEntity, rating: Rating): Long {
-        Log.i(TAG, "Updating FSRS state for ${cardEntity.id} with rating ${rating.name}")
+    private suspend fun applyFsrsUpdate(fsrsState: FsrsStateEntity, rating: Rating): Long {
+        Log.i(TAG, "Updating FSRS state for ${fsrsState.cardId} with rating ${rating.name}")
 
-        // Convert CardEntity to FlashCard for FSRS calculation
+        // Convert to FlashCard for FSRS calculation
         val flashCard = FlashCard(
             id = 0,  // Not used
-            stability = cardEntity.stability,
-            difficulty = cardEntity.difficulty,
-            interval = cardEntity.interval,
+            stability = fsrsState.stability,
+            difficulty = fsrsState.difficulty,
+            interval = fsrsState.interval,
             dueDate = LocalDateTime.now(),
-            reviewCount = cardEntity.reviewCount,
+            reviewCount = fsrsState.reviewCount,
             lastReview = LocalDateTime.now(),
-            phase = cardEntity.phase
+            phase = fsrsState.phase
         )
 
         // Calculate new FSRS state using current target retention setting
@@ -353,22 +382,22 @@ class EarbsRepository(
         // Determine new phase
         val newPhase = when {
             rating == Rating.Again -> CardPhase.ReLearning.value
-            cardEntity.phase == CardPhase.Added.value -> CardPhase.Review.value
+            fsrsState.phase == CardPhase.Added.value -> CardPhase.Review.value
             else -> CardPhase.Review.value
         }
 
         // Determine lapses
-        val newLapses = if (rating == Rating.Again) cardEntity.lapses + 1 else cardEntity.lapses
+        val newLapses = if (rating == Rating.Again) fsrsState.lapses + 1 else fsrsState.lapses
 
         // For Added phase, FSRS returns 0.0 for stability/difficulty (uses fixed intervals).
         // Keep the card's existing values to avoid NaN crashes on subsequent reviews.
-        val newStability = if (cardEntity.phase == CardPhase.Added.value || chosenGrade.stability == 0.0) {
-            cardEntity.stability
+        val newStability = if (fsrsState.phase == CardPhase.Added.value || chosenGrade.stability == 0.0) {
+            fsrsState.stability
         } else {
             chosenGrade.stability
         }
-        val newDifficulty = if (cardEntity.phase == CardPhase.Added.value || chosenGrade.difficulty == 0.0) {
-            cardEntity.difficulty
+        val newDifficulty = if (fsrsState.phase == CardPhase.Added.value || chosenGrade.difficulty == 0.0) {
+            fsrsState.difficulty
         } else {
             chosenGrade.difficulty
         }
@@ -376,13 +405,13 @@ class EarbsRepository(
         Log.i(TAG, "  FSRS update: stability=$newStability, difficulty=$newDifficulty")
         Log.i(TAG, "  interval=${chosenGrade.interval}d, dueIn=${chosenGrade.durationMillis / 1000 / 60}min")
 
-        cardDao.updateFsrsState(
-            id = cardEntity.id,
+        fsrsStateDao.updateFsrsState(
+            cardId = fsrsState.cardId,
             stability = newStability,
             difficulty = newDifficulty,
             interval = chosenGrade.interval,
             dueDate = newDueDate,
-            reviewCount = cardEntity.reviewCount + 1,
+            reviewCount = fsrsState.reviewCount + 1,
             lastReview = now,
             phase = newPhase,
             lapses = newLapses
@@ -403,23 +432,23 @@ class EarbsRepository(
     }
 
     /**
-     * Get count of due cards.
+     * Get count of due cards for chord type game.
      */
     suspend fun getDueCount(): Int {
-        val count = cardDao.countDue(System.currentTimeMillis())
-        Log.d(TAG, "Due count: $count")
+        val count = fsrsStateDao.countDueByGameType(GameType.CHORD_TYPE.name, System.currentTimeMillis())
+        Log.d(TAG, "Chord type due count: $count")
         return count
     }
 
     fun getDueCountFlow(): Flow<Int> {
-        return cardDao.countDueFlow(System.currentTimeMillis())
+        return fsrsStateDao.countDueByGameTypeFlow(GameType.CHORD_TYPE.name, System.currentTimeMillis())
     }
 
     /**
-     * Get all cards flow for UI.
+     * Get all cards with FSRS flow for UI.
      */
-    fun getAllCardsFlow(): Flow<List<CardEntity>> {
-        return cardDao.getAllUnlockedFlow()
+    fun getAllCardsWithFsrsFlow(): Flow<List<CardWithFsrs>> {
+        return cardDao.getAllUnlockedWithFsrsFlow()
     }
 
     /**
@@ -430,10 +459,24 @@ class EarbsRepository(
     }
 
     /**
+     * Get session overview for a specific game type.
+     */
+    fun getSessionOverviewsByGameType(gameType: GameType): Flow<List<SessionOverview>> {
+        return historyDao.getSessionOverviewsByGameType(gameType.name)
+    }
+
+    /**
      * Get card statistics for history screen.
      */
     fun getCardStats(): Flow<List<CardStatsView>> {
         return historyDao.getCardStats()
+    }
+
+    /**
+     * Get card statistics for a specific game type.
+     */
+    fun getCardStatsByGameType(gameType: GameType): Flow<List<CardStatsView>> {
+        return historyDao.getCardStatsByGameType(gameType.name)
     }
 
     /**
@@ -452,9 +495,9 @@ class EarbsRepository(
 }
 
 /**
- * Convert CardEntity to domain Card.
+ * Convert CardWithFsrs to domain Card.
  */
-private fun CardEntity.toCard(): Card {
+private fun CardWithFsrs.toCard(): Card {
     return Card(
         chordType = ChordType.valueOf(chordType),
         octave = octave,

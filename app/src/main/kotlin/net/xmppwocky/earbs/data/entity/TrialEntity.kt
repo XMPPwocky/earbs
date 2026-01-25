@@ -6,8 +6,11 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * Every individual trial (40 per session).
- * Full audit trail of all user answers.
+ * Every individual trial in a review session.
+ * Full audit trail of all user answers across all game types.
+ *
+ * Note: cardId references either cards.id or function_cards.id depending on gameType.
+ * The FK constraint was removed to support multiple card tables.
  */
 @Entity(
     tableName = "trials",
@@ -17,24 +20,21 @@ import androidx.room.PrimaryKey
             parentColumns = ["id"],
             childColumns = ["sessionId"],
             onDelete = ForeignKey.CASCADE
-        ),
-        ForeignKey(
-            entity = CardEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["cardId"],
-            onDelete = ForeignKey.CASCADE
         )
     ],
     indices = [
         Index("sessionId"),
-        Index("cardId")
+        Index("cardId"),
+        Index("gameType")
     ]
 )
 data class TrialEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val sessionId: Long,
     val cardId: String,
-    val timestamp: Long,                   // epoch millis
+    val timestamp: Long,                    // epoch millis
     val wasCorrect: Boolean,
-    val answeredChordType: String? = null  // What user answered (null = correct or legacy data)
+    val gameType: String = "CHORD_TYPE",    // CHORD_TYPE or CHORD_FUNCTION
+    val answeredChordType: String? = null,  // What user answered for chord type game (null = correct or N/A)
+    val answeredFunction: String? = null    // What user answered for function game (null = correct or N/A)
 )

@@ -7,6 +7,25 @@ import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 import net.xmppwocky.earbs.data.entity.CardEntity
 
+/**
+ * Combined view of a card with its FSRS state.
+ */
+data class CardWithFsrs(
+    val id: String,
+    val chordType: String,
+    val octave: Int,
+    val playbackMode: String,
+    val unlocked: Boolean,
+    val stability: Double,
+    val difficulty: Double,
+    val interval: Int,
+    val dueDate: Long,
+    val reviewCount: Int,
+    val lastReview: Long?,
+    val phase: Int,
+    val lapses: Int
+)
+
 @Dao
 interface CardDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -21,103 +40,118 @@ interface CardDao {
     @Query("SELECT * FROM cards WHERE unlocked = 1")
     suspend fun getAllUnlocked(): List<CardEntity>
 
-    @Query("SELECT * FROM cards WHERE unlocked = 1 ORDER BY dueDate ASC")
+    @Query("SELECT * FROM cards WHERE unlocked = 1")
     fun getAllUnlockedFlow(): Flow<List<CardEntity>>
+
+    @Query("SELECT COUNT(*) FROM cards")
+    suspend fun count(): Int
+
+    @Query("SELECT COUNT(*) FROM cards WHERE unlocked = 1")
+    suspend fun countUnlocked(): Int
+
+    @Query("SELECT COUNT(*) FROM cards WHERE unlocked = 1")
+    fun countUnlockedFlow(): Flow<Int>
+
+    // ========== Queries with FSRS state (JOIN with fsrs_state) ==========
+
+    /**
+     * Get all unlocked cards with their FSRS state, ordered by due date.
+     */
+    @Query("""
+        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked,
+               f.stability, f.difficulty, f.interval, f.dueDate,
+               f.reviewCount, f.lastReview, f.phase, f.lapses
+        FROM cards c
+        INNER JOIN fsrs_state f ON c.id = f.cardId
+        WHERE c.unlocked = 1
+        ORDER BY f.dueDate ASC
+    """)
+    suspend fun getAllUnlockedWithFsrs(): List<CardWithFsrs>
+
+    @Query("""
+        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked,
+               f.stability, f.difficulty, f.interval, f.dueDate,
+               f.reviewCount, f.lastReview, f.phase, f.lapses
+        FROM cards c
+        INNER JOIN fsrs_state f ON c.id = f.cardId
+        WHERE c.unlocked = 1
+        ORDER BY f.dueDate ASC
+    """)
+    fun getAllUnlockedWithFsrsFlow(): Flow<List<CardWithFsrs>>
+
+    /**
+     * Get card with its FSRS state.
+     */
+    @Query("""
+        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked,
+               f.stability, f.difficulty, f.interval, f.dueDate,
+               f.reviewCount, f.lastReview, f.phase, f.lapses
+        FROM cards c
+        INNER JOIN fsrs_state f ON c.id = f.cardId
+        WHERE c.id = :id
+    """)
+    suspend fun getByIdWithFsrs(id: String): CardWithFsrs?
 
     /**
      * Get all due cards (dueDate <= now) ordered by due date.
      */
-    @Query("SELECT * FROM cards WHERE unlocked = 1 AND dueDate <= :now ORDER BY dueDate ASC")
-    suspend fun getDueCards(now: Long): List<CardEntity>
-
-    /**
-     * Get non-due cards for a specific octave.
-     * Used to pad sessions when fewer than 4 cards are due.
-     */
-    @Query("SELECT * FROM cards WHERE unlocked = 1 AND octave = :octave AND dueDate > :now ORDER BY dueDate ASC")
-    suspend fun getNonDueCardsForOctave(octave: Int, now: Long): List<CardEntity>
-
-    /**
-     * Get non-due cards for a specific (octave, playbackMode) group.
-     * Used to pad sessions when fewer than 4 cards are due.
-     */
-    @Query("SELECT * FROM cards WHERE unlocked = 1 AND octave = :octave AND playbackMode = :mode AND dueDate > :now ORDER BY dueDate ASC")
-    suspend fun getNonDueCardsForGroup(octave: Int, mode: String, now: Long): List<CardEntity>
+    @Query("""
+        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked,
+               f.stability, f.difficulty, f.interval, f.dueDate,
+               f.reviewCount, f.lastReview, f.phase, f.lapses
+        FROM cards c
+        INNER JOIN fsrs_state f ON c.id = f.cardId
+        WHERE c.unlocked = 1 AND f.dueDate <= :now
+        ORDER BY f.dueDate ASC
+    """)
+    suspend fun getDueCards(now: Long): List<CardWithFsrs>
 
     /**
      * Get non-due cards for a specific (octave, playbackMode) group with limit.
      * Used to pad sessions preferring same-group cards.
      */
-    @Query("SELECT * FROM cards WHERE unlocked = 1 AND octave = :octave AND playbackMode = :mode AND dueDate > :now ORDER BY dueDate ASC LIMIT :limit")
-    suspend fun getNonDueCardsByGroup(now: Long, octave: Int, mode: String, limit: Int): List<CardEntity>
+    @Query("""
+        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked,
+               f.stability, f.difficulty, f.interval, f.dueDate,
+               f.reviewCount, f.lastReview, f.phase, f.lapses
+        FROM cards c
+        INNER JOIN fsrs_state f ON c.id = f.cardId
+        WHERE c.unlocked = 1 AND c.octave = :octave AND c.playbackMode = :mode AND f.dueDate > :now
+        ORDER BY f.dueDate ASC
+        LIMIT :limit
+    """)
+    suspend fun getNonDueCardsByGroup(now: Long, octave: Int, mode: String, limit: Int): List<CardWithFsrs>
 
     /**
-     * Get non-due cards (reviewing early) to pad session to 20 cards.
+     * Get non-due cards (reviewing early) to pad session.
      * Ordered by due date so cards closest to being due are selected first.
      */
-    @Query("SELECT * FROM cards WHERE unlocked = 1 AND dueDate > :now ORDER BY dueDate ASC LIMIT :limit")
-    suspend fun getNonDueCards(now: Long, limit: Int): List<CardEntity>
-
-    /**
-     * Get all cards for a specific octave.
-     */
-    @Query("SELECT * FROM cards WHERE unlocked = 1 AND octave = :octave ORDER BY dueDate ASC")
-    suspend fun getCardsForOctave(octave: Int): List<CardEntity>
-
-    /**
-     * Get all cards for a specific (octave, playbackMode) group.
-     */
-    @Query("SELECT * FROM cards WHERE unlocked = 1 AND octave = :octave AND playbackMode = :mode ORDER BY dueDate ASC")
-    suspend fun getCardsForGroup(octave: Int, mode: String): List<CardEntity>
+    @Query("""
+        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked,
+               f.stability, f.difficulty, f.interval, f.dueDate,
+               f.reviewCount, f.lastReview, f.phase, f.lapses
+        FROM cards c
+        INNER JOIN fsrs_state f ON c.id = f.cardId
+        WHERE c.unlocked = 1 AND f.dueDate > :now
+        ORDER BY f.dueDate ASC
+        LIMIT :limit
+    """)
+    suspend fun getNonDueCards(now: Long, limit: Int): List<CardWithFsrs>
 
     /**
      * Count of due cards.
      */
-    @Query("SELECT COUNT(*) FROM cards WHERE unlocked = 1 AND dueDate <= :now")
+    @Query("""
+        SELECT COUNT(*) FROM cards c
+        INNER JOIN fsrs_state f ON c.id = f.cardId
+        WHERE c.unlocked = 1 AND f.dueDate <= :now
+    """)
     suspend fun countDue(now: Long): Int
 
-    @Query("SELECT COUNT(*) FROM cards WHERE unlocked = 1 AND dueDate <= :now")
-    fun countDueFlow(now: Long): Flow<Int>
-
-    /**
-     * Update FSRS state after a review session.
-     */
     @Query("""
-        UPDATE cards SET
-            stability = :stability,
-            difficulty = :difficulty,
-            interval = :interval,
-            dueDate = :dueDate,
-            reviewCount = :reviewCount,
-            lastReview = :lastReview,
-            phase = :phase,
-            lapses = :lapses
-        WHERE id = :id
+        SELECT COUNT(*) FROM cards c
+        INNER JOIN fsrs_state f ON c.id = f.cardId
+        WHERE c.unlocked = 1 AND f.dueDate <= :now
     """)
-    suspend fun updateFsrsState(
-        id: String,
-        stability: Double,
-        difficulty: Double,
-        interval: Int,
-        dueDate: Long,
-        reviewCount: Int,
-        lastReview: Long,
-        phase: Int,
-        lapses: Int
-    )
-
-    @Query("SELECT COUNT(*) FROM cards")
-    suspend fun count(): Int
-
-    /**
-     * Count of unlocked cards.
-     */
-    @Query("SELECT COUNT(*) FROM cards WHERE unlocked = 1")
-    suspend fun countUnlocked(): Int
-
-    /**
-     * Observe count of unlocked cards for UI updates.
-     */
-    @Query("SELECT COUNT(*) FROM cards WHERE unlocked = 1")
-    fun countUnlockedFlow(): Flow<Int>
+    fun countDueFlow(now: Long): Flow<Int>
 }

@@ -58,6 +58,8 @@ class MainActivity : ComponentActivity() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         repository = EarbsRepository(
             cardDao = database.cardDao(),
+            functionCardDao = database.functionCardDao(),
+            fsrsStateDao = database.fsrsStateDao(),
             reviewSessionDao = database.reviewSessionDao(),
             trialDao = database.trialDao(),
             historyDao = database.historyDao(),
@@ -210,7 +212,7 @@ private fun EarbsApp(repository: EarbsRepository, prefs: SharedPreferences) {
 
         Screen.HISTORY -> {
             val sessions by repository.getSessionOverviews().collectAsState(initial = emptyList())
-            val cards by repository.getAllCardsFlow().collectAsState(initial = emptyList())
+            val cards by repository.getAllCardsWithFsrsFlow().collectAsState(initial = emptyList())
             val cardStats by repository.getCardStats().collectAsState(initial = emptyList())
 
             HistoryScreen(

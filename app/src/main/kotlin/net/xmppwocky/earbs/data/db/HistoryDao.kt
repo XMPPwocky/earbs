@@ -10,6 +10,7 @@ import net.xmppwocky.earbs.data.entity.ReviewSessionEntity
  */
 data class CardStatsView(
     val cardId: String,
+    val gameType: String,
     val totalTrials: Int,
     val correctTrials: Int
 ) {
@@ -23,6 +24,7 @@ data class SessionOverview(
     val id: Long,
     val startedAt: Long,
     val completedAt: Long?,
+    val gameType: String,
     val octave: Int,
     val totalTrials: Int,
     val correctTrials: Int
@@ -39,16 +41,37 @@ interface HistoryDao {
     fun getAllSessions(): Flow<List<ReviewSessionEntity>>
 
     /**
+     * Get all sessions for a specific game type ordered by most recent first.
+     */
+    @Query("SELECT * FROM review_sessions WHERE gameType = :gameType ORDER BY startedAt DESC")
+    fun getSessionsByGameType(gameType: String): Flow<List<ReviewSessionEntity>>
+
+    /**
      * Get per-card lifetime statistics.
      */
     @Query("""
         SELECT cardId,
+               gameType,
                COUNT(*) as totalTrials,
                SUM(CASE WHEN wasCorrect THEN 1 ELSE 0 END) as correctTrials
         FROM trials
-        GROUP BY cardId
+        GROUP BY cardId, gameType
     """)
     fun getCardStats(): Flow<List<CardStatsView>>
+
+    /**
+     * Get per-card lifetime statistics for a specific game type.
+     */
+    @Query("""
+        SELECT cardId,
+               gameType,
+               COUNT(*) as totalTrials,
+               SUM(CASE WHEN wasCorrect THEN 1 ELSE 0 END) as correctTrials
+        FROM trials
+        WHERE gameType = :gameType
+        GROUP BY cardId
+    """)
+    fun getCardStatsByGameType(gameType: String): Flow<List<CardStatsView>>
 
     /**
      * Get session overview with trial counts.
@@ -58,6 +81,7 @@ interface HistoryDao {
             s.id,
             s.startedAt,
             s.completedAt,
+            s.gameType,
             s.octave,
             COUNT(t.id) as totalTrials,
             SUM(CASE WHEN t.wasCorrect THEN 1 ELSE 0 END) as correctTrials
@@ -67,4 +91,24 @@ interface HistoryDao {
         ORDER BY s.startedAt DESC
     """)
     fun getSessionOverviews(): Flow<List<SessionOverview>>
+
+    /**
+     * Get session overview for a specific game type.
+     */
+    @Query("""
+        SELECT
+            s.id,
+            s.startedAt,
+            s.completedAt,
+            s.gameType,
+            s.octave,
+            COUNT(t.id) as totalTrials,
+            SUM(CASE WHEN t.wasCorrect THEN 1 ELSE 0 END) as correctTrials
+        FROM review_sessions s
+        LEFT JOIN trials t ON s.id = t.sessionId
+        WHERE s.gameType = :gameType
+        GROUP BY s.id
+        ORDER BY s.startedAt DESC
+    """)
+    fun getSessionOverviewsByGameType(gameType: String): Flow<List<SessionOverview>>
 }
