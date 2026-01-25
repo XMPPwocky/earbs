@@ -3,6 +3,7 @@ package net.xmppwocky.earbs.ui
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import net.xmppwocky.earbs.ComposeTestBase
@@ -533,5 +534,242 @@ class ReviewScreenTest : ComposeTestBase() {
 
         assertTrue("Session should be marked complete", sessionCompleted)
         assertTrue("Should not be stuck on loading", !stuckOnLoading)
+    }
+
+    // ========== Button Color Feedback Tests ==========
+
+    @Test
+    fun wrongAnswer_selectedButton_showsWrongColor() {
+        // User selected Major but correct was Minor
+        val card = Card(ChordType.MINOR, 4, PlaybackMode.ARPEGGIATED)
+        val session = ReviewSession(listOf(card, Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)))
+
+        composeTestRule.setContent {
+            ReviewScreen(
+                state = ReviewScreenState(
+                    session = session,
+                    currentCard = card,
+                    currentRootSemitones = 0,
+                    lastAnswer = AnswerResult.Wrong(
+                        actualType = ChordType.MINOR,
+                        selectedType = ChordType.MAJOR
+                    ),
+                    isPlaying = false,
+                    hasPlayedThisTrial = true,
+                    showingFeedback = true,
+                    inLearningMode = false
+                ),
+                onPlayClicked = {},
+                onAnswerClicked = {},
+                onTrialComplete = {},
+                onSessionComplete = {}
+            )
+        }
+
+        // Selected button (Major) should have WRONG color state
+        composeTestRule.onNodeWithTag("answer_button_MAJOR_WRONG").assertIsDisplayed()
+    }
+
+    @Test
+    fun wrongAnswer_correctButton_showsCorrectColor() {
+        // User selected Major but correct was Minor
+        val card = Card(ChordType.MINOR, 4, PlaybackMode.ARPEGGIATED)
+        val session = ReviewSession(listOf(card, Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)))
+
+        composeTestRule.setContent {
+            ReviewScreen(
+                state = ReviewScreenState(
+                    session = session,
+                    currentCard = card,
+                    currentRootSemitones = 0,
+                    lastAnswer = AnswerResult.Wrong(
+                        actualType = ChordType.MINOR,
+                        selectedType = ChordType.MAJOR
+                    ),
+                    isPlaying = false,
+                    hasPlayedThisTrial = true,
+                    showingFeedback = true,
+                    inLearningMode = false
+                ),
+                onPlayClicked = {},
+                onAnswerClicked = {},
+                onTrialComplete = {},
+                onSessionComplete = {}
+            )
+        }
+
+        // Correct button (Minor) should have CORRECT color state
+        composeTestRule.onNodeWithTag("answer_button_MINOR_CORRECT").assertIsDisplayed()
+    }
+
+    @Test
+    fun wrongAnswer_otherButtons_showInactiveColor() {
+        // User selected Major but correct was Minor, Sus2 and Sus4 should be inactive
+        val chordTypes = listOf(ChordType.MAJOR, ChordType.MINOR, ChordType.SUS2, ChordType.SUS4)
+        val session = createTestSession(chordTypes)
+
+        composeTestRule.setContent {
+            ReviewScreen(
+                state = ReviewScreenState(
+                    session = session,
+                    currentCard = session.getCurrentCard(),
+                    currentRootSemitones = 0,
+                    lastAnswer = AnswerResult.Wrong(
+                        actualType = ChordType.MINOR,
+                        selectedType = ChordType.MAJOR
+                    ),
+                    isPlaying = false,
+                    hasPlayedThisTrial = true,
+                    showingFeedback = true,
+                    inLearningMode = false
+                ),
+                onPlayClicked = {},
+                onAnswerClicked = {},
+                onTrialComplete = {},
+                onSessionComplete = {}
+            )
+        }
+
+        // Other buttons (Sus2, Sus4) should have INACTIVE color state
+        composeTestRule.onNodeWithTag("answer_button_SUS2_INACTIVE").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("answer_button_SUS4_INACTIVE").assertIsDisplayed()
+    }
+
+    @Test
+    fun correctAnswer_allButtons_showDefaultColor() {
+        val chordTypes = listOf(ChordType.MAJOR, ChordType.MINOR, ChordType.SUS2, ChordType.SUS4)
+        val session = createTestSession(chordTypes)
+
+        composeTestRule.setContent {
+            ReviewScreen(
+                state = ReviewScreenState(
+                    session = session,
+                    currentCard = session.getCurrentCard(),
+                    currentRootSemitones = 0,
+                    lastAnswer = AnswerResult.Correct,
+                    isPlaying = false,
+                    hasPlayedThisTrial = true,
+                    showingFeedback = true,
+                    inLearningMode = false
+                ),
+                onPlayClicked = {},
+                onAnswerClicked = {},
+                onTrialComplete = {},
+                onSessionComplete = {}
+            )
+        }
+
+        // All buttons should have DEFAULT color state
+        composeTestRule.onNodeWithTag("answer_button_MAJOR_DEFAULT").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("answer_button_MINOR_DEFAULT").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("answer_button_SUS2_DEFAULT").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("answer_button_SUS4_DEFAULT").assertIsDisplayed()
+    }
+
+    @Test
+    fun beforeAnswering_allButtons_showDefaultColor() {
+        val chordTypes = listOf(ChordType.MAJOR, ChordType.MINOR, ChordType.SUS2, ChordType.SUS4)
+        val session = createTestSession(chordTypes)
+
+        composeTestRule.setContent {
+            ReviewScreen(
+                state = ReviewScreenState(
+                    session = session,
+                    currentCard = session.getCurrentCard(),
+                    currentRootSemitones = 0,
+                    lastAnswer = null,
+                    isPlaying = false,
+                    hasPlayedThisTrial = true,
+                    showingFeedback = false,
+                    inLearningMode = false
+                ),
+                onPlayClicked = {},
+                onAnswerClicked = {},
+                onTrialComplete = {},
+                onSessionComplete = {}
+            )
+        }
+
+        // All buttons should have DEFAULT color state before answering
+        composeTestRule.onNodeWithTag("answer_button_MAJOR_DEFAULT").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("answer_button_MINOR_DEFAULT").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("answer_button_SUS2_DEFAULT").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("answer_button_SUS4_DEFAULT").assertIsDisplayed()
+    }
+
+    @Test
+    fun wrongAnswer_withSeventhChords_showsCorrectColors() {
+        // Test with 7th chords: user selected Dom7 but correct was Maj7
+        val chordTypes = listOf(
+            ChordType.MAJOR, ChordType.MINOR, ChordType.SUS2, ChordType.SUS4,
+            ChordType.DOM7, ChordType.MAJ7, ChordType.MIN7, ChordType.DIM7
+        )
+        val session = createTestSession(chordTypes)
+
+        composeTestRule.setContent {
+            ReviewScreen(
+                state = ReviewScreenState(
+                    session = session,
+                    currentCard = session.getCurrentCard(),
+                    currentRootSemitones = 0,
+                    lastAnswer = AnswerResult.Wrong(
+                        actualType = ChordType.MAJ7,
+                        selectedType = ChordType.DOM7
+                    ),
+                    isPlaying = false,
+                    hasPlayedThisTrial = true,
+                    showingFeedback = true,
+                    inLearningMode = false
+                ),
+                onPlayClicked = {},
+                onAnswerClicked = {},
+                onTrialComplete = {},
+                onSessionComplete = {}
+            )
+        }
+
+        // Selected button (Dom7) should be WRONG
+        composeTestRule.onNodeWithTag("answer_button_DOM7_WRONG").assertIsDisplayed()
+        // Correct button (Maj7) should be CORRECT
+        composeTestRule.onNodeWithTag("answer_button_MAJ7_CORRECT").assertIsDisplayed()
+        // Other buttons should be INACTIVE
+        composeTestRule.onNodeWithTag("answer_button_MAJOR_INACTIVE").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("answer_button_MIN7_INACTIVE").assertIsDisplayed()
+    }
+
+    @Test
+    fun learningMode_afterWrongAnswer_showsColorFeedback() {
+        // In learning mode after wrong answer, colors should still show
+        val chordTypes = listOf(ChordType.MAJOR, ChordType.MINOR, ChordType.SUS2, ChordType.SUS4)
+        val session = createTestSession(chordTypes)
+
+        composeTestRule.setContent {
+            ReviewScreen(
+                state = ReviewScreenState(
+                    session = session,
+                    currentCard = session.getCurrentCard(),
+                    currentRootSemitones = 0,
+                    lastAnswer = AnswerResult.Wrong(
+                        actualType = ChordType.MINOR,
+                        selectedType = ChordType.MAJOR
+                    ),
+                    isPlaying = false,
+                    hasPlayedThisTrial = true,
+                    showingFeedback = true,
+                    inLearningMode = true
+                ),
+                onPlayClicked = {},
+                onAnswerClicked = {},
+                onTrialComplete = {},
+                onSessionComplete = {},
+                onNextClicked = {}
+            )
+        }
+
+        // Colors should be applied even in learning mode
+        composeTestRule.onNodeWithTag("answer_button_MAJOR_WRONG").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("answer_button_MINOR_CORRECT").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("answer_button_SUS2_INACTIVE").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("answer_button_SUS4_INACTIVE").assertIsDisplayed()
     }
 }
