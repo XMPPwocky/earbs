@@ -22,6 +22,8 @@ import net.xmppwocky.earbs.data.db.CardStatsView
 import net.xmppwocky.earbs.data.db.CardWithFsrs
 import net.xmppwocky.earbs.data.db.SessionOverview
 import net.xmppwocky.earbs.data.entity.TrialEntity
+import net.xmppwocky.earbs.ui.theme.AccuracyThresholds
+import net.xmppwocky.earbs.ui.theme.AppColors
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -163,10 +165,10 @@ private fun SessionCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val accuracy = (session.accuracy * 100).toInt()
                     val color = when {
-                        accuracy >= 90 -> Color(0xFF4CAF50)  // Green
-                        accuracy >= 75 -> Color(0xFF8BC34A)  // Light green
-                        accuracy >= 60 -> Color(0xFFFFC107)  // Amber
-                        else -> Color(0xFFF44336)            // Red
+                        accuracy >= AccuracyThresholds.EXCELLENT -> AppColors.Success
+                        accuracy >= AccuracyThresholds.GOOD -> AppColors.SuccessLight
+                        accuracy >= AccuracyThresholds.FAIR -> AppColors.Warning
+                        else -> AppColors.Error
                     }
 
                     Surface(
@@ -284,11 +286,11 @@ private fun TrialRow(trial: TrialEntity) {
             Text(
                 text = "$displayText @ $octave ($mode)",
                 fontSize = 13.sp,
-                color = Color(0xFF4CAF50)
+                color = AppColors.Success
             )
             Text(
                 text = "✓",
-                color = Color(0xFF4CAF50),
+                color = AppColors.Success,
                 fontWeight = FontWeight.Bold
             )
         } else {
@@ -296,7 +298,7 @@ private fun TrialRow(trial: TrialEntity) {
                 Text(
                     text = "$displayText @ $octave ($mode)",
                     fontSize = 13.sp,
-                    color = Color(0xFFF44336)
+                    color = AppColors.Error
                 )
                 userAnswer?.let { answered ->
                     Text(
@@ -308,7 +310,7 @@ private fun TrialRow(trial: TrialEntity) {
             }
             Text(
                 text = "✗",
-                color = Color(0xFFF44336),
+                color = AppColors.Error,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -482,10 +484,10 @@ private fun StatsTab(cardStats: List<CardStatsView>) {
 private fun CardStatRow(stat: CardStatsView) {
     val accuracy = (stat.accuracy * 100).toInt()
     val color = when {
-        accuracy >= 90 -> Color(0xFF4CAF50)
-        accuracy >= 75 -> Color(0xFF8BC34A)
-        accuracy >= 60 -> Color(0xFFFFC107)
-        else -> Color(0xFFF44336)
+        accuracy >= AccuracyThresholds.EXCELLENT -> AppColors.Success
+        accuracy >= AccuracyThresholds.GOOD -> AppColors.SuccessLight
+        accuracy >= AccuracyThresholds.FAIR -> AppColors.Warning
+        else -> AppColors.Error
     }
 
     val isFunction = stat.gameType == "CHORD_FUNCTION"

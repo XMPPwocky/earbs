@@ -9,6 +9,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import net.xmppwocky.earbs.ui.theme.AccuracyThresholds
+import net.xmppwocky.earbs.ui.theme.AppColors
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,9 +29,9 @@ fun ResultsScreen(
 
     // Determine color based on accuracy
     val (backgroundColor, textColor) = when {
-        accuracy >= 0.9f -> Color(0xFFE8F5E9) to Color(0xFF4CAF50)  // Green
-        accuracy >= 0.7f -> Color(0xFFFFF8E1) to Color(0xFFFFC107)  // Amber
-        else -> Color(0xFFFFEBEE) to Color(0xFFF44336)             // Red
+        accuracyPercent >= AccuracyThresholds.EXCELLENT -> AppColors.SuccessBackground to AppColors.Success
+        accuracyPercent >= AccuracyThresholds.GOOD - 5 -> AppColors.WarningBackground to AppColors.Warning
+        else -> AppColors.ErrorBackground to AppColors.Error
     }
 
     Column(

@@ -17,9 +17,10 @@ import net.xmppwocky.earbs.model.ChordFunction
 import net.xmppwocky.earbs.model.FunctionCard
 import net.xmppwocky.earbs.model.FunctionReviewSession
 import net.xmppwocky.earbs.model.KeyQuality
+import net.xmppwocky.earbs.ui.theme.AppColors
+import net.xmppwocky.earbs.ui.theme.Timing
 
 private const val TAG = "FunctionReviewScreen"
-private const val FEEDBACK_DELAY_MS = 500L
 
 /**
  * Represents the result of a function answer.
@@ -59,8 +60,8 @@ fun FunctionReviewScreen(
     // Auto-advance after showing feedback
     LaunchedEffect(state.showingFeedback) {
         if (state.showingFeedback) {
-            Log.d(TAG, "Showing feedback, will advance in ${FEEDBACK_DELAY_MS}ms")
-            delay(FEEDBACK_DELAY_MS)
+            Log.d(TAG, "Showing feedback, will advance in ${Timing.FEEDBACK_DELAY_MS}ms")
+            delay(Timing.FEEDBACK_DELAY_MS)
 
             if (state.session.isComplete()) {
                 Log.i(TAG, "Session complete, navigating to results")
@@ -239,8 +240,8 @@ private fun FunctionFeedbackArea(
     val (text, color) = when {
         answerResult == null && !hasPlayedThisTrial -> "Tap Play to hear: tonic, then target chord" to Color.Gray
         answerResult == null -> "What function is the second chord?" to Color.Gray
-        answerResult is FunctionAnswerResult.Correct -> "Correct!" to Color(0xFF4CAF50)
-        answerResult is FunctionAnswerResult.Wrong -> "Wrong - it was ${answerResult.actualFunction.displayName}" to Color(0xFFF44336)
+        answerResult is FunctionAnswerResult.Correct -> "Correct!" to AppColors.Success
+        answerResult is FunctionAnswerResult.Wrong -> "Wrong - it was ${answerResult.actualFunction.displayName}" to AppColors.Error
         else -> "" to Color.Gray
     }
 

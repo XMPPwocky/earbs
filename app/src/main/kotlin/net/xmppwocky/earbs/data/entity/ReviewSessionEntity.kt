@@ -13,6 +13,8 @@ data class ReviewSessionEntity(
     val startedAt: Long,                    // epoch millis
     val completedAt: Long? = null,          // epoch millis
     val gameType: String = "CHORD_TYPE",    // CHORD_TYPE or CHORD_FUNCTION
-    val octave: Int = 0,                    // deprecated: sessions now have mixed cards
-    val playbackMode: String = "MIXED"      // deprecated: sessions now have mixed cards
+    @Deprecated("Sessions now have mixed cards with varying octaves")
+    val octave: Int = 0,
+    @Deprecated("Sessions now have mixed cards with varying playback modes")
+    val playbackMode: String = "MIXED"
 )

@@ -16,9 +16,18 @@ import net.xmppwocky.earbs.audio.ChordType
 import net.xmppwocky.earbs.audio.PlaybackMode
 import net.xmppwocky.earbs.model.Card
 import net.xmppwocky.earbs.model.ReviewSession
+import net.xmppwocky.earbs.ui.theme.AppColors
+import net.xmppwocky.earbs.ui.theme.Timing
 
 private const val TAG = "ReviewScreen"
-private const val FEEDBACK_DELAY_MS = 500L
+
+/**
+ * Represents the result of an answer.
+ */
+sealed class AnswerResult {
+    data object Correct : AnswerResult()
+    data class Wrong(val actualType: ChordType) : AnswerResult()
+}
 
 /**
  * State for the review screen UI.
@@ -58,8 +67,8 @@ fun ReviewScreen(
     // Auto-advance after showing feedback
     LaunchedEffect(state.showingFeedback) {
         if (state.showingFeedback) {
-            Log.d(TAG, "Showing feedback, will advance in ${FEEDBACK_DELAY_MS}ms")
-            delay(FEEDBACK_DELAY_MS)
+            Log.d(TAG, "Showing feedback, will advance in ${Timing.FEEDBACK_DELAY_MS}ms")
+            delay(Timing.FEEDBACK_DELAY_MS)
 
             if (state.session.isComplete()) {
                 Log.i(TAG, "Session complete, navigating to results")
@@ -208,8 +217,8 @@ private fun ReviewFeedbackArea(
     val (text, color) = when {
         answerResult == null && !hasPlayedThisTrial -> "Tap Play to hear the chord" to Color.Gray
         answerResult == null -> "What chord type is this?" to Color.Gray
-        answerResult is AnswerResult.Correct -> "Correct!" to Color(0xFF4CAF50)
-        answerResult is AnswerResult.Wrong -> "Wrong - it was ${answerResult.actualType.displayName}" to Color(0xFFF44336)
+        answerResult is AnswerResult.Correct -> "Correct!" to AppColors.Success
+        answerResult is AnswerResult.Wrong -> "Wrong - it was ${answerResult.actualType.displayName}" to AppColors.Error
         else -> "" to Color.Gray
     }
 

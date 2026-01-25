@@ -31,6 +31,7 @@ Android app (Kotlin, Jetpack Compose) for ear training chord recognition using F
 | Dom7   | 0, 4, 7, 10    |
 | Maj7   | 0, 4, 7, 11    |
 | Min7   | 0, 3, 7, 10    |
+| Dim7   | 0, 3, 6, 9     |
 
 ## Per-Trial FSRS Grading
 
