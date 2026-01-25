@@ -25,4 +25,12 @@ sealed interface GameAnswer {
     data class FunctionAnswer(val function: ChordFunction) : GameAnswer {
         override val displayName: String get() = function.displayName
     }
+
+    /**
+     * Answer for the chord progression recognition game.
+     * User identifies the progression (I-IV-I, I-V-vi-IV, etc.)
+     */
+    data class ProgressionAnswer(val progression: ProgressionType) : GameAnswer {
+        override val displayName: String get() = progression.displayName
+    }
 }
