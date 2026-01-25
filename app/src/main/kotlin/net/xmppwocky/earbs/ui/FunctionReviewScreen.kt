@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -157,9 +158,10 @@ fun FunctionReviewScreen(
             hasPlayedThisTrial = state.hasPlayedThisTrial
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        // Flexible spacer pushes remaining content to bottom
+        Spacer(modifier = Modifier.weight(1f))
 
-        // Answer Buttons
+        // Answer Buttons (pinned to bottom)
         FunctionAnswerButtons(
             functions = state.session.getAllFunctionsForKey(),
             enabled = state.hasPlayedThisTrial && !state.isPlaying &&
@@ -169,18 +171,17 @@ fun FunctionReviewScreen(
             onPlayFunction = onPlayFunction
         )
 
-        // Next button (only visible in learning mode)
-        if (state.inLearningMode) {
-            Spacer(modifier = Modifier.height(24.dp))
-            Button(
-                onClick = onNextClicked,
-                enabled = !state.isPlaying,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = AppColors.Success
-                )
-            ) {
-                Text("Next", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            }
+        // Next button - always takes space, invisible when not in learning mode
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(
+            onClick = onNextClicked,
+            enabled = state.inLearningMode && !state.isPlaying,
+            modifier = Modifier.alpha(if (state.inLearningMode) 1f else 0f),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = AppColors.Success
+            )
+        ) {
+            Text("Next", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
