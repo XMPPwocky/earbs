@@ -23,6 +23,28 @@ enum class PlaybackMode {
 object AudioEngine {
 
     /**
+     * PolyBLEP correction for band-limited waveform generation.
+     * Reduces aliasing by smoothing discontinuities in square waves.
+     *
+     * @param t Current phase position (0 to 1)
+     * @param dt Phase increment per sample (frequency / sampleRate)
+     * @return Correction value to add to the naive waveform
+     */
+    private fun polyBlep(t: Float, dt: Float): Float {
+        return when {
+            t < dt -> {
+                val x = t / dt
+                x + x - x * x - 1f
+            }
+            t > 1f - dt -> {
+                val x = (t - 1f) / dt
+                x * x + x + x + 1f
+            }
+            else -> 0f
+        }
+    }
+
+    /**
      * Calculate how many samples each note in an arpeggiated chord should get.
      * Ensures total samples are preserved exactly (no truncation from integer division).
      *
@@ -61,8 +83,8 @@ object AudioEngine {
     }
 
     /**
-     * Generate a square wave directly into a pre-allocated buffer.
-     * Zero-allocation version for use in arpeggiated playback.
+     * Generate a band-limited square wave directly into a pre-allocated buffer.
+     * Uses PolyBLEP to reduce aliasing artifacts at high frequencies.
      *
      * @param buffer The buffer to write samples into
      * @param offset Starting index in the buffer
@@ -77,14 +99,23 @@ object AudioEngine {
         frequency: Float,
         sampleRate: Int = SAMPLE_RATE
     ) {
-        val samplesPerCycle = sampleRate / frequency
-        val amplitude = 8000 // Keep low to allow mixing without clipping
+        val dt = frequency / sampleRate  // Phase increment per sample
+        val amplitude = 8000f  // Keep low to allow mixing without clipping
+        var phase = 0f
 
         for (i in 0 until numSamples) {
-            val cyclePosition = (i % samplesPerCycle) / samplesPerCycle
-            // Square wave: positive for first half, negative for second half
-            val value = if (cyclePosition < 0.5f) amplitude else -amplitude
-            buffer[offset + i] = value.toShort()
+            // Naive square wave: +1 for first half, -1 for second half
+            var value = if (phase < 0.5f) 1f else -1f
+
+            // Apply PolyBLEP correction at discontinuities
+            value += polyBlep(phase, dt)                    // Rising edge at phase 0
+            value -= polyBlep((phase + 0.5f) % 1f, dt)      // Falling edge at phase 0.5
+
+            buffer[offset + i] = (value * amplitude).toInt().toShort()
+
+            // Advance phase
+            phase += dt
+            if (phase >= 1f) phase -= 1f
         }
     }
 
