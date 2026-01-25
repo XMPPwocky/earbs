@@ -6,6 +6,16 @@ import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 import net.xmppwocky.earbs.data.entity.TrialEntity
 
+/**
+ * Per-session accuracy for a specific card, used for graphing.
+ */
+data class CardSessionAccuracy(
+    val sessionId: Long,
+    val sessionDate: Long,
+    val trialsInSession: Int,
+    val correctInSession: Int
+)
+
 @Dao
 interface TrialDao {
     @Insert
@@ -25,4 +35,19 @@ interface TrialDao {
 
     @Query("SELECT COUNT(*) FROM trials WHERE cardId = :cardId AND wasCorrect = 1")
     suspend fun countCorrectTrialsForCard(cardId: String): Int
+
+    /**
+     * Get per-session accuracy for a specific card, used for graphing accuracy over time.
+     */
+    @Query("""
+        SELECT t.sessionId, rs.startedAt as sessionDate,
+               COUNT(*) as trialsInSession,
+               SUM(CASE WHEN t.wasCorrect THEN 1 ELSE 0 END) as correctInSession
+        FROM trials t
+        INNER JOIN review_sessions rs ON t.sessionId = rs.id
+        WHERE t.cardId = :cardId
+        GROUP BY t.sessionId
+        ORDER BY rs.startedAt ASC
+    """)
+    suspend fun getCardSessionAccuracy(cardId: String): List<CardSessionAccuracy>
 }

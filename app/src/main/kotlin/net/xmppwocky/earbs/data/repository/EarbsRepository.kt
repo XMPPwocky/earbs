@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.Flow
 import net.xmppwocky.earbs.audio.ChordType
 import net.xmppwocky.earbs.audio.PlaybackMode
 import net.xmppwocky.earbs.data.db.CardDao
+import net.xmppwocky.earbs.data.db.CardSessionAccuracy
 import net.xmppwocky.earbs.data.db.CardStatsView
 import net.xmppwocky.earbs.data.db.ConfusionEntry
 import net.xmppwocky.earbs.data.db.CardWithFsrs
@@ -852,6 +853,36 @@ class EarbsRepository(
             lapses = 0
         )
         Log.i(TAG, "Reset FSRS state for card $cardId (gameType=$gameType)")
+    }
+
+    /**
+     * Get per-session accuracy data for a specific card (for graphing).
+     */
+    suspend fun getCardSessionAccuracy(cardId: String): List<CardSessionAccuracy> {
+        return trialDao.getCardSessionAccuracy(cardId)
+    }
+
+    /**
+     * Get card by ID with FSRS state.
+     */
+    suspend fun getCardWithFsrs(cardId: String): CardWithFsrs? {
+        return cardDao.getByIdWithFsrs(cardId)
+    }
+
+    /**
+     * Get lifetime stats for a specific card.
+     */
+    suspend fun getCardLifetimeStats(cardId: String): Pair<Int, Int> {
+        val total = trialDao.countTrialsForCard(cardId)
+        val correct = trialDao.countCorrectTrialsForCard(cardId)
+        return Pair(total, correct)
+    }
+
+    /**
+     * Get last session stats for a specific card.
+     */
+    suspend fun getCardLastSessionStats(cardId: String): CardSessionAccuracy? {
+        return trialDao.getCardSessionAccuracy(cardId).lastOrNull()
     }
 }
 

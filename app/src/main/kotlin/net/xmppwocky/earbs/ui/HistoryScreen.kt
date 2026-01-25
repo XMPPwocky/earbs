@@ -55,7 +55,8 @@ fun HistoryScreen(
     onLoadTrials: (suspend (Long) -> List<TrialEntity>)? = null,
     onLoadChordConfusion: (suspend (Int?) -> List<ConfusionEntry>)? = null,
     onLoadFunctionConfusion: (suspend (String) -> List<ConfusionEntry>)? = null,
-    onResetFsrs: (suspend (String) -> Unit)? = null
+    onResetFsrs: (suspend (String) -> Unit)? = null,
+    onCardClicked: ((String) -> Unit)? = null
 ) {
     var selectedTab by remember { mutableStateOf(HistoryTab.SESSIONS) }
 
@@ -102,7 +103,7 @@ fun HistoryScreen(
 
             when (selectedTab) {
                 HistoryTab.SESSIONS -> SessionsTab(sessions, onLoadTrials)
-                HistoryTab.CARDS -> CardsTab(cards, onResetFsrs)
+                HistoryTab.CARDS -> CardsTab(cards, onResetFsrs, onCardClicked)
                 HistoryTab.STATS -> StatsTab(
                     cardStats = cardStats,
                     onLoadChordConfusion = onLoadChordConfusion,
@@ -337,7 +338,8 @@ private fun TrialRow(trial: TrialEntity) {
 @Composable
 private fun CardsTab(
     cards: List<CardWithFsrs>,
-    onResetFsrs: (suspend (String) -> Unit)? = null
+    onResetFsrs: (suspend (String) -> Unit)? = null,
+    onCardClicked: ((String) -> Unit)? = null
 ) {
     if (cards.isEmpty()) {
         Box(
@@ -364,7 +366,8 @@ private fun CardsTab(
                 card = card,
                 onResetFsrs = if (onResetFsrs != null) {
                     { coroutineScope.launch { onResetFsrs(card.id) } }
-                } else null
+                } else null,
+                onCardClicked = onCardClicked
             )
         }
     }
@@ -373,7 +376,8 @@ private fun CardsTab(
 @Composable
 private fun CardWithFsrsRow(
     card: CardWithFsrs,
-    onResetFsrs: (() -> Unit)? = null
+    onResetFsrs: (() -> Unit)? = null,
+    onCardClicked: ((String) -> Unit)? = null
 ) {
     val dateFormat = remember { SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()) }
     val dueDate = dateFormat.format(Date(card.dueDate))
@@ -411,7 +415,15 @@ private fun CardWithFsrsRow(
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (onCardClicked != null) {
+                    Modifier.clickable { onCardClicked(card.id) }
+                } else {
+                    Modifier
+                }
+            )
     ) {
         Column(
             modifier = Modifier.padding(16.dp)

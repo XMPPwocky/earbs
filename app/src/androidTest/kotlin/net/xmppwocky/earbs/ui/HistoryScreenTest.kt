@@ -385,4 +385,28 @@ class HistoryScreenTest : ComposeTestBase() {
 
         assertTrue(clicked)
     }
+
+    @Test
+    fun cardsTab_cardClick_triggersCallback() {
+        var clickedCardId: String? = null
+        val card = createCardWithFsrs(id = "MAJOR_4_ARPEGGIATED", chordType = "MAJOR", octave = 4)
+
+        composeTestRule.setContent {
+            HistoryScreen(
+                sessions = emptyList(),
+                cards = listOf(card),
+                cardStats = emptyList(),
+                onBackClicked = {},
+                onCardClicked = { cardId -> clickedCardId = cardId }
+            )
+        }
+
+        // Switch to Cards tab
+        composeTestRule.onNodeWithText("Cards").performClick()
+
+        // Click on the card
+        composeTestRule.onNodeWithText("MAJOR @ Oct 4").performClick()
+
+        assertTrue(clickedCardId == "MAJOR_4_ARPEGGIATED")
+    }
 }

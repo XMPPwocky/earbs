@@ -22,6 +22,7 @@ import net.xmppwocky.earbs.data.repository.EarbsRepository
 import net.xmppwocky.earbs.model.FunctionReviewSession
 import net.xmppwocky.earbs.model.ReviewSession
 import net.xmppwocky.earbs.ui.AnswerResult
+import net.xmppwocky.earbs.ui.CardDetailsScreen
 import net.xmppwocky.earbs.ui.FunctionAnswerResult
 import net.xmppwocky.earbs.ui.FunctionReviewScreen
 import net.xmppwocky.earbs.ui.FunctionReviewScreenState
@@ -55,6 +56,7 @@ enum class Screen {
     FUNCTION_REVIEW,
     RESULTS,
     HISTORY,
+    CARD_DETAILS,
     SETTINGS
 }
 
@@ -112,6 +114,7 @@ private fun EarbsApp(repository: EarbsRepository, prefs: SharedPreferences) {
     var dbSessionId by remember { mutableStateOf<Long?>(null) }
     var sessionResult by remember { mutableStateOf<SessionResult?>(null) }
     var isLoading by remember { mutableStateOf(true) }
+    var selectedCardId by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
     // Initialize on first composition
@@ -326,8 +329,29 @@ private fun EarbsApp(repository: EarbsRepository, prefs: SharedPreferences) {
                 },
                 onResetFsrs = { cardId ->
                     repository.resetFsrsState(cardId, GameType.CHORD_TYPE)
+                },
+                onCardClicked = { cardId ->
+                    Log.i(TAG, "Card clicked: $cardId")
+                    selectedCardId = cardId
+                    currentScreen = Screen.CARD_DETAILS
                 }
             )
+        }
+
+        Screen.CARD_DETAILS -> {
+            selectedCardId?.let { cardId ->
+                CardDetailsScreen(
+                    cardId = cardId,
+                    gameType = GameType.CHORD_TYPE,
+                    repository = repository,
+                    onBackClicked = {
+                        currentScreen = Screen.HISTORY
+                    }
+                )
+            } ?: run {
+                Log.w(TAG, "Card details screen but no card selected, returning to history")
+                currentScreen = Screen.HISTORY
+            }
         }
 
         Screen.SETTINGS -> {

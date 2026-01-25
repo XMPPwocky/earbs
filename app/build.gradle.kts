@@ -2,16 +2,17 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
     namespace = "net.xmppwocky.earbs"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "net.xmppwocky.earbs"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -44,10 +45,6 @@ android {
         compose = true
     }
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.5"
-    }
-
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -73,6 +70,9 @@ dependencies {
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
+
+    // Vico charting library
+    implementation("com.patrykandpatrick.vico:compose-m3:2.0.1")
 
     // FSRS spaced repetition
     implementation(project(":lib:fsrs-kotlin"))

@@ -252,4 +252,82 @@ class TrialDaoTest : DatabaseTestBase() {
         assertEquals(null, trials[0].answeredFunction)
         assertEquals("V", trials[1].answeredFunction)
     }
+
+    // ========== Card Session Accuracy Tests ==========
+
+    @Test
+    fun `getCardSessionAccuracy aggregates correctly`() = runTest {
+        val sessionId = createSession()
+        val now = System.currentTimeMillis()
+        val cardId = "MAJOR_4_ARPEGGIATED"
+
+        // 3 trials for same card: 2 correct, 1 wrong
+        trialDao.insert(TrialEntity(sessionId = sessionId, cardId = cardId, timestamp = now, wasCorrect = true, gameType = GameType.CHORD_TYPE.name))
+        trialDao.insert(TrialEntity(sessionId = sessionId, cardId = cardId, timestamp = now + 1000, wasCorrect = false, gameType = GameType.CHORD_TYPE.name))
+        trialDao.insert(TrialEntity(sessionId = sessionId, cardId = cardId, timestamp = now + 2000, wasCorrect = true, gameType = GameType.CHORD_TYPE.name))
+
+        val accuracy = trialDao.getCardSessionAccuracy(cardId)
+
+        assertEquals(1, accuracy.size)
+        assertEquals(sessionId, accuracy[0].sessionId)
+        assertEquals(3, accuracy[0].trialsInSession)
+        assertEquals(2, accuracy[0].correctInSession)
+    }
+
+    @Test
+    fun `getCardSessionAccuracy handles multiple sessions`() = runTest {
+        val session1 = createSession()
+        val session2 = createSession()
+        val now = System.currentTimeMillis()
+        val cardId = "MAJOR_4_ARPEGGIATED"
+
+        // Session 1: 2 trials, 1 correct
+        trialDao.insert(TrialEntity(sessionId = session1, cardId = cardId, timestamp = now, wasCorrect = true, gameType = GameType.CHORD_TYPE.name))
+        trialDao.insert(TrialEntity(sessionId = session1, cardId = cardId, timestamp = now + 1000, wasCorrect = false, gameType = GameType.CHORD_TYPE.name))
+
+        // Session 2: 3 trials, 3 correct
+        trialDao.insert(TrialEntity(sessionId = session2, cardId = cardId, timestamp = now + 10000, wasCorrect = true, gameType = GameType.CHORD_TYPE.name))
+        trialDao.insert(TrialEntity(sessionId = session2, cardId = cardId, timestamp = now + 11000, wasCorrect = true, gameType = GameType.CHORD_TYPE.name))
+        trialDao.insert(TrialEntity(sessionId = session2, cardId = cardId, timestamp = now + 12000, wasCorrect = true, gameType = GameType.CHORD_TYPE.name))
+
+        val accuracy = trialDao.getCardSessionAccuracy(cardId)
+
+        assertEquals(2, accuracy.size)
+        // Ordered by session startedAt
+        assertEquals(session1, accuracy[0].sessionId)
+        assertEquals(2, accuracy[0].trialsInSession)
+        assertEquals(1, accuracy[0].correctInSession)
+        assertEquals(session2, accuracy[1].sessionId)
+        assertEquals(3, accuracy[1].trialsInSession)
+        assertEquals(3, accuracy[1].correctInSession)
+    }
+
+    @Test
+    fun `getCardSessionAccuracy returns empty for new card`() = runTest {
+        val accuracy = trialDao.getCardSessionAccuracy("NON_EXISTENT_CARD")
+        assertTrue(accuracy.isEmpty())
+    }
+
+    @Test
+    fun `getCardSessionAccuracy only includes trials for specific card`() = runTest {
+        val sessionId = createSession()
+        val now = System.currentTimeMillis()
+        val targetCard = "MAJOR_4_ARPEGGIATED"
+        val otherCard = "MINOR_4_ARPEGGIATED"
+
+        // Target card: 2 trials, 2 correct
+        trialDao.insert(TrialEntity(sessionId = sessionId, cardId = targetCard, timestamp = now, wasCorrect = true, gameType = GameType.CHORD_TYPE.name))
+        trialDao.insert(TrialEntity(sessionId = sessionId, cardId = targetCard, timestamp = now + 1000, wasCorrect = true, gameType = GameType.CHORD_TYPE.name))
+
+        // Other card: 3 trials, 0 correct (should not affect target card accuracy)
+        trialDao.insert(TrialEntity(sessionId = sessionId, cardId = otherCard, timestamp = now + 2000, wasCorrect = false, gameType = GameType.CHORD_TYPE.name))
+        trialDao.insert(TrialEntity(sessionId = sessionId, cardId = otherCard, timestamp = now + 3000, wasCorrect = false, gameType = GameType.CHORD_TYPE.name))
+        trialDao.insert(TrialEntity(sessionId = sessionId, cardId = otherCard, timestamp = now + 4000, wasCorrect = false, gameType = GameType.CHORD_TYPE.name))
+
+        val accuracy = trialDao.getCardSessionAccuracy(targetCard)
+
+        assertEquals(1, accuracy.size)
+        assertEquals(2, accuracy[0].trialsInSession)
+        assertEquals(2, accuracy[0].correctInSession)
+    }
 }
