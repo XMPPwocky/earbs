@@ -21,14 +21,11 @@ fun HomeScreen(
     // Chord type game stats
     chordTypeDueCount: Int = 0,
     chordTypeUnlockedCount: Int = 4,
-    canUnlockMoreChordTypes: Boolean = true,
     // Function game stats
     functionDueCount: Int = 0,
     functionUnlockedCount: Int = 0,
-    canUnlockMoreFunctions: Boolean = true,
     // Actions
     onStartReviewClicked: () -> Unit,
-    onAddCardsClicked: () -> Unit = {},
     onHistoryClicked: () -> Unit = {},
     onSettingsClicked: () -> Unit = {}
 ) {
@@ -36,8 +33,6 @@ fun HomeScreen(
     val dueCount = if (selectedGameMode == GameType.CHORD_TYPE) chordTypeDueCount else functionDueCount
     val unlockedCount = if (selectedGameMode == GameType.CHORD_TYPE) chordTypeUnlockedCount else functionUnlockedCount
     val totalCards = if (selectedGameMode == GameType.CHORD_TYPE) Deck.TOTAL_CARDS else FunctionDeck.TOTAL_CARDS
-    val canUnlockMore = if (selectedGameMode == GameType.CHORD_TYPE) canUnlockMoreChordTypes else canUnlockMoreFunctions
-    val cardsPerUnlock = if (selectedGameMode == GameType.CHORD_TYPE) 4 else FunctionDeck.CARDS_PER_GROUP
 
     Column(
         modifier = Modifier
@@ -116,7 +111,7 @@ fun HomeScreen(
                 modifier = Modifier.padding(bottom = 24.dp)
             ) {
                 Text(
-                    text = if (unlockedCount == 0) "Tap 'Add Cards' to start!" else "No cards due",
+                    text = if (unlockedCount == 0) "Unlock cards in History > Cards" else "No cards due",
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     fontSize = 16.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -167,45 +162,6 @@ fun HomeScreen(
                 text = "Settings",
                 fontSize = 18.sp
             )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Add Cards button
-        if (canUnlockMore) {
-            Button(
-                onClick = onAddCardsClicked,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.secondary
-                )
-            ) {
-                Text(
-                    text = "Add $cardsPerUnlock Cards",
-                    fontSize = 18.sp
-                )
-            }
-        } else {
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    Text(
-                        text = "All cards unlocked!",
-                        fontSize = 16.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))

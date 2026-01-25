@@ -125,30 +125,6 @@ class HomeScreenTest : ComposeTestBase() {
     }
 
     @Test
-    fun showsAddCardsButton_whenMoreToUnlock() {
-        composeTestRule.setContent {
-            HomeScreen(
-                canUnlockMoreChordTypes = true,
-                onStartReviewClicked = {}
-            )
-        }
-
-        composeTestRule.onNodeWithText("Add 4 Cards").assertIsDisplayed()
-    }
-
-    @Test
-    fun hidesAddCardsButton_atMaxUnlock() {
-        composeTestRule.setContent {
-            HomeScreen(
-                canUnlockMoreChordTypes = false,
-                onStartReviewClicked = {}
-            )
-        }
-
-        composeTestRule.onNodeWithText("All cards unlocked!").assertIsDisplayed()
-    }
-
-    @Test
     fun startButton_triggersCallback() {
         var clicked = false
         composeTestRule.setContent {
@@ -159,22 +135,6 @@ class HomeScreenTest : ComposeTestBase() {
         }
 
         composeTestRule.onNodeWithText("Practice Early").performClick()
-
-        assertTrue(clicked)
-    }
-
-    @Test
-    fun addCardsButton_triggersCallback() {
-        var clicked = false
-        composeTestRule.setContent {
-            HomeScreen(
-                canUnlockMoreChordTypes = true,
-                onStartReviewClicked = {},
-                onAddCardsClicked = { clicked = true }
-            )
-        }
-
-        composeTestRule.onNodeWithText("Add 4 Cards").performClick()
 
         assertTrue(clicked)
     }
@@ -304,19 +264,6 @@ class HomeScreenTest : ComposeTestBase() {
         }
 
         composeTestRule.onNodeWithText("Identify chord function (IV, V, vi, etc.)").assertIsDisplayed()
-    }
-
-    @Test
-    fun showsAdd3CardsButton_forFunctionMode() {
-        composeTestRule.setContent {
-            HomeScreen(
-                selectedGameMode = GameType.CHORD_FUNCTION,
-                canUnlockMoreFunctions = true,
-                onStartReviewClicked = {}
-            )
-        }
-
-        composeTestRule.onNodeWithText("Add 3 Cards").assertIsDisplayed()
     }
 
     // ========== Tab Due Count Tests ==========

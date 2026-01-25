@@ -236,13 +236,11 @@ private fun EarbsApp(
     var chordTypeSession by remember { mutableStateOf<ReviewSession?>(null) }
     var chordTypeDueCount by remember { mutableIntStateOf(0) }
     var chordTypeUnlockedCount by remember { mutableIntStateOf(4) }
-    var canUnlockMoreChordTypes by remember { mutableStateOf(true) }
 
     // Function game state
     var functionSession by remember { mutableStateOf<FunctionReviewSession?>(null) }
     var functionDueCount by remember { mutableIntStateOf(0) }
     var functionUnlockedCount by remember { mutableIntStateOf(0) }
-    var canUnlockMoreFunctions by remember { mutableStateOf(true) }
 
     // Shared state
     var dbSessionId by remember { mutableStateOf<Long?>(null) }
@@ -255,17 +253,15 @@ private fun EarbsApp(
     LaunchedEffect(Unit) {
         Log.i(TAG, "Initializing app...")
 
-        // Initialize chord type game
+        // Initialize chord type game (verify FSRS state exists for all cards)
         repository.initializeStartingDeck()
         chordTypeDueCount = repository.getDueCount()
         chordTypeUnlockedCount = repository.getUnlockedCount()
-        canUnlockMoreChordTypes = repository.canUnlockMore()
 
-        // Initialize function game (if not already)
+        // Initialize function game (verify FSRS state exists for all cards)
         repository.initializeFunctionStartingDeck()
         functionDueCount = repository.getFunctionDueCount()
         functionUnlockedCount = repository.getFunctionUnlockedCount()
-        canUnlockMoreFunctions = repository.canUnlockMoreFunctions()
 
         isLoading = false
         Log.i(TAG, "Initialization complete")
@@ -292,10 +288,8 @@ private fun EarbsApp(
                 onGameModeChanged = { selectedGameMode = it },
                 chordTypeDueCount = chordTypeDueCount,
                 chordTypeUnlockedCount = chordTypeUnlockedCount,
-                canUnlockMoreChordTypes = canUnlockMoreChordTypes,
                 functionDueCount = functionDueCount,
                 functionUnlockedCount = functionUnlockedCount,
-                canUnlockMoreFunctions = canUnlockMoreFunctions,
                 onStartReviewClicked = {
                     coroutineScope.launch {
                         when (selectedGameMode) {
@@ -320,28 +314,6 @@ private fun EarbsApp(
                                 functionSession = FunctionReviewSession(cards)
                                 dbSessionId = repository.startSession(GameType.CHORD_FUNCTION)
                                 currentScreen = Screen.FUNCTION_REVIEW
-                            }
-                        }
-                    }
-                },
-                onAddCardsClicked = {
-                    coroutineScope.launch {
-                        when (selectedGameMode) {
-                            GameType.CHORD_TYPE -> {
-                                Log.i(TAG, "Unlocking next chord type group")
-                                if (repository.unlockNextGroup()) {
-                                    chordTypeUnlockedCount = repository.getUnlockedCount()
-                                    canUnlockMoreChordTypes = repository.canUnlockMore()
-                                    chordTypeDueCount = repository.getDueCount()
-                                }
-                            }
-                            GameType.CHORD_FUNCTION -> {
-                                Log.i(TAG, "Unlocking next function group")
-                                if (repository.unlockNextFunctionGroup()) {
-                                    functionUnlockedCount = repository.getFunctionUnlockedCount()
-                                    canUnlockMoreFunctions = repository.canUnlockMoreFunctions()
-                                    functionDueCount = repository.getFunctionDueCount()
-                                }
                             }
                         }
                     }
@@ -444,12 +416,11 @@ private fun EarbsApp(
                 cardStats = cardStats,
                 onBackClicked = {
                     coroutineScope.launch {
+                        // Refresh counts after potential card unlock changes
                         chordTypeDueCount = repository.getDueCount()
                         chordTypeUnlockedCount = repository.getUnlockedCount()
-                        canUnlockMoreChordTypes = repository.canUnlockMore()
                         functionDueCount = repository.getFunctionDueCount()
                         functionUnlockedCount = repository.getFunctionUnlockedCount()
-                        canUnlockMoreFunctions = repository.canUnlockMoreFunctions()
                     }
                     currentScreen = Screen.HOME
                 },
