@@ -285,4 +285,249 @@ class HistoryDaoTest : DatabaseTestBase() {
         assertEquals(1, overviews.size)
         assertEquals(GameType.CHORD_TYPE.name, overviews[0].gameType)
     }
+
+    // ========== Chord Type Confusion Tests ==========
+
+    @Test
+    fun `getChordTypeConfusionData returns correct answers on diagonal`() = runTest {
+        val sessionId = createSession(gameType = GameType.CHORD_TYPE)
+
+        // 3 correct answers for MAJOR_4_ARPEGGIATED
+        repeat(3) {
+            trialDao.insert(TrialEntity(
+                sessionId = sessionId,
+                cardId = "MAJOR_4_ARPEGGIATED",
+                timestamp = System.currentTimeMillis() + it,
+                wasCorrect = true,
+                gameType = GameType.CHORD_TYPE.name
+            ))
+        }
+
+        val confusion = historyDao.getChordTypeConfusionData(null)
+
+        assertEquals(1, confusion.size)
+        val entry = confusion[0]
+        assertEquals("MAJOR", entry.actual)
+        assertEquals("MAJOR", entry.answered)  // Correct answers = actual = answered
+        assertEquals(3, entry.count)
+    }
+
+    @Test
+    fun `getChordTypeConfusionData tracks wrong answers`() = runTest {
+        val sessionId = createSession(gameType = GameType.CHORD_TYPE)
+
+        // 2 trials where MAJOR was answered as MINOR (wrong)
+        repeat(2) {
+            trialDao.insert(TrialEntity(
+                sessionId = sessionId,
+                cardId = "MAJOR_4_ARPEGGIATED",
+                timestamp = System.currentTimeMillis() + it,
+                wasCorrect = false,
+                gameType = GameType.CHORD_TYPE.name,
+                answeredChordType = "MINOR"
+            ))
+        }
+
+        val confusion = historyDao.getChordTypeConfusionData(null)
+
+        assertEquals(1, confusion.size)
+        val entry = confusion[0]
+        assertEquals("MAJOR", entry.actual)
+        assertEquals("MINOR", entry.answered)  // Wrong answer
+        assertEquals(2, entry.count)
+    }
+
+    @Test
+    fun `getChordTypeConfusionData groups by actual and answered`() = runTest {
+        val sessionId = createSession(gameType = GameType.CHORD_TYPE)
+
+        // MAJOR answered correctly 2 times
+        repeat(2) {
+            trialDao.insert(TrialEntity(
+                sessionId = sessionId,
+                cardId = "MAJOR_4_ARPEGGIATED",
+                timestamp = System.currentTimeMillis() + it,
+                wasCorrect = true,
+                gameType = GameType.CHORD_TYPE.name
+            ))
+        }
+
+        // MAJOR answered as MINOR 1 time
+        trialDao.insert(TrialEntity(
+            sessionId = sessionId,
+            cardId = "MAJOR_4_ARPEGGIATED",
+            timestamp = System.currentTimeMillis() + 10,
+            wasCorrect = false,
+            gameType = GameType.CHORD_TYPE.name,
+            answeredChordType = "MINOR"
+        ))
+
+        // MINOR answered correctly 1 time
+        trialDao.insert(TrialEntity(
+            sessionId = sessionId,
+            cardId = "MINOR_4_ARPEGGIATED",
+            timestamp = System.currentTimeMillis() + 20,
+            wasCorrect = true,
+            gameType = GameType.CHORD_TYPE.name
+        ))
+
+        val confusion = historyDao.getChordTypeConfusionData(null)
+
+        assertEquals(3, confusion.size)
+
+        val majorCorrect = confusion.find { it.actual == "MAJOR" && it.answered == "MAJOR" }
+        assertEquals(2, majorCorrect?.count)
+
+        val majorWrong = confusion.find { it.actual == "MAJOR" && it.answered == "MINOR" }
+        assertEquals(1, majorWrong?.count)
+
+        val minorCorrect = confusion.find { it.actual == "MINOR" && it.answered == "MINOR" }
+        assertEquals(1, minorCorrect?.count)
+    }
+
+    @Test
+    fun `getChordTypeConfusionData filters by octave`() = runTest {
+        val sessionId = createSession(gameType = GameType.CHORD_TYPE)
+
+        // MAJOR @ octave 3
+        trialDao.insert(TrialEntity(
+            sessionId = sessionId,
+            cardId = "MAJOR_3_ARPEGGIATED",
+            timestamp = System.currentTimeMillis(),
+            wasCorrect = true,
+            gameType = GameType.CHORD_TYPE.name
+        ))
+
+        // MAJOR @ octave 4 (2 trials)
+        repeat(2) {
+            trialDao.insert(TrialEntity(
+                sessionId = sessionId,
+                cardId = "MAJOR_4_ARPEGGIATED",
+                timestamp = System.currentTimeMillis() + it + 10,
+                wasCorrect = true,
+                gameType = GameType.CHORD_TYPE.name
+            ))
+        }
+
+        // Filter by octave 4
+        val octave4Confusion = historyDao.getChordTypeConfusionData(4)
+        assertEquals(1, octave4Confusion.size)
+        assertEquals(2, octave4Confusion[0].count)
+
+        // Filter by octave 3
+        val octave3Confusion = historyDao.getChordTypeConfusionData(3)
+        assertEquals(1, octave3Confusion.size)
+        assertEquals(1, octave3Confusion[0].count)
+
+        // No filter (all) - aggregates across octaves, so MAJOR->MAJOR = 3 total
+        val allConfusion = historyDao.getChordTypeConfusionData(null)
+        assertEquals(1, allConfusion.size)  // One group: MAJOR->MAJOR
+        assertEquals(3, allConfusion[0].count)  // Combined from both octaves
+    }
+
+    @Test
+    fun `getChordTypeConfusionData returns empty for no trials`() = runTest {
+        val confusion = historyDao.getChordTypeConfusionData(null)
+        assertTrue(confusion.isEmpty())
+    }
+
+    // ========== Function Confusion Tests ==========
+
+    @Test
+    fun `getFunctionConfusionData returns correct answers`() = runTest {
+        val sessionId = createSession(gameType = GameType.CHORD_FUNCTION)
+
+        // 3 correct answers for IV in MAJOR key
+        repeat(3) {
+            trialDao.insert(TrialEntity(
+                sessionId = sessionId,
+                cardId = "IV_MAJOR_4_ARPEGGIATED",
+                timestamp = System.currentTimeMillis() + it,
+                wasCorrect = true,
+                gameType = GameType.CHORD_FUNCTION.name
+            ))
+        }
+
+        val confusion = historyDao.getFunctionConfusionData("MAJOR")
+
+        assertEquals(1, confusion.size)
+        val entry = confusion[0]
+        assertEquals("IV", entry.actual)
+        assertEquals("IV", entry.answered)
+        assertEquals(3, entry.count)
+    }
+
+    @Test
+    fun `getFunctionConfusionData tracks wrong answers`() = runTest {
+        val sessionId = createSession(gameType = GameType.CHORD_FUNCTION)
+
+        // V answered as IV (wrong)
+        trialDao.insert(TrialEntity(
+            sessionId = sessionId,
+            cardId = "V_MAJOR_4_ARPEGGIATED",
+            timestamp = System.currentTimeMillis(),
+            wasCorrect = false,
+            gameType = GameType.CHORD_FUNCTION.name,
+            answeredFunction = "IV"
+        ))
+
+        val confusion = historyDao.getFunctionConfusionData("MAJOR")
+
+        assertEquals(1, confusion.size)
+        val entry = confusion[0]
+        assertEquals("V", entry.actual)
+        assertEquals("IV", entry.answered)
+        assertEquals(1, entry.count)
+    }
+
+    @Test
+    fun `getFunctionConfusionData filters by key quality`() = runTest {
+        val sessionId = createSession(gameType = GameType.CHORD_FUNCTION)
+
+        // IV in MAJOR key
+        trialDao.insert(TrialEntity(
+            sessionId = sessionId,
+            cardId = "IV_MAJOR_4_ARPEGGIATED",
+            timestamp = System.currentTimeMillis(),
+            wasCorrect = true,
+            gameType = GameType.CHORD_FUNCTION.name
+        ))
+
+        // iv in MINOR key
+        trialDao.insert(TrialEntity(
+            sessionId = sessionId,
+            cardId = "iv_MINOR_4_ARPEGGIATED",
+            timestamp = System.currentTimeMillis() + 10,
+            wasCorrect = true,
+            gameType = GameType.CHORD_FUNCTION.name
+        ))
+
+        // Only MAJOR key
+        val majorConfusion = historyDao.getFunctionConfusionData("MAJOR")
+        assertEquals(1, majorConfusion.size)
+        assertEquals("IV", majorConfusion[0].actual)
+
+        // Only MINOR key
+        val minorConfusion = historyDao.getFunctionConfusionData("MINOR")
+        assertEquals(1, minorConfusion.size)
+        assertEquals("iv", minorConfusion[0].actual)
+    }
+
+    @Test
+    fun `getFunctionConfusionData returns empty when no matching key quality`() = runTest {
+        val sessionId = createSession(gameType = GameType.CHORD_FUNCTION)
+
+        // Only MAJOR key trials
+        trialDao.insert(TrialEntity(
+            sessionId = sessionId,
+            cardId = "IV_MAJOR_4_ARPEGGIATED",
+            timestamp = System.currentTimeMillis(),
+            wasCorrect = true,
+            gameType = GameType.CHORD_FUNCTION.name
+        ))
+
+        // Query for MINOR key - should be empty
+        val minorConfusion = historyDao.getFunctionConfusionData("MINOR")
+        assertTrue(minorConfusion.isEmpty())
+    }
 }

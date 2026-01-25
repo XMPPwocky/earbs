@@ -7,6 +7,7 @@ import net.xmppwocky.earbs.audio.ChordType
 import net.xmppwocky.earbs.audio.PlaybackMode
 import net.xmppwocky.earbs.data.db.CardDao
 import net.xmppwocky.earbs.data.db.CardStatsView
+import net.xmppwocky.earbs.data.db.ConfusionEntry
 import net.xmppwocky.earbs.data.db.CardWithFsrs
 import net.xmppwocky.earbs.data.db.FsrsStateDao
 import net.xmppwocky.earbs.data.db.FunctionCardDao
@@ -517,6 +518,20 @@ class EarbsRepository(
      */
     suspend fun getTrialsForSession(sessionId: Long): List<TrialEntity> {
         return trialDao.getTrialsForSession(sessionId)
+    }
+
+    /**
+     * Get confusion data for chord type game, optionally filtered by octave.
+     */
+    suspend fun getChordTypeConfusionData(octave: Int? = null): List<ConfusionEntry> {
+        return historyDao.getChordTypeConfusionData(octave)
+    }
+
+    /**
+     * Get confusion data for function game, filtered by key quality.
+     */
+    suspend fun getFunctionConfusionData(keyQuality: String): List<ConfusionEntry> {
+        return historyDao.getFunctionConfusionData(keyQuality)
     }
 
     // ========== Chord Function Game (Game 2) ==========

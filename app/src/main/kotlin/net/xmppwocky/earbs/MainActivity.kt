@@ -299,6 +299,12 @@ private fun EarbsApp(repository: EarbsRepository, prefs: SharedPreferences) {
                 },
                 onLoadTrials = { sessionId ->
                     repository.getTrialsForSession(sessionId)
+                },
+                onLoadChordConfusion = { octave ->
+                    repository.getChordTypeConfusionData(octave)
+                },
+                onLoadFunctionConfusion = { keyQuality ->
+                    repository.getFunctionConfusionData(keyQuality)
                 }
             )
         }

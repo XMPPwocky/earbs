@@ -18,10 +18,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import net.xmppwocky.earbs.audio.ChordType
 import net.xmppwocky.earbs.data.db.CardStatsView
 import net.xmppwocky.earbs.data.db.CardWithFsrs
+import net.xmppwocky.earbs.data.db.ConfusionEntry
 import net.xmppwocky.earbs.data.db.SessionOverview
 import net.xmppwocky.earbs.data.entity.TrialEntity
+import net.xmppwocky.earbs.model.ChordFunction
+import net.xmppwocky.earbs.ui.components.ConfusionMatrix
+import net.xmppwocky.earbs.ui.components.ConfusionMatrixData
+import net.xmppwocky.earbs.ui.components.FilterChipRow
+import net.xmppwocky.earbs.ui.components.FilterOption
+import net.xmppwocky.earbs.ui.components.buildConfusionMatrix
 import net.xmppwocky.earbs.ui.theme.AccuracyThresholds
 import net.xmppwocky.earbs.ui.theme.AppColors
 import java.text.SimpleDateFormat
@@ -42,7 +50,9 @@ fun HistoryScreen(
     cards: List<CardWithFsrs>,
     cardStats: List<CardStatsView>,
     onBackClicked: () -> Unit,
-    onLoadTrials: (suspend (Long) -> List<TrialEntity>)? = null
+    onLoadTrials: (suspend (Long) -> List<TrialEntity>)? = null,
+    onLoadChordConfusion: (suspend (Int?) -> List<ConfusionEntry>)? = null,
+    onLoadFunctionConfusion: (suspend (String) -> List<ConfusionEntry>)? = null
 ) {
     var selectedTab by remember { mutableStateOf(HistoryTab.SESSIONS) }
 
@@ -90,7 +100,11 @@ fun HistoryScreen(
             when (selectedTab) {
                 HistoryTab.SESSIONS -> SessionsTab(sessions, onLoadTrials)
                 HistoryTab.CARDS -> CardsTab(cards)
-                HistoryTab.STATS -> StatsTab(cardStats)
+                HistoryTab.STATS -> StatsTab(
+                    cardStats = cardStats,
+                    onLoadChordConfusion = onLoadChordConfusion,
+                    onLoadFunctionConfusion = onLoadFunctionConfusion
+                )
             }
         }
     }
@@ -418,8 +432,38 @@ private fun CardWithFsrsRow(card: CardWithFsrs) {
 }
 
 @Composable
-private fun StatsTab(cardStats: List<CardStatsView>) {
-    if (cardStats.isEmpty()) {
+private fun StatsTab(
+    cardStats: List<CardStatsView>,
+    onLoadChordConfusion: (suspend (Int?) -> List<ConfusionEntry>)? = null,
+    onLoadFunctionConfusion: (suspend (String) -> List<ConfusionEntry>)? = null
+) {
+    // Filter state
+    var octaveFilter by remember { mutableStateOf<Int?>(null) }
+    var keyQualityFilter by remember { mutableStateOf("MAJOR") }
+
+    // Confusion matrix data
+    var chordConfusion by remember { mutableStateOf<ConfusionMatrixData?>(null) }
+    var functionConfusion by remember { mutableStateOf<ConfusionMatrixData?>(null) }
+
+    // Load chord confusion data when filter changes
+    LaunchedEffect(octaveFilter, onLoadChordConfusion) {
+        if (onLoadChordConfusion != null) {
+            val entries = onLoadChordConfusion(octaveFilter)
+            chordConfusion = buildConfusionMatrix(entries, ChordType.entries.map { it.name })
+        }
+    }
+
+    // Load function confusion data when filter changes
+    LaunchedEffect(keyQualityFilter, onLoadFunctionConfusion) {
+        if (onLoadFunctionConfusion != null) {
+            val entries = onLoadFunctionConfusion(keyQualityFilter)
+            val functions = if (keyQualityFilter == "MAJOR")
+                ChordFunction.MAJOR_FUNCTIONS else ChordFunction.MINOR_FUNCTIONS
+            functionConfusion = buildConfusionMatrix(entries, functions.map { it.name })
+        }
+    }
+
+    if (cardStats.isEmpty() && chordConfusion?.isEmpty() != false && functionConfusion?.isEmpty() != false) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
@@ -470,6 +514,88 @@ private fun StatsTab(cardStats: List<CardStatsView>) {
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                     )
                 }
+            }
+        }
+
+        // Chord type confusion matrix
+        if (onLoadChordConfusion != null) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "Chord Type Confusion",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        FilterChipRow(
+                            label = "Octave:",
+                            options = listOf(
+                                FilterOption(null, "All", isAll = true),
+                                FilterOption(3, "3"),
+                                FilterOption(4, "4"),
+                                FilterOption(5, "5")
+                            ),
+                            selected = octaveFilter,
+                            onSelect = { octaveFilter = it }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        chordConfusion?.let { data ->
+                            ConfusionMatrix(
+                                data = data,
+                                labelTransform = { name ->
+                                    ChordType.entries.find { it.name == name }?.displayName ?: name
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Function confusion matrix
+        if (onLoadFunctionConfusion != null) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "Function Confusion",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        FilterChipRow(
+                            label = "Key:",
+                            options = listOf(
+                                FilterOption("MAJOR", "Major"),
+                                FilterOption("MINOR", "Minor")
+                            ),
+                            selected = keyQualityFilter,
+                            onSelect = { keyQualityFilter = it ?: "MAJOR" }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        functionConfusion?.let { data ->
+                            ConfusionMatrix(
+                                data = data,
+                                labelTransform = { name ->
+                                    ChordFunction.entries.find { it.name == name }?.displayName ?: name
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Per-card stats header
+        if (cardStats.isNotEmpty()) {
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Per-Card Statistics",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
             }
         }
 

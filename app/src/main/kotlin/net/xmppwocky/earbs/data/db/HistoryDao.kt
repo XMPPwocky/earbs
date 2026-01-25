@@ -6,6 +6,16 @@ import kotlinx.coroutines.flow.Flow
 import net.xmppwocky.earbs.data.entity.ReviewSessionEntity
 
 /**
+ * View data class for confusion matrix entries.
+ * Each entry represents how many times 'actual' was answered as 'answered'.
+ */
+data class ConfusionEntry(
+    val actual: String,
+    val answered: String,
+    val count: Int
+)
+
+/**
  * View data class for card statistics aggregated from trials.
  */
 data class CardStatsView(
@@ -111,4 +121,49 @@ interface HistoryDao {
         ORDER BY s.startedAt DESC
     """)
     fun getSessionOverviewsByGameType(gameType: String): Flow<List<SessionOverview>>
+
+    /**
+     * Get confusion data for chord type game, optionally filtered by octave.
+     * cardId format: "MAJOR_4_ARPEGGIATED" -> chord type is first segment
+     *
+     * For correct answers, actual == answered (the chord type).
+     * For wrong answers, actual is parsed from cardId, answered is from answeredChordType.
+     */
+    @Query("""
+        SELECT
+            SUBSTR(cardId, 1, INSTR(cardId, '_') - 1) as actual,
+            CASE
+                WHEN wasCorrect THEN SUBSTR(cardId, 1, INSTR(cardId, '_') - 1)
+                ELSE answeredChordType
+            END as answered,
+            COUNT(*) as count
+        FROM trials
+        WHERE gameType = 'CHORD_TYPE'
+          AND (:octave IS NULL OR SUBSTR(cardId, INSTR(cardId, '_') + 1, 1) = CAST(:octave AS TEXT))
+        GROUP BY actual, answered
+    """)
+    suspend fun getChordTypeConfusionData(octave: Int?): List<ConfusionEntry>
+
+    /**
+     * Get confusion data for function game, filtered by key quality.
+     * cardId format: "IV_MAJOR_4_ARPEGGIATED" -> function is first segment, key quality is second
+     *
+     * For correct answers, actual == answered (the function).
+     * For wrong answers, actual is parsed from cardId, answered is from answeredFunction.
+     */
+    @Query("""
+        SELECT
+            SUBSTR(cardId, 1, INSTR(cardId, '_') - 1) as actual,
+            CASE
+                WHEN wasCorrect THEN SUBSTR(cardId, 1, INSTR(cardId, '_') - 1)
+                ELSE answeredFunction
+            END as answered,
+            COUNT(*) as count
+        FROM trials
+        WHERE gameType = 'CHORD_FUNCTION'
+          AND SUBSTR(cardId, INSTR(cardId, '_') + 1,
+              INSTR(SUBSTR(cardId, INSTR(cardId, '_') + 1), '_') - 1) = :keyQuality
+        GROUP BY actual, answered
+    """)
+    suspend fun getFunctionConfusionData(keyQuality: String): List<ConfusionEntry>
 }
