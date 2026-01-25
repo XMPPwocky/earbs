@@ -197,7 +197,7 @@ private fun ReviewPlayButton(
     Button(
         onClick = onClick,
         enabled = !isPlaying && !showingFeedback,
-        modifier = Modifier.size(150.dp),
+        modifier = Modifier.size(100.dp),
         shape = MaterialTheme.shapes.extraLarge
     ) {
         Text(
@@ -206,7 +206,7 @@ private fun ReviewPlayButton(
                 hasPlayedThisTrial -> "Replay"
                 else -> "Play"
             },
-            fontSize = 24.sp,
+            fontSize = 18.sp,
             fontWeight = FontWeight.Bold
         )
     }
