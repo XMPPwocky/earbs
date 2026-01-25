@@ -9,7 +9,7 @@ Android app (Kotlin, Jetpack Compose) for ear training chord recognition using F
 - **Testing audio**: Claude cannot hear audio output. The synthesis engine should log what it's synthesizing (frequencies, chord type, timestamps) so correctness can be verified from logs.
 - **Verbose logging**: Log generously throughout the app for testing/debugging. Exception: avoid logging inside the realtime audio synthesis loop to maintain performance.
 - **Submodules**: ALWAYS ask before editing any code in submodules (e.g., `lib/fsrs-kotlin`). These are external dependencies.
-- **Bug fixes**: When fixing a bug, first add tests that reproduce the bug and verify they fail. Only then implement the fix.
+- **Bug fixes**: When fixing a bug, first add tests that reproduce the bug and verify they fail. Only then implement the fix. If you can't think of tests that reproduce the bug, say so and ask for input.
 
 ## Environment
 
