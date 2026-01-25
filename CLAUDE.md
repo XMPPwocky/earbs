@@ -10,6 +10,7 @@ Android app (Kotlin, Jetpack Compose) for ear training chord recognition using F
 - **Verbose logging**: Log generously throughout the app for testing/debugging. Exception: avoid logging inside the realtime audio synthesis loop to maintain performance.
 - **Submodules**: ALWAYS ask before editing any code in submodules (e.g., `lib/fsrs-kotlin`). These are external dependencies.
 - **Bug fixes**: When fixing a bug, first add tests that reproduce the bug and verify they fail. Only then implement the fix. If you can't think of tests that reproduce the bug, say so and ask for input.
+- **Generic code**: Make code generic across game types when possible. Use shared abstractions (e.g., `GameTypeConfig`, `GameCardOperations`) rather than duplicating logic.
 
 ## Environment
 
