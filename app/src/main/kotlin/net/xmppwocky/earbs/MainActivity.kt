@@ -457,6 +457,10 @@ private fun EarbsApp(
                     repository = repository,
                     onBackClicked = {
                         currentScreen = Screen.HISTORY
+                    },
+                    onUnlockToggled = { id, unlocked ->
+                        Log.i(TAG, "Card unlock toggled from details: $id -> $unlocked")
+                        repository.setCardUnlocked(id, unlocked)
                     }
                 )
             } ?: run {

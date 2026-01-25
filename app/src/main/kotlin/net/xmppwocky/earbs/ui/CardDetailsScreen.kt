@@ -43,7 +43,8 @@ fun CardDetailsScreen(
     cardId: String,
     gameType: GameType,
     repository: EarbsRepository,
-    onBackClicked: () -> Unit
+    onBackClicked: () -> Unit,
+    onUnlockToggled: (suspend (String, Boolean) -> Unit)? = null
 ) {
     BackHandler { onBackClicked() }
 
@@ -147,11 +148,48 @@ fun CardDetailsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Card header
-            CardHeader(currentCard)
+            // Card header with unlock toggle
+            CardHeader(
+                card = currentCard,
+                onUnlockToggled = if (onUnlockToggled != null) {
+                    { unlocked ->
+                        coroutineScope.launch {
+                            onUnlockToggled(cardId, unlocked)
+                            // Reload card data after toggle
+                            card = repository.getCardWithFsrs(cardId)
+                        }
+                    }
+                } else null
+            )
 
-            // Accuracy over time graph
-            AccuracyOverTimeSection(sessionAccuracy)
+            // Show limited info for locked cards
+            if (!currentCard.unlocked) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "This card is locked",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Unlock it to start practicing and track FSRS progress",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            } else {
+                // Accuracy over time graph (only for unlocked cards)
+                AccuracyOverTimeSection(sessionAccuracy)
 
             // Last session stats
             val lastSession = sessionAccuracy.lastOrNull()
@@ -167,38 +205,77 @@ fun CardDetailsScreen(
                 LifetimeStatsSection(total, correct)
             }
 
-            // Reset button
-            OutlinedButton(
-                onClick = { showResetDialog = true },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.error
-                )
-            ) {
-                Text("Reset FSRS State")
+                // Reset button (only for unlocked cards)
+                OutlinedButton(
+                    onClick = { showResetDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Reset FSRS State")
+                }
             }
         }
     }
 }
 
 @Composable
-internal fun CardHeader(card: CardWithFsrs) {
+internal fun CardHeader(
+    card: CardWithFsrs,
+    onUnlockToggled: ((Boolean) -> Unit)? = null
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
+            containerColor = if (card.unlocked)
+                MaterialTheme.colorScheme.primaryContainer
+            else
+                MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Text(
-                text = "${card.chordType} @ Octave ${card.octave}",
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${card.chordType} @ Octave ${card.octave}",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    color = if (card.unlocked)
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                // Unlock toggle switch
+                if (onUnlockToggled != null) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = if (card.unlocked) "Unlocked" else "Locked",
+                            fontSize = 12.sp,
+                            color = if (card.unlocked)
+                                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                        Switch(
+                            checked = card.unlocked,
+                            onCheckedChange = { onUnlockToggled(it) }
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(4.dp))
+
             Surface(
                 color = MaterialTheme.colorScheme.surface,
                 shape = MaterialTheme.shapes.small
