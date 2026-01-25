@@ -330,4 +330,96 @@ class TrialDaoTest : DatabaseTestBase() {
         assertEquals(2, accuracy[0].trialsInSession)
         assertEquals(2, accuracy[0].correctInSession)
     }
+
+    // ========== Session Card Stats Tests ==========
+
+    @Test
+    fun `getSessionCardStats groups trials by card`() = runTest {
+        val sessionId = createSession()
+        val now = System.currentTimeMillis()
+
+        // 3 different cards with varying trial counts
+        trialDao.insert(TrialEntity(sessionId = sessionId, cardId = "MAJOR_4_ARPEGGIATED", timestamp = now, wasCorrect = true, gameType = GameType.CHORD_TYPE.name))
+        trialDao.insert(TrialEntity(sessionId = sessionId, cardId = "MAJOR_4_ARPEGGIATED", timestamp = now + 1000, wasCorrect = true, gameType = GameType.CHORD_TYPE.name))
+        trialDao.insert(TrialEntity(sessionId = sessionId, cardId = "MINOR_4_ARPEGGIATED", timestamp = now + 2000, wasCorrect = false, gameType = GameType.CHORD_TYPE.name))
+        trialDao.insert(TrialEntity(sessionId = sessionId, cardId = "SUS2_4_ARPEGGIATED", timestamp = now + 3000, wasCorrect = true, gameType = GameType.CHORD_TYPE.name))
+        trialDao.insert(TrialEntity(sessionId = sessionId, cardId = "SUS2_4_ARPEGGIATED", timestamp = now + 4000, wasCorrect = false, gameType = GameType.CHORD_TYPE.name))
+        trialDao.insert(TrialEntity(sessionId = sessionId, cardId = "SUS2_4_ARPEGGIATED", timestamp = now + 5000, wasCorrect = true, gameType = GameType.CHORD_TYPE.name))
+
+        val stats = trialDao.getSessionCardStats(sessionId)
+
+        assertEquals(3, stats.size)
+        // Should be ordered by trialsInSession DESC
+        assertEquals("SUS2_4_ARPEGGIATED", stats[0].cardId)
+        assertEquals(3, stats[0].trialsInSession)
+        assertEquals(2, stats[0].correctInSession)
+        assertEquals("MAJOR_4_ARPEGGIATED", stats[1].cardId)
+        assertEquals(2, stats[1].trialsInSession)
+        assertEquals(2, stats[1].correctInSession)
+        assertEquals("MINOR_4_ARPEGGIATED", stats[2].cardId)
+        assertEquals(1, stats[2].trialsInSession)
+        assertEquals(0, stats[2].correctInSession)
+    }
+
+    @Test
+    fun `getSessionCardStats calculates accuracy correctly`() = runTest {
+        val sessionId = createSession()
+        val now = System.currentTimeMillis()
+
+        // 4 trials for one card: 3 correct, 1 wrong (75% accuracy)
+        trialDao.insert(TrialEntity(sessionId = sessionId, cardId = "MAJOR_4_ARPEGGIATED", timestamp = now, wasCorrect = true, gameType = GameType.CHORD_TYPE.name))
+        trialDao.insert(TrialEntity(sessionId = sessionId, cardId = "MAJOR_4_ARPEGGIATED", timestamp = now + 1000, wasCorrect = true, gameType = GameType.CHORD_TYPE.name))
+        trialDao.insert(TrialEntity(sessionId = sessionId, cardId = "MAJOR_4_ARPEGGIATED", timestamp = now + 2000, wasCorrect = false, gameType = GameType.CHORD_TYPE.name))
+        trialDao.insert(TrialEntity(sessionId = sessionId, cardId = "MAJOR_4_ARPEGGIATED", timestamp = now + 3000, wasCorrect = true, gameType = GameType.CHORD_TYPE.name))
+
+        val stats = trialDao.getSessionCardStats(sessionId)
+
+        assertEquals(1, stats.size)
+        assertEquals(4, stats[0].trialsInSession)
+        assertEquals(3, stats[0].correctInSession)
+    }
+
+    @Test
+    fun `getSessionCardStats returns empty for empty session`() = runTest {
+        val sessionId = createSession()
+        val stats = trialDao.getSessionCardStats(sessionId)
+        assertTrue(stats.isEmpty())
+    }
+
+    @Test
+    fun `getSessionCardStats only includes trials from specified session`() = runTest {
+        val session1 = createSession()
+        val session2 = createSession()
+        val now = System.currentTimeMillis()
+
+        // Session 1: 2 cards
+        trialDao.insert(TrialEntity(sessionId = session1, cardId = "MAJOR_4_ARPEGGIATED", timestamp = now, wasCorrect = true, gameType = GameType.CHORD_TYPE.name))
+        trialDao.insert(TrialEntity(sessionId = session1, cardId = "MINOR_4_ARPEGGIATED", timestamp = now + 1000, wasCorrect = true, gameType = GameType.CHORD_TYPE.name))
+
+        // Session 2: 3 cards
+        trialDao.insert(TrialEntity(sessionId = session2, cardId = "SUS2_4_ARPEGGIATED", timestamp = now + 2000, wasCorrect = false, gameType = GameType.CHORD_TYPE.name))
+        trialDao.insert(TrialEntity(sessionId = session2, cardId = "SUS4_4_ARPEGGIATED", timestamp = now + 3000, wasCorrect = true, gameType = GameType.CHORD_TYPE.name))
+        trialDao.insert(TrialEntity(sessionId = session2, cardId = "DOM7_4_ARPEGGIATED", timestamp = now + 4000, wasCorrect = true, gameType = GameType.CHORD_TYPE.name))
+
+        val session1Stats = trialDao.getSessionCardStats(session1)
+        val session2Stats = trialDao.getSessionCardStats(session2)
+
+        assertEquals(2, session1Stats.size)
+        assertEquals(3, session2Stats.size)
+        assertTrue(session1Stats.all { it.cardId in listOf("MAJOR_4_ARPEGGIATED", "MINOR_4_ARPEGGIATED") })
+        assertTrue(session2Stats.all { it.cardId in listOf("SUS2_4_ARPEGGIATED", "SUS4_4_ARPEGGIATED", "DOM7_4_ARPEGGIATED") })
+    }
+
+    @Test
+    fun `getSessionCardStats includes correct gameType`() = runTest {
+        val sessionId = createSession(GameType.CHORD_FUNCTION)
+        val now = System.currentTimeMillis()
+
+        trialDao.insert(TrialEntity(sessionId = sessionId, cardId = "V_MAJOR_4_ARPEGGIATED", timestamp = now, wasCorrect = true, gameType = GameType.CHORD_FUNCTION.name))
+
+        val stats = trialDao.getSessionCardStats(sessionId)
+
+        assertEquals(1, stats.size)
+        assertEquals(GameType.CHORD_FUNCTION.name, stats[0].gameType)
+    }
 }

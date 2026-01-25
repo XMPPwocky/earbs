@@ -16,6 +16,17 @@ data class CardSessionAccuracy(
     val correctInSession: Int
 )
 
+/**
+ * Per-card stats within a session, used for session results breakdown.
+ * Reusable by both ResultsScreen and History->Sessions tab.
+ */
+data class SessionCardStats(
+    val cardId: String,
+    val gameType: String,
+    val trialsInSession: Int,
+    val correctInSession: Int
+)
+
 @Dao
 interface TrialDao {
     @Insert
@@ -50,4 +61,19 @@ interface TrialDao {
         ORDER BY rs.startedAt ASC
     """)
     suspend fun getCardSessionAccuracy(cardId: String): List<CardSessionAccuracy>
+
+    /**
+     * Get per-card stats for a specific session, used for session results breakdown.
+     * Returns cards ordered by number of trials (descending).
+     */
+    @Query("""
+        SELECT cardId, gameType,
+               COUNT(*) as trialsInSession,
+               SUM(CASE WHEN wasCorrect THEN 1 ELSE 0 END) as correctInSession
+        FROM trials
+        WHERE sessionId = :sessionId
+        GROUP BY cardId
+        ORDER BY trialsInSession DESC
+    """)
+    suspend fun getSessionCardStats(sessionId: Long): List<SessionCardStats>
 }

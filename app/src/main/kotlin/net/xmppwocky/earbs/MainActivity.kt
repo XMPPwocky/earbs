@@ -283,6 +283,7 @@ private fun EarbsApp(repository: EarbsRepository, prefs: SharedPreferences) {
             sessionResult?.let { result ->
                 ResultsScreen(
                     result = result,
+                    repository = repository,
                     onDoneClicked = {
                         Log.i(TAG, "Results acknowledged, returning to home")
                         chordTypeSession = null
@@ -516,7 +517,9 @@ private fun ChordTypeReviewSessionScreen(
         onSessionComplete = {
             onSessionComplete(SessionResult(
                 correctCount = session.correctCount,
-                totalTrials = session.totalTrials
+                totalTrials = session.totalTrials,
+                sessionId = sessionId,
+                gameType = GameType.CHORD_TYPE.name
             ))
         },
         onPlayChordType = { chordType ->
@@ -529,7 +532,9 @@ private fun ChordTypeReviewSessionScreen(
                 Log.i(TAG, "Session complete after learning mode, navigating to results")
                 onSessionComplete(SessionResult(
                     correctCount = session.correctCount,
-                    totalTrials = session.totalTrials
+                    totalTrials = session.totalTrials,
+                    sessionId = sessionId,
+                    gameType = GameType.CHORD_TYPE.name
                 ))
             } else {
                 Log.i(TAG, "Advancing to next trial")
@@ -716,7 +721,9 @@ private fun FunctionReviewSessionScreen(
         onSessionComplete = {
             onSessionComplete(SessionResult(
                 correctCount = session.correctCount,
-                totalTrials = session.totalTrials
+                totalTrials = session.totalTrials,
+                sessionId = sessionId,
+                gameType = GameType.CHORD_FUNCTION.name
             ))
         },
         onPlayFunction = { function ->
@@ -729,7 +736,9 @@ private fun FunctionReviewSessionScreen(
                 Log.i(TAG, "Function session complete after learning mode, navigating to results")
                 onSessionComplete(SessionResult(
                     correctCount = session.correctCount,
-                    totalTrials = session.totalTrials
+                    totalTrials = session.totalTrials,
+                    sessionId = sessionId,
+                    gameType = GameType.CHORD_FUNCTION.name
                 ))
             } else {
                 Log.i(TAG, "Advancing to next function trial")

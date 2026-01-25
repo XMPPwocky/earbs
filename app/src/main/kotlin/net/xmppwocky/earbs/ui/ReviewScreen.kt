@@ -58,7 +58,9 @@ data class ReviewScreenState(
  */
 data class SessionResult(
     val correctCount: Int,
-    val totalTrials: Int
+    val totalTrials: Int,
+    val sessionId: Long,
+    val gameType: String
 )
 
 @Composable

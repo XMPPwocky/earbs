@@ -7,6 +7,7 @@ import net.xmppwocky.earbs.audio.ChordType
 import net.xmppwocky.earbs.audio.PlaybackMode
 import net.xmppwocky.earbs.data.db.CardDao
 import net.xmppwocky.earbs.data.db.CardSessionAccuracy
+import net.xmppwocky.earbs.data.db.SessionCardStats
 import net.xmppwocky.earbs.data.db.CardStatsView
 import net.xmppwocky.earbs.data.db.ConfusionEntry
 import net.xmppwocky.earbs.data.db.CardWithFsrs
@@ -883,6 +884,14 @@ class EarbsRepository(
      */
     suspend fun getCardLastSessionStats(cardId: String): CardSessionAccuracy? {
         return trialDao.getCardSessionAccuracy(cardId).lastOrNull()
+    }
+
+    /**
+     * Get per-card stats for a specific session (for results screen breakdown).
+     * Reusable by ResultsScreen and History->Sessions tab.
+     */
+    suspend fun getSessionCardStats(sessionId: Long): List<SessionCardStats> {
+        return trialDao.getSessionCardStats(sessionId)
     }
 }
 
