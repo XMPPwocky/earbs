@@ -1,7 +1,10 @@
 package net.xmppwocky.earbs.ui
 
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -67,8 +70,36 @@ fun ReviewScreen(
     onAutoPlay: () -> Unit = {},
     onSessionComplete: () -> Unit,
     onPlayChordType: (ChordType) -> Unit = {},  // Play arbitrary chord type (for learning mode)
-    onNextClicked: () -> Unit = {}  // Manual advance (for learning mode)
+    onNextClicked: () -> Unit = {},  // Manual advance (for learning mode)
+    onAbortSession: () -> Unit = {}  // Abort session and return to home
 ) {
+    var showAbortDialog by remember { mutableStateOf(false) }
+
+    // Handle Android back button/gesture
+    BackHandler { showAbortDialog = true }
+
+    // Confirmation dialog for aborting session
+    if (showAbortDialog) {
+        AlertDialog(
+            onDismissRequest = { showAbortDialog = false },
+            title = { Text("Exit Review?") },
+            text = { Text("Your progress in this session will be lost.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    Log.i(TAG, "User confirmed abort session")
+                    onAbortSession()
+                }) {
+                    Text("Exit")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAbortDialog = false }) {
+                    Text("Continue")
+                }
+            }
+        )
+    }
+
     // Auto-advance after showing feedback (only if NOT in learning mode)
     LaunchedEffect(state.showingFeedback, state.inLearningMode) {
         if (state.showingFeedback && !state.inLearningMode) {
@@ -92,10 +123,11 @@ fun ReviewScreen(
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Progress indicator
+        // Progress indicator with back button
         ProgressIndicator(
             currentTrial = state.trialNumber,
-            totalTrials = state.totalTrials
+            totalTrials = state.totalTrials,
+            onBackClicked = { showAbortDialog = true }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -158,25 +190,39 @@ fun ReviewScreen(
 @Composable
 private fun ProgressIndicator(
     currentTrial: Int,
-    totalTrials: Int
+    totalTrials: Int,
+    onBackClicked: () -> Unit
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = "Trial $currentTrial / $totalTrials",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold
-        )
+        // Trial text and progress on the left
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Trial $currentTrial / $totalTrials",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold
+            )
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-        LinearProgressIndicator(
-            progress = { currentTrial.toFloat() / totalTrials },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(8.dp),
-        )
+            LinearProgressIndicator(
+                progress = { currentTrial.toFloat() / totalTrials },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp),
+            )
+        }
+
+        // Back button on the right
+        IconButton(onClick = onBackClicked) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Exit review"
+            )
+        }
     }
 }
 

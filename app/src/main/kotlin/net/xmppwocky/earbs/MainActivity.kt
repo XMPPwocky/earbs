@@ -233,6 +233,12 @@ private fun EarbsApp(repository: EarbsRepository, prefs: SharedPreferences) {
                             sessionResult = result
                             currentScreen = Screen.RESULTS
                         }
+                    },
+                    onAbortSession = {
+                        Log.i(TAG, "Chord type session aborted by user")
+                        chordTypeSession = null
+                        dbSessionId = null
+                        currentScreen = Screen.HOME
                     }
                 )
             } ?: run {
@@ -256,6 +262,12 @@ private fun EarbsApp(repository: EarbsRepository, prefs: SharedPreferences) {
                             sessionResult = result
                             currentScreen = Screen.RESULTS
                         }
+                    },
+                    onAbortSession = {
+                        Log.i(TAG, "Function session aborted by user")
+                        functionSession = null
+                        dbSessionId = null
+                        currentScreen = Screen.HOME
                     }
                 )
             } ?: run {
@@ -335,7 +347,8 @@ private fun ChordTypeReviewSessionScreen(
     sessionId: Long,
     repository: EarbsRepository,
     prefs: SharedPreferences,
-    onSessionComplete: (SessionResult) -> Unit
+    onSessionComplete: (SessionResult) -> Unit,
+    onAbortSession: () -> Unit
 ) {
     val initialCard = session.getCurrentCard()
     var reviewState by remember {
@@ -502,7 +515,8 @@ private fun ChordTypeReviewSessionScreen(
 
             // Auto-play next chord
             playCurrentChord()
-        }
+        },
+        onAbortSession = onAbortSession
     )
 }
 
@@ -512,7 +526,8 @@ private fun FunctionReviewSessionScreen(
     sessionId: Long,
     repository: EarbsRepository,
     prefs: SharedPreferences,
-    onSessionComplete: (SessionResult) -> Unit
+    onSessionComplete: (SessionResult) -> Unit,
+    onAbortSession: () -> Unit
 ) {
     val initialCard = session.getCurrentCard()
     var reviewState by remember {
@@ -691,6 +706,7 @@ private fun FunctionReviewSessionScreen(
 
             // Auto-play next chord pair
             playCurrentChordPair()
-        }
+        },
+        onAbortSession = onAbortSession
     )
 }
