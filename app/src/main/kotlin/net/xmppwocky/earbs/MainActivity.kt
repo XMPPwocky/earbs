@@ -500,21 +500,30 @@ private fun ChordTypeReviewSessionScreen(
             playChordType(chordType)
         },
         onNextClicked = {
-            Log.i(TAG, "Learning mode: Next clicked, advancing to next trial")
-            val nextCard = session.getCurrentCard()
-            val nextRootSemitones = nextCard?.let { ChordBuilder.randomRootInOctave(it.octave) }
+            Log.i(TAG, "Learning mode: Next clicked")
+            if (session.isComplete()) {
+                Log.i(TAG, "Session complete after learning mode, navigating to results")
+                onSessionComplete(SessionResult(
+                    correctCount = session.correctCount,
+                    totalTrials = session.totalTrials
+                ))
+            } else {
+                Log.i(TAG, "Advancing to next trial")
+                val nextCard = session.getCurrentCard()
+                val nextRootSemitones = nextCard?.let { ChordBuilder.randomRootInOctave(it.octave) }
 
-            reviewState = reviewState.copy(
-                currentCard = nextCard,
-                currentRootSemitones = nextRootSemitones,
-                lastAnswer = null,
-                hasPlayedThisTrial = false,
-                showingFeedback = false,
-                inLearningMode = false
-            )
+                reviewState = reviewState.copy(
+                    currentCard = nextCard,
+                    currentRootSemitones = nextRootSemitones,
+                    lastAnswer = null,
+                    hasPlayedThisTrial = false,
+                    showingFeedback = false,
+                    inLearningMode = false
+                )
 
-            // Auto-play next chord
-            playCurrentChord()
+                // Auto-play next chord
+                playCurrentChord()
+            }
         },
         onAbortSession = onAbortSession
     )
@@ -691,21 +700,30 @@ private fun FunctionReviewSessionScreen(
             playFunction(function)
         },
         onNextClicked = {
-            Log.i(TAG, "Learning mode: Next clicked, advancing to next function trial")
-            val nextCard = session.getCurrentCard()
-            val nextRootSemitones = nextCard?.let { ChordBuilder.randomRootInOctave(it.octave) }
+            Log.i(TAG, "Learning mode: Next clicked")
+            if (session.isComplete()) {
+                Log.i(TAG, "Function session complete after learning mode, navigating to results")
+                onSessionComplete(SessionResult(
+                    correctCount = session.correctCount,
+                    totalTrials = session.totalTrials
+                ))
+            } else {
+                Log.i(TAG, "Advancing to next function trial")
+                val nextCard = session.getCurrentCard()
+                val nextRootSemitones = nextCard?.let { ChordBuilder.randomRootInOctave(it.octave) }
 
-            reviewState = reviewState.copy(
-                currentCard = nextCard,
-                currentRootSemitones = nextRootSemitones,
-                lastAnswer = null,
-                hasPlayedThisTrial = false,
-                showingFeedback = false,
-                inLearningMode = false
-            )
+                reviewState = reviewState.copy(
+                    currentCard = nextCard,
+                    currentRootSemitones = nextRootSemitones,
+                    lastAnswer = null,
+                    hasPlayedThisTrial = false,
+                    showingFeedback = false,
+                    inLearningMode = false
+                )
 
-            // Auto-play next chord pair
-            playCurrentChordPair()
+                // Auto-play next chord pair
+                playCurrentChordPair()
+            }
         },
         onAbortSession = onAbortSession
     )
