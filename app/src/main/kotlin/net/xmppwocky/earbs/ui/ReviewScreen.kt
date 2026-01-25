@@ -1,66 +1,36 @@
 package net.xmppwocky.earbs.ui
 
-import android.util.Log
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 import net.xmppwocky.earbs.audio.ChordType
-import net.xmppwocky.earbs.audio.PlaybackMode
 import net.xmppwocky.earbs.model.Card
+import net.xmppwocky.earbs.model.GameAnswer
 import net.xmppwocky.earbs.model.GameTypeConfig
 import net.xmppwocky.earbs.model.GenericReviewSession
-import net.xmppwocky.earbs.ui.components.AbortSessionDialog
 import net.xmppwocky.earbs.ui.components.ButtonColorState
 import net.xmppwocky.earbs.ui.components.PlaybackModeIndicator
-import net.xmppwocky.earbs.ui.components.ReviewPlayButton
-import net.xmppwocky.earbs.ui.components.ReviewProgressIndicator
 import net.xmppwocky.earbs.ui.components.answerButtonColors
 import net.xmppwocky.earbs.ui.theme.AppColors
 import net.xmppwocky.earbs.ui.theme.Timing
 
-private const val TAG = "ReviewScreen"
+/**
+ * Type alias for chord type answer result.
+ */
+typealias ChordTypeAnswerResult = GenericAnswerResult<GameAnswer.ChordTypeAnswer>
 
 /**
- * Represents the result of an answer.
+ * Type alias for chord type review screen state.
  */
-sealed class AnswerResult {
-    data object Correct : AnswerResult()
-    data class Wrong(val actualType: ChordType, val selectedType: ChordType) : AnswerResult()
-}
-
-/**
- * State for the review screen UI.
- */
-data class ReviewScreenState(
-    val session: GenericReviewSession<Card>,
-    val currentCard: Card? = null,
-    val currentRootSemitones: Int? = null,  // Root note for current trial (fixed for replays)
-    val lastAnswer: AnswerResult? = null,
-    val isPlaying: Boolean = false,
-    val hasPlayedThisTrial: Boolean = false,
-    val showingFeedback: Boolean = false,
-    val inLearningMode: Boolean = false  // True after wrong answer when feature enabled
-) {
-    val trialNumber: Int get() = minOf(session.currentTrial + 1, session.totalTrials)  // 1-indexed, capped
-    val totalTrials: Int get() = session.totalTrials
-    val isComplete: Boolean get() = session.isComplete()
-    // Playback mode comes from the current card
-    val playbackMode: PlaybackMode get() = currentCard?.playbackMode ?: PlaybackMode.ARPEGGIATED
-
-    /** Get chord types in this session (for answer buttons). */
-    fun getChordTypes(): List<ChordType> = GameTypeConfig.ChordTypeGame.getAnswerOptions(session).map { it.chordType }
-}
+typealias ChordTypeReviewState = GenericReviewScreenState<Card, GameAnswer.ChordTypeAnswer>
 
 /**
  * Simple result data for session completion.
@@ -72,9 +42,18 @@ data class SessionResult(
     val gameType: String
 )
 
+/**
+ * Extension to get chord types from session for answer buttons.
+ */
+fun ChordTypeReviewState.getChordTypes(): List<ChordType> =
+    GameTypeConfig.ChordTypeGame.getAnswerOptions(session).map { it.chordType }
+
+/**
+ * Chord type review screen - thin wrapper around GenericReviewScreen.
+ */
 @Composable
 fun ReviewScreen(
-    state: ReviewScreenState,
+    state: ChordTypeReviewState,
     autoAdvanceDelayMs: Long = Timing.FEEDBACK_DELAY_MS,
     onPlayClicked: () -> Unit,
     onAnswerClicked: (ChordType) -> Unit,
@@ -85,109 +64,40 @@ fun ReviewScreen(
     onNextClicked: () -> Unit = {},  // Manual advance (for learning mode)
     onAbortSession: () -> Unit = {}  // Abort session and return to home
 ) {
-    var showAbortDialog by remember { mutableStateOf(false) }
-
-    // Handle Android back button/gesture
-    BackHandler { showAbortDialog = true }
-
-    // Confirmation dialog for aborting session
-    if (showAbortDialog) {
-        AbortSessionDialog(
-            onConfirm = onAbortSession,
-            onDismiss = { showAbortDialog = false }
-        )
-    }
-
-    // Auto-advance after showing feedback (only if NOT in learning mode)
-    LaunchedEffect(state.showingFeedback, state.inLearningMode) {
-        if (state.showingFeedback && !state.inLearningMode) {
-            Log.d(TAG, "Showing feedback, will advance in ${autoAdvanceDelayMs}ms")
-            delay(autoAdvanceDelayMs)
-
-            if (state.session.isComplete()) {
-                Log.i(TAG, "Session complete, navigating to results")
-                onSessionComplete()
-            } else {
-                Log.d(TAG, "Advancing to next trial and auto-playing")
-                onTrialComplete()
-                onAutoPlay()
-            }
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        // Progress indicator with back button
-        ReviewProgressIndicator(
-            currentTrial = state.trialNumber,
-            totalTrials = state.totalTrials,
-            onBackClicked = { showAbortDialog = true }
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Current card info
-        CurrentCardInfo(card = state.currentCard)
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Mode Indicator (read-only, mode comes from card)
-        PlaybackModeIndicator(mode = state.playbackMode)
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Play Button (enabled in learning mode to replay correct chord)
-        ReviewPlayButton(
-            isPlaying = state.isPlaying,
-            hasPlayedThisTrial = state.hasPlayedThisTrial,
-            showingFeedback = state.showingFeedback,
-            inLearningMode = state.inLearningMode,
-            onClick = onPlayClicked
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Feedback Area
-        ReviewFeedbackArea(
-            answerResult = state.lastAnswer,
-            hasPlayedThisTrial = state.hasPlayedThisTrial
-        )
-
-        // Flexible spacer pushes remaining content to bottom
-        Spacer(modifier = Modifier.weight(1f))
-
-        // Answer Buttons (pinned to bottom)
-        ReviewAnswerButtons(
-            chordTypes = state.getChordTypes(),
-            enabled = state.hasPlayedThisTrial && !state.isPlaying &&
-                      (!state.showingFeedback || state.inLearningMode),
-            isLearningMode = state.inLearningMode,
-            answerResult = state.lastAnswer,
-            onAnswerClicked = onAnswerClicked,
-            onPlayChordType = onPlayChordType
-        )
-
-        // Next button - always takes space, invisible when not in learning mode
-        Spacer(modifier = Modifier.height(24.dp))
-        Button(
-            onClick = onNextClicked,
-            enabled = state.inLearningMode && !state.isPlaying,
-            modifier = Modifier.alpha(if (state.inLearningMode) 1f else 0f),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = AppColors.Success
+    GenericReviewScreen(
+        state = state,
+        autoAdvanceDelayMs = autoAdvanceDelayMs,
+        cardInfoContent = { card -> ChordTypeCardInfo(card = card) },
+        modeIndicatorContent = { PlaybackModeIndicator(mode = state.playbackMode) },
+        feedbackContent = { answerResult, hasPlayedThisTrial ->
+            ChordTypeFeedbackArea(
+                answerResult = answerResult,
+                hasPlayedThisTrial = hasPlayedThisTrial
             )
-        ) {
-            Text("Next", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        }
-    }
+        },
+        answerButtonsContent = { enabled ->
+            ChordTypeAnswerButtons(
+                chordTypes = state.getChordTypes(),
+                enabled = enabled,
+                isLearningMode = state.inLearningMode,
+                answerResult = state.lastAnswer,
+                onAnswerClicked = onAnswerClicked,
+                onPlayChordType = onPlayChordType
+            )
+        },
+        onPlayClicked = onPlayClicked,
+        onTrialComplete = onTrialComplete,
+        onAutoPlay = onAutoPlay,
+        onSessionComplete = onSessionComplete,
+        onNextClicked = onNextClicked,
+        onAbortSession = onAbortSession
+    )
 }
 
+// ========== Chord Type Specific Composables ==========
+
 @Composable
-private fun CurrentCardInfo(card: Card?) {
+private fun ChordTypeCardInfo(card: Card?) {
     Text(
         text = card?.let { "Chord in octave ${it.octave}" } ?: "Loading...",
         fontSize = 16.sp,
@@ -196,15 +106,18 @@ private fun CurrentCardInfo(card: Card?) {
 }
 
 @Composable
-private fun ReviewFeedbackArea(
-    answerResult: AnswerResult?,
+private fun ChordTypeFeedbackArea(
+    answerResult: ChordTypeAnswerResult?,
     hasPlayedThisTrial: Boolean
 ) {
     val (text, color) = when {
         answerResult == null && !hasPlayedThisTrial -> "Tap Play to hear the chord" to Color.Gray
         answerResult == null -> "What chord type is this?" to Color.Gray
-        answerResult is AnswerResult.Correct -> "Correct!" to AppColors.Success
-        answerResult is AnswerResult.Wrong -> "Wrong - it was ${answerResult.actualType.displayName}" to AppColors.Error
+        answerResult is GenericAnswerResult.Correct -> "Correct!" to AppColors.Success
+        answerResult is GenericAnswerResult.Wrong -> {
+            val actualType = answerResult.actualAnswer.chordType
+            "Wrong - it was ${actualType.displayName}" to AppColors.Error
+        }
         else -> "" to Color.Gray
     }
 
@@ -219,11 +132,11 @@ private fun ReviewFeedbackArea(
 }
 
 @Composable
-private fun ReviewAnswerButtons(
+private fun ChordTypeAnswerButtons(
     chordTypes: List<ChordType>,
     enabled: Boolean,
     isLearningMode: Boolean = false,
-    answerResult: AnswerResult? = null,
+    answerResult: ChordTypeAnswerResult? = null,
     onAnswerClicked: (ChordType) -> Unit,
     onPlayChordType: (ChordType) -> Unit = {}
 ) {
@@ -233,9 +146,9 @@ private fun ReviewAnswerButtons(
     // Compute color state for a button based on answer result
     fun getColorState(chordType: ChordType): ButtonColorState {
         return when {
-            answerResult !is AnswerResult.Wrong -> ButtonColorState.DEFAULT
-            chordType == answerResult.selectedType -> ButtonColorState.WRONG
-            chordType == answerResult.actualType -> ButtonColorState.CORRECT
+            answerResult !is GenericAnswerResult.Wrong -> ButtonColorState.DEFAULT
+            chordType == answerResult.selectedAnswer.chordType -> ButtonColorState.WRONG
+            chordType == answerResult.actualAnswer.chordType -> ButtonColorState.CORRECT
             else -> ButtonColorState.INACTIVE
         }
     }
@@ -243,97 +156,20 @@ private fun ReviewAnswerButtons(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // First row
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            if (chordTypes.isNotEmpty()) {
-                ReviewAnswerButton(
-                    chordType = chordTypes[0],
-                    enabled = enabled,
-                    colorState = getColorState(chordTypes[0]),
-                    onClick = { onClick(chordTypes[0]) }
-                )
+        // Display buttons in rows of 2
+        chordTypes.chunked(2).forEachIndexed { index, rowChordTypes ->
+            if (index > 0) {
+                Spacer(modifier = Modifier.height(16.dp))
             }
-            if (chordTypes.size > 1) {
-                ReviewAnswerButton(
-                    chordType = chordTypes[1],
-                    enabled = enabled,
-                    colorState = getColorState(chordTypes[1]),
-                    onClick = { onClick(chordTypes[1]) }
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Second row
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            if (chordTypes.size > 2) {
-                ReviewAnswerButton(
-                    chordType = chordTypes[2],
-                    enabled = enabled,
-                    colorState = getColorState(chordTypes[2]),
-                    onClick = { onClick(chordTypes[2]) }
-                )
-            }
-            if (chordTypes.size > 3) {
-                ReviewAnswerButton(
-                    chordType = chordTypes[3],
-                    enabled = enabled,
-                    colorState = getColorState(chordTypes[3]),
-                    onClick = { onClick(chordTypes[3]) }
-                )
-            }
-        }
-
-        // Third row (for sessions with more than 4 chord types)
-        if (chordTypes.size > 4) {
-            Spacer(modifier = Modifier.height(16.dp))
             Row(
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                if (chordTypes.size > 4) {
-                    ReviewAnswerButton(
-                        chordType = chordTypes[4],
+                rowChordTypes.forEach { chordType ->
+                    ChordTypeAnswerButton(
+                        chordType = chordType,
                         enabled = enabled,
-                        colorState = getColorState(chordTypes[4]),
-                        onClick = { onClick(chordTypes[4]) }
-                    )
-                }
-                if (chordTypes.size > 5) {
-                    ReviewAnswerButton(
-                        chordType = chordTypes[5],
-                        enabled = enabled,
-                        colorState = getColorState(chordTypes[5]),
-                        onClick = { onClick(chordTypes[5]) }
-                    )
-                }
-            }
-        }
-
-        // Fourth row (for sessions with more than 6 chord types)
-        if (chordTypes.size > 6) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                if (chordTypes.size > 6) {
-                    ReviewAnswerButton(
-                        chordType = chordTypes[6],
-                        enabled = enabled,
-                        colorState = getColorState(chordTypes[6]),
-                        onClick = { onClick(chordTypes[6]) }
-                    )
-                }
-                if (chordTypes.size > 7) {
-                    ReviewAnswerButton(
-                        chordType = chordTypes[7],
-                        enabled = enabled,
-                        colorState = getColorState(chordTypes[7]),
-                        onClick = { onClick(chordTypes[7]) }
+                        colorState = getColorState(chordType),
+                        onClick = { onClick(chordType) }
                     )
                 }
             }
@@ -342,7 +178,7 @@ private fun ReviewAnswerButtons(
 }
 
 @Composable
-private fun ReviewAnswerButton(
+private fun ChordTypeAnswerButton(
     chordType: ChordType,
     enabled: Boolean,
     colorState: ButtonColorState = ButtonColorState.DEFAULT,
@@ -361,4 +197,99 @@ private fun ReviewAnswerButton(
             fontSize = 18.sp
         )
     }
+}
+
+// ========== Backwards Compatibility ==========
+
+/**
+ * Legacy AnswerResult type for backwards compatibility.
+ * @deprecated Use ChordTypeAnswerResult (GenericAnswerResult<GameAnswer.ChordTypeAnswer>) instead.
+ */
+sealed class AnswerResult {
+    data object Correct : AnswerResult()
+    data class Wrong(val actualType: ChordType, val selectedType: ChordType) : AnswerResult()
+}
+
+/** Convert legacy AnswerResult to ChordTypeAnswerResult. */
+fun AnswerResult.toGeneric(): ChordTypeAnswerResult = when (this) {
+    is AnswerResult.Correct -> GenericAnswerResult.Correct()
+    is AnswerResult.Wrong -> GenericAnswerResult.Wrong(
+        actualAnswer = GameAnswer.ChordTypeAnswer(actualType),
+        selectedAnswer = GameAnswer.ChordTypeAnswer(selectedType)
+    )
+}
+
+/** Convert ChordTypeAnswerResult to legacy AnswerResult. */
+fun ChordTypeAnswerResult.toLegacy(): AnswerResult = when (this) {
+    is GenericAnswerResult.Correct -> AnswerResult.Correct
+    is GenericAnswerResult.Wrong -> AnswerResult.Wrong(
+        actualType = actualAnswer.chordType,
+        selectedType = selectedAnswer.chordType
+    )
+}
+
+/**
+ * Legacy ReviewScreenState for backwards compatibility.
+ * @deprecated Use ChordTypeReviewState (GenericReviewScreenState<Card, GameAnswer.ChordTypeAnswer>) instead.
+ */
+data class ReviewScreenState(
+    val session: GenericReviewSession<Card>,
+    val currentCard: Card? = null,
+    val currentRootSemitones: Int? = null,
+    val lastAnswer: AnswerResult? = null,
+    val isPlaying: Boolean = false,
+    val hasPlayedThisTrial: Boolean = false,
+    val showingFeedback: Boolean = false,
+    val inLearningMode: Boolean = false
+) {
+    /** Convert to generic state. */
+    fun toGeneric(): ChordTypeReviewState = ChordTypeReviewState(
+        session = session,
+        currentCard = currentCard,
+        currentRootSemitones = currentRootSemitones,
+        lastAnswer = lastAnswer?.toGeneric(),
+        isPlaying = isPlaying,
+        hasPlayedThisTrial = hasPlayedThisTrial,
+        showingFeedback = showingFeedback,
+        inLearningMode = inLearningMode
+    )
+
+    // Computed properties for convenience
+    val trialNumber: Int get() = minOf(session.currentTrial + 1, session.totalTrials)
+    val totalTrials: Int get() = session.totalTrials
+    val isComplete: Boolean get() = session.isComplete()
+    val playbackMode get() = currentCard?.playbackMode ?: net.xmppwocky.earbs.audio.PlaybackMode.ARPEGGIATED
+
+    /** Get chord types in this session (for answer buttons). */
+    fun getChordTypes(): List<ChordType> = GameTypeConfig.ChordTypeGame.getAnswerOptions(session).map { it.chordType }
+}
+
+/**
+ * Backwards compatible ReviewScreen that accepts legacy ReviewScreenState.
+ */
+@Composable
+fun ReviewScreen(
+    state: ReviewScreenState,
+    autoAdvanceDelayMs: Long = Timing.FEEDBACK_DELAY_MS,
+    onPlayClicked: () -> Unit,
+    onAnswerClicked: (ChordType) -> Unit,
+    onTrialComplete: () -> Unit,
+    onAutoPlay: () -> Unit = {},
+    onSessionComplete: () -> Unit,
+    onPlayChordType: (ChordType) -> Unit = {},
+    onNextClicked: () -> Unit = {},
+    onAbortSession: () -> Unit = {}
+) {
+    ReviewScreen(
+        state = state.toGeneric(),
+        autoAdvanceDelayMs = autoAdvanceDelayMs,
+        onPlayClicked = onPlayClicked,
+        onAnswerClicked = onAnswerClicked,
+        onTrialComplete = onTrialComplete,
+        onAutoPlay = onAutoPlay,
+        onSessionComplete = onSessionComplete,
+        onPlayChordType = onPlayChordType,
+        onNextClicked = onNextClicked,
+        onAbortSession = onAbortSession
+    )
 }
