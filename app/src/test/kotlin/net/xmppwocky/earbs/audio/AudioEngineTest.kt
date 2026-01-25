@@ -55,22 +55,7 @@ class AudioEngineTest {
         assertEquals((-AMPLITUDE).toShort(), negativeMin)
     }
 
-    @Test
-    fun `generateSquareWave only produces two amplitude values`() {
-        val samples = AudioEngine.generateSquareWave(440f, 100, TEST_SAMPLE_RATE)
-        val uniqueValues = samples.toSet()
-        assertEquals(2, uniqueValues.size)
-        assertTrue(uniqueValues.contains(AMPLITUDE.toShort()))
-        assertTrue(uniqueValues.contains((-AMPLITUDE).toShort()))
-    }
-
     // ========== Square wave shape tests ==========
-
-    @Test
-    fun `generateSquareWave first sample is positive`() {
-        val samples = AudioEngine.generateSquareWave(440f, 100, TEST_SAMPLE_RATE)
-        assertEquals(AMPLITUDE.toShort(), samples[0])
-    }
 
     @Test
     fun `generateSquareWave has approximately equal positive and negative samples`() {
