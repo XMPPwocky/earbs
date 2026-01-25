@@ -329,7 +329,7 @@ class FunctionReviewScreenTest : ComposeTestBase() {
             FunctionReviewScreen(
                 state = createTestState(
                     hasPlayedThisTrial = true,
-                    lastAnswer = FunctionAnswerResult.Wrong(ChordFunction.IV)
+                    lastAnswer = FunctionAnswerResult.Wrong(ChordFunction.IV, ChordFunction.V)
                 ),
                 onPlayClicked = {},
                 onAnswerClicked = {},
@@ -354,7 +354,7 @@ class FunctionReviewScreenTest : ComposeTestBase() {
                     session = session,
                     currentCard = card,
                     currentRootSemitones = 0,
-                    lastAnswer = FunctionAnswerResult.Wrong(ChordFunction.V),
+                    lastAnswer = FunctionAnswerResult.Wrong(ChordFunction.V, ChordFunction.IV),
                     isPlaying = false,
                     hasPlayedThisTrial = true,
                     showingFeedback = true,
@@ -384,7 +384,7 @@ class FunctionReviewScreenTest : ComposeTestBase() {
                     session = session,
                     currentCard = card,
                     currentRootSemitones = 0,
-                    lastAnswer = FunctionAnswerResult.Wrong(ChordFunction.V),
+                    lastAnswer = FunctionAnswerResult.Wrong(ChordFunction.V, ChordFunction.IV),
                     isPlaying = false,
                     hasPlayedThisTrial = true,
                     showingFeedback = true,
@@ -422,7 +422,7 @@ class FunctionReviewScreenTest : ComposeTestBase() {
                     session = session,
                     currentCard = card,  // Still showing the card for learning
                     currentRootSemitones = 0,
-                    lastAnswer = FunctionAnswerResult.Wrong(ChordFunction.V),
+                    lastAnswer = FunctionAnswerResult.Wrong(ChordFunction.V, ChordFunction.IV),
                     isPlaying = false,
                     hasPlayedThisTrial = true,
                     showingFeedback = true,

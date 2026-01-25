@@ -678,7 +678,7 @@ private fun FunctionReviewSessionScreen(
                 FunctionAnswerResult.Correct
             } else {
                 Log.i(TAG, "WRONG! User answered ${answeredFunction.displayName}, actual was ${currentCard.function.displayName}")
-                FunctionAnswerResult.Wrong(currentCard.function)
+                FunctionAnswerResult.Wrong(currentCard.function, answeredFunction)
             }
 
             coroutineScope.launch {

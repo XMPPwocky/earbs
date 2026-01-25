@@ -3,8 +3,6 @@ package net.xmppwocky.earbs.ui
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,6 +19,12 @@ import net.xmppwocky.earbs.audio.ChordType
 import net.xmppwocky.earbs.audio.PlaybackMode
 import net.xmppwocky.earbs.model.Card
 import net.xmppwocky.earbs.model.ReviewSession
+import net.xmppwocky.earbs.ui.components.AbortSessionDialog
+import net.xmppwocky.earbs.ui.components.ButtonColorState
+import net.xmppwocky.earbs.ui.components.PlaybackModeIndicator
+import net.xmppwocky.earbs.ui.components.ReviewPlayButton
+import net.xmppwocky.earbs.ui.components.ReviewProgressIndicator
+import net.xmppwocky.earbs.ui.components.answerButtonColors
 import net.xmppwocky.earbs.ui.theme.AppColors
 import net.xmppwocky.earbs.ui.theme.Timing
 
@@ -32,16 +36,6 @@ private const val TAG = "ReviewScreen"
 sealed class AnswerResult {
     data object Correct : AnswerResult()
     data class Wrong(val actualType: ChordType, val selectedType: ChordType) : AnswerResult()
-}
-
-/**
- * Color state for answer buttons after a wrong answer.
- */
-enum class ButtonColorState {
-    DEFAULT,    // Normal button colors
-    CORRECT,    // Green - the correct answer
-    WRONG,      // Red - the user's wrong selection
-    INACTIVE    // Gray - other buttons
 }
 
 /**
@@ -94,23 +88,9 @@ fun ReviewScreen(
 
     // Confirmation dialog for aborting session
     if (showAbortDialog) {
-        AlertDialog(
-            onDismissRequest = { showAbortDialog = false },
-            title = { Text("Exit Review?") },
-            text = { Text("Your progress in this session will be lost.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    Log.i(TAG, "User confirmed abort session")
-                    onAbortSession()
-                }) {
-                    Text("Exit")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAbortDialog = false }) {
-                    Text("Continue")
-                }
-            }
+        AbortSessionDialog(
+            onConfirm = onAbortSession,
+            onDismiss = { showAbortDialog = false }
         )
     }
 
@@ -138,7 +118,7 @@ fun ReviewScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Progress indicator with back button
-        ProgressIndicator(
+        ReviewProgressIndicator(
             currentTrial = state.trialNumber,
             totalTrials = state.totalTrials,
             onBackClicked = { showAbortDialog = true }
@@ -203,96 +183,12 @@ fun ReviewScreen(
 }
 
 @Composable
-private fun ProgressIndicator(
-    currentTrial: Int,
-    totalTrials: Int,
-    onBackClicked: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Trial text and progress on the left
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "Trial $currentTrial / $totalTrials",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            LinearProgressIndicator(
-                progress = { currentTrial.toFloat() / totalTrials },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp),
-            )
-        }
-
-        // Back button on the right
-        IconButton(onClick = onBackClicked) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Exit review"
-            )
-        }
-    }
-}
-
-@Composable
 private fun CurrentCardInfo(card: Card?) {
     Text(
         text = card?.let { "Chord in octave ${it.octave}" } ?: "Loading...",
         fontSize = 16.sp,
         color = Color.Gray
     )
-}
-
-@Composable
-private fun PlaybackModeIndicator(mode: PlaybackMode) {
-    Surface(
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        shape = MaterialTheme.shapes.small
-    ) {
-        Text(
-            text = when (mode) {
-                PlaybackMode.BLOCK -> "Block Mode"
-                PlaybackMode.ARPEGGIATED -> "Arpeggiated Mode"
-            },
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSecondaryContainer
-        )
-    }
-}
-
-@Composable
-private fun ReviewPlayButton(
-    isPlaying: Boolean,
-    hasPlayedThisTrial: Boolean,
-    showingFeedback: Boolean,
-    inLearningMode: Boolean = false,
-    onClick: () -> Unit
-) {
-    Button(
-        onClick = onClick,
-        enabled = !isPlaying && (!showingFeedback || inLearningMode),
-        modifier = Modifier.size(width = 140.dp, height = 100.dp),
-        shape = MaterialTheme.shapes.extraLarge
-    ) {
-        Text(
-            text = when {
-                isPlaying -> "Playing..."
-                hasPlayedThisTrial -> "Replay"
-                else -> "Play"
-            },
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold
-        )
-    }
 }
 
 @Composable
@@ -448,29 +344,13 @@ private fun ReviewAnswerButton(
     colorState: ButtonColorState = ButtonColorState.DEFAULT,
     onClick: () -> Unit
 ) {
-    val buttonColors = when (colorState) {
-        ButtonColorState.CORRECT -> ButtonDefaults.buttonColors(
-            containerColor = AppColors.Success,
-            disabledContainerColor = AppColors.Success
-        )
-        ButtonColorState.WRONG -> ButtonDefaults.buttonColors(
-            containerColor = AppColors.Error,
-            disabledContainerColor = AppColors.Error
-        )
-        ButtonColorState.INACTIVE -> ButtonDefaults.buttonColors(
-            containerColor = Color.Gray,
-            disabledContainerColor = Color.Gray
-        )
-        ButtonColorState.DEFAULT -> ButtonDefaults.buttonColors()
-    }
-
     Button(
         onClick = onClick,
         enabled = enabled,
         modifier = Modifier
             .size(width = 140.dp, height = 60.dp)
             .testTag("answer_button_${chordType.name}_${colorState.name}"),
-        colors = buttonColors
+        colors = answerButtonColors(colorState)
     ) {
         Text(
             text = chordType.displayName,
