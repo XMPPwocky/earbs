@@ -90,6 +90,66 @@ class EarbsRepository(
     /** Adapter for function card operations */
     private val functionOps by lazy { FunctionCardOperations(functionCardDao) }
 
+    // ========== Generic Methods with GameType Dispatch ==========
+
+    /**
+     * Initialize deck for a game type.
+     * Ensures all cards have FSRS state initialized.
+     */
+    suspend fun initializeDeck(gameType: GameType) {
+        when (gameType) {
+            GameType.CHORD_TYPE -> initializeStartingDeck()
+            GameType.CHORD_FUNCTION -> initializeFunctionStartingDeck()
+        }
+    }
+
+    /**
+     * Get due count for a game type.
+     */
+    suspend fun getDueCount(gameType: GameType): Int {
+        val count = fsrsStateDao.countDueByGameType(gameType.name, System.currentTimeMillis())
+        Log.d(TAG, "${gameType.name} due count: $count")
+        return count
+    }
+
+    /**
+     * Get due count flow for a game type.
+     */
+    fun getDueCountFlow(gameType: GameType): Flow<Int> {
+        return fsrsStateDao.countDueByGameTypeFlow(gameType.name, System.currentTimeMillis())
+    }
+
+    /**
+     * Get unlocked count for a game type.
+     */
+    suspend fun getUnlockedCount(gameType: GameType): Int {
+        return when (gameType) {
+            GameType.CHORD_TYPE -> cardDao.countUnlocked()
+            GameType.CHORD_FUNCTION -> functionCardDao.countUnlocked()
+        }
+    }
+
+    /**
+     * Get unlocked count flow for a game type.
+     */
+    fun getUnlockedCountFlow(gameType: GameType): Flow<Int> {
+        return when (gameType) {
+            GameType.CHORD_TYPE -> cardDao.countUnlockedFlow()
+            GameType.CHORD_FUNCTION -> functionCardDao.countUnlockedFlow()
+        }
+    }
+
+    /**
+     * Set card unlock status for any game type.
+     */
+    suspend fun setCardUnlocked(gameType: GameType, cardId: String, unlocked: Boolean) {
+        Log.i(TAG, "Setting ${gameType.name} card $cardId unlocked=$unlocked")
+        when (gameType) {
+            GameType.CHORD_TYPE -> cardDao.setUnlocked(cardId, unlocked)
+            GameType.CHORD_FUNCTION -> functionCardDao.setUnlocked(cardId, unlocked)
+        }
+    }
+
     // ========== Generic Card Selection Algorithm ==========
 
     /**
@@ -260,11 +320,10 @@ class EarbsRepository(
     /**
      * Set the unlock status for a chord type card.
      * FSRS state is preserved when locking/unlocking.
+     * @see setCardUnlocked(GameType, String, Boolean) for generic version
      */
-    suspend fun setCardUnlocked(cardId: String, unlocked: Boolean) {
-        Log.i(TAG, "Setting card $cardId unlocked=$unlocked")
-        cardDao.setUnlocked(cardId, unlocked)
-    }
+    suspend fun setCardUnlocked(cardId: String, unlocked: Boolean) =
+        setCardUnlocked(GameType.CHORD_TYPE, cardId, unlocked)
 
     /**
      * Get all chord type cards for the unlock management screen.
@@ -282,18 +341,16 @@ class EarbsRepository(
     }
 
     /**
-     * Get the number of unlocked cards.
+     * Get the number of unlocked chord type cards.
+     * @see getUnlockedCount(GameType) for generic version
      */
-    suspend fun getUnlockedCount(): Int {
-        return cardDao.countUnlocked()
-    }
+    suspend fun getUnlockedCount(): Int = getUnlockedCount(GameType.CHORD_TYPE)
 
     /**
-     * Observe the number of unlocked cards.
+     * Observe the number of unlocked chord type cards.
+     * @see getUnlockedCountFlow(GameType) for generic version
      */
-    fun getUnlockedCountFlow(): Flow<Int> {
-        return cardDao.countUnlockedFlow()
-    }
+    fun getUnlockedCountFlow(): Flow<Int> = getUnlockedCountFlow(GameType.CHORD_TYPE)
 
     /**
      * Select cards for a review session.
@@ -452,16 +509,15 @@ class EarbsRepository(
 
     /**
      * Get count of due cards for chord type game.
+     * @see getDueCount(GameType) for generic version
      */
-    suspend fun getDueCount(): Int {
-        val count = fsrsStateDao.countDueByGameType(GameType.CHORD_TYPE.name, System.currentTimeMillis())
-        Log.d(TAG, "Chord type due count: $count")
-        return count
-    }
+    suspend fun getDueCount(): Int = getDueCount(GameType.CHORD_TYPE)
 
-    fun getDueCountFlow(): Flow<Int> {
-        return fsrsStateDao.countDueByGameTypeFlow(GameType.CHORD_TYPE.name, System.currentTimeMillis())
-    }
+    /**
+     * Observe due count for chord type game.
+     * @see getDueCountFlow(GameType) for generic version
+     */
+    fun getDueCountFlow(): Flow<Int> = getDueCountFlow(GameType.CHORD_TYPE)
 
     /**
      * Get all cards with FSRS flow for UI.
@@ -565,11 +621,10 @@ class EarbsRepository(
     /**
      * Set the unlock status for a function card.
      * FSRS state is preserved when locking/unlocking.
+     * @see setCardUnlocked(GameType, String, Boolean) for generic version
      */
-    suspend fun setFunctionCardUnlocked(cardId: String, unlocked: Boolean) {
-        Log.i(TAG, "Setting function card $cardId unlocked=$unlocked")
-        functionCardDao.setUnlocked(cardId, unlocked)
-    }
+    suspend fun setFunctionCardUnlocked(cardId: String, unlocked: Boolean) =
+        setCardUnlocked(GameType.CHORD_FUNCTION, cardId, unlocked)
 
     /**
      * Get all function cards for the unlock management screen.
@@ -588,17 +643,15 @@ class EarbsRepository(
 
     /**
      * Get the number of unlocked function cards.
+     * @see getUnlockedCount(GameType) for generic version
      */
-    suspend fun getFunctionUnlockedCount(): Int {
-        return functionCardDao.countUnlocked()
-    }
+    suspend fun getFunctionUnlockedCount(): Int = getUnlockedCount(GameType.CHORD_FUNCTION)
 
     /**
      * Observe the number of unlocked function cards.
+     * @see getUnlockedCountFlow(GameType) for generic version
      */
-    fun getFunctionUnlockedCountFlow(): Flow<Int> {
-        return functionCardDao.countUnlockedFlow()
-    }
+    fun getFunctionUnlockedCountFlow(): Flow<Int> = getUnlockedCountFlow(GameType.CHORD_FUNCTION)
 
     /**
      * Select function cards for a review session.
@@ -651,16 +704,15 @@ class EarbsRepository(
 
     /**
      * Get count of due function cards.
+     * @see getDueCount(GameType) for generic version
      */
-    suspend fun getFunctionDueCount(): Int {
-        val count = fsrsStateDao.countDueByGameType(GameType.CHORD_FUNCTION.name, System.currentTimeMillis())
-        Log.d(TAG, "Function due count: $count")
-        return count
-    }
+    suspend fun getFunctionDueCount(): Int = getDueCount(GameType.CHORD_FUNCTION)
 
-    fun getFunctionDueCountFlow(): Flow<Int> {
-        return fsrsStateDao.countDueByGameTypeFlow(GameType.CHORD_FUNCTION.name, System.currentTimeMillis())
-    }
+    /**
+     * Observe due count for function game.
+     * @see getDueCountFlow(GameType) for generic version
+     */
+    fun getFunctionDueCountFlow(): Flow<Int> = getDueCountFlow(GameType.CHORD_FUNCTION)
 
     /**
      * Get all function cards with FSRS flow for UI.
