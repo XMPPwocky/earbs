@@ -384,14 +384,26 @@ class EarbsRepository(
      * @return the new due date
      */
     private suspend fun applyFsrsUpdate(fsrsState: FsrsStateEntity, rating: Rating): Long {
+        val now = System.currentTimeMillis()
         Log.i(TAG, "Updating FSRS state for ${fsrsState.cardId} with rating ${rating.name}")
+
+        // Calculate actual elapsed days since last review (for retrievability calculation)
+        // FSRS needs actual elapsed time, not the scheduled interval
+        val elapsedDays = if (fsrsState.lastReview != null) {
+            val elapsedMs = now - fsrsState.lastReview
+            (elapsedMs / (24.0 * 60 * 60 * 1000)).coerceAtLeast(0.0).toInt()
+        } else {
+            // First review after Added phase - use scheduled interval as fallback
+            fsrsState.interval
+        }
+        Log.d(TAG, "  Actual elapsed days: $elapsedDays (scheduled was ${fsrsState.interval})")
 
         // Convert to FlashCard for FSRS calculation
         val flashCard = FlashCard(
             id = 0,  // Not used
             stability = fsrsState.stability,
             difficulty = fsrsState.difficulty,
-            interval = fsrsState.interval,
+            interval = elapsedDays,  // Use actual elapsed time, not scheduled interval
             dueDate = LocalDateTime.now(),
             reviewCount = fsrsState.reviewCount,
             lastReview = LocalDateTime.now(),
@@ -403,7 +415,6 @@ class EarbsRepository(
         val grades = fsrs.calculate(flashCard)
         val chosenGrade = grades.first { it.choice == rating }
 
-        val now = System.currentTimeMillis()
         val newDueDate = now + chosenGrade.durationMillis
 
         // Determine new phase
