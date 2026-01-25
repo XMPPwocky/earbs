@@ -39,8 +39,6 @@ import net.xmppwocky.earbs.model.KeyQuality
 import java.time.LocalDateTime
 
 private const val TAG = "EarbsRepository"
-private const val PREF_KEY_UNLOCK_LEVEL = "unlock_level"
-private const val PREF_KEY_FUNCTION_UNLOCK_LEVEL = "function_unlock_level"
 private const val PREF_KEY_SESSION_SIZE = "session_size"
 private const val PREF_KEY_TARGET_RETENTION = "target_retention"
 private const val DEFAULT_SESSION_SIZE = 20
@@ -226,102 +224,61 @@ class EarbsRepository(
     // ========== Chord Type Game (Game 1) ==========
 
     /**
-     * Initialize the starting deck on first launch.
-     * Creates 4 cards: MAJOR, MINOR, SUS2, SUS4 @ octave 4, arpeggiated.
+     * Ensure chord type cards are properly initialized.
+     * Cards are pre-created by the database migration (v7).
+     * This method is kept for safety in case FSRS state is missing.
      */
     suspend fun initializeStartingDeck() {
-        val existingCount = cardDao.count()
-        if (existingCount > 0) {
-            Log.i(TAG, "Database already has $existingCount cards, skipping initialization")
-            return
+        val cardCount = cardDao.count()
+        Log.i(TAG, "Chord type cards in database: $cardCount")
+
+        // Cards should be pre-created by migration. Just verify FSRS state exists.
+        if (cardCount > 0) {
+            val now = System.currentTimeMillis()
+            val cards = cardDao.getAllCardsOrdered()
+            var createdCount = 0
+            for (card in cards) {
+                val fsrsState = fsrsStateDao.getByCardId(card.id)
+                if (fsrsState == null) {
+                    Log.w(TAG, "Creating missing FSRS state for ${card.id}")
+                    fsrsStateDao.insert(FsrsStateEntity(
+                        cardId = card.id,
+                        gameType = GameType.CHORD_TYPE.name,
+                        dueDate = now
+                    ))
+                    createdCount++
+                }
+            }
+            if (createdCount > 0) {
+                Log.i(TAG, "Created $createdCount missing FSRS states for chord type cards")
+            }
         }
+    }
 
-        Log.i(TAG, "Initializing starting deck with 4 arpeggiated triads @ octave 4")
-        val now = System.currentTimeMillis()
+    // ========== Card Unlock Management ==========
 
-        // Starting deck is group 0: triads @ octave 4, arpeggiated
-        val startingGroup = Deck.UNLOCK_ORDER[0]
-        val startingCards = startingGroup.chordTypes.map { chordType ->
-            val cardId = "${chordType.name}_${startingGroup.octave}_${startingGroup.playbackMode.name}"
-            CardEntity(
-                id = cardId,
-                chordType = chordType.name,
-                octave = startingGroup.octave,
-                playbackMode = startingGroup.playbackMode.name
-            )
-        }
-
-        // Create FSRS state for each card
-        val fsrsStates = startingCards.map { card ->
-            FsrsStateEntity(
-                cardId = card.id,
-                gameType = GameType.CHORD_TYPE.name,
-                dueDate = now  // Immediately due
-            )
-        }
-
-        cardDao.insertAll(startingCards)
-        fsrsStateDao.insertAll(fsrsStates)
-        prefs.edit().putInt(PREF_KEY_UNLOCK_LEVEL, 0).apply()
-        Log.i(TAG, "Inserted ${startingCards.size} starting cards with FSRS state, unlock level set to 0")
+    /**
+     * Set the unlock status for a chord type card.
+     * FSRS state is preserved when locking/unlocking.
+     */
+    suspend fun setCardUnlocked(cardId: String, unlocked: Boolean) {
+        Log.i(TAG, "Setting card $cardId unlocked=$unlocked")
+        cardDao.setUnlocked(cardId, unlocked)
     }
 
     /**
-     * Get the current unlock level (0-indexed).
-     * Level 0 = starting deck (group 0 unlocked)
-     * Level 11 = full deck (all 12 groups unlocked)
+     * Get all chord type cards for the unlock management screen.
+     * Includes both locked and unlocked cards with their FSRS state.
      */
-    fun getUnlockLevel(): Int {
-        return prefs.getInt(PREF_KEY_UNLOCK_LEVEL, 0)
+    fun getAllCardsForUnlockScreen(): Flow<List<CardWithFsrs>> {
+        return cardDao.getAllCardsWithFsrsOrderedFlow()
     }
 
     /**
-     * Check if there are more cards to unlock.
+     * Get all chord type cards for the unlock management screen (suspend version).
      */
-    fun canUnlockMore(): Boolean {
-        return getUnlockLevel() < Deck.MAX_UNLOCK_LEVEL
-    }
-
-    /**
-     * Unlock the next group of 4 cards.
-     * @return true if unlock succeeded, false if already at max level
-     */
-    suspend fun unlockNextGroup(): Boolean {
-        val currentLevel = getUnlockLevel()
-        if (currentLevel >= Deck.MAX_UNLOCK_LEVEL) {
-            Log.i(TAG, "Already at max unlock level ($currentLevel), cannot unlock more")
-            return false
-        }
-
-        val nextLevel = currentLevel + 1
-        val nextGroup = Deck.UNLOCK_ORDER[nextLevel]
-        val now = System.currentTimeMillis()
-
-        Log.i(TAG, "Unlocking group $nextLevel: ${nextGroup.chordTypes.map { it.displayName }} @ octave ${nextGroup.octave}, ${nextGroup.playbackMode}")
-
-        val newCards = nextGroup.chordTypes.map { chordType ->
-            val cardId = "${chordType.name}_${nextGroup.octave}_${nextGroup.playbackMode.name}"
-            CardEntity(
-                id = cardId,
-                chordType = chordType.name,
-                octave = nextGroup.octave,
-                playbackMode = nextGroup.playbackMode.name
-            )
-        }
-
-        val fsrsStates = newCards.map { card ->
-            FsrsStateEntity(
-                cardId = card.id,
-                gameType = GameType.CHORD_TYPE.name,
-                dueDate = now  // Due immediately
-            )
-        }
-
-        cardDao.insertAll(newCards)
-        fsrsStateDao.insertAll(fsrsStates)
-        prefs.edit().putInt(PREF_KEY_UNLOCK_LEVEL, nextLevel).apply()
-        Log.i(TAG, "Unlocked ${newCards.size} new cards with FSRS state, unlock level now $nextLevel")
-        return true
+    suspend fun getAllCardsForUnlockScreenSuspend(): List<CardWithFsrs> {
+        return cardDao.getAllCardsWithFsrsOrdered()
     }
 
     /**
@@ -572,102 +529,61 @@ class EarbsRepository(
     // ========== Chord Function Game (Game 2) ==========
 
     /**
-     * Initialize the function game starting deck on first launch.
-     * Creates 3 cards: IV, V, vi @ major key, octave 4, arpeggiated.
+     * Ensure function cards are properly initialized.
+     * Cards are pre-created by the database migration (v7).
+     * This method is kept for safety in case FSRS state is missing.
      */
     suspend fun initializeFunctionStartingDeck() {
-        val existingCount = functionCardDao.count()
-        if (existingCount > 0) {
-            Log.i(TAG, "Database already has $existingCount function cards, skipping initialization")
-            return
+        val cardCount = functionCardDao.count()
+        Log.i(TAG, "Function cards in database: $cardCount")
+
+        // Cards should be pre-created by migration. Just verify FSRS state exists.
+        if (cardCount > 0) {
+            val now = System.currentTimeMillis()
+            val cards = functionCardDao.getAllCardsOrdered()
+            var createdCount = 0
+            for (card in cards) {
+                val fsrsState = fsrsStateDao.getByCardId(card.id)
+                if (fsrsState == null) {
+                    Log.w(TAG, "Creating missing FSRS state for ${card.id}")
+                    fsrsStateDao.insert(FsrsStateEntity(
+                        cardId = card.id,
+                        gameType = GameType.CHORD_FUNCTION.name,
+                        dueDate = now
+                    ))
+                    createdCount++
+                }
+            }
+            if (createdCount > 0) {
+                Log.i(TAG, "Created $createdCount missing FSRS states for function cards")
+            }
         }
+    }
 
-        Log.i(TAG, "Initializing function starting deck with 3 primary major functions @ octave 4")
-        val now = System.currentTimeMillis()
+    // ========== Function Card Unlock Management ==========
 
-        // Starting deck is group 0: IV, V, vi @ major key, octave 4, arpeggiated
-        val startingGroup = FunctionDeck.UNLOCK_ORDER[0]
-        val startingCards = startingGroup.functions.map { function ->
-            val cardId = "${function.name}_${startingGroup.keyQuality.name}_${startingGroup.octave}_${startingGroup.playbackMode.name}"
-            FunctionCardEntity(
-                id = cardId,
-                function = function.name,
-                keyQuality = startingGroup.keyQuality.name,
-                octave = startingGroup.octave,
-                playbackMode = startingGroup.playbackMode.name
-            )
-        }
-
-        // Create FSRS state for each card
-        val fsrsStates = startingCards.map { card ->
-            FsrsStateEntity(
-                cardId = card.id,
-                gameType = GameType.CHORD_FUNCTION.name,
-                dueDate = now  // Immediately due
-            )
-        }
-
-        functionCardDao.insertAll(startingCards)
-        fsrsStateDao.insertAll(fsrsStates)
-        prefs.edit().putInt(PREF_KEY_FUNCTION_UNLOCK_LEVEL, 0).apply()
-        Log.i(TAG, "Inserted ${startingCards.size} function starting cards with FSRS state, unlock level set to 0")
+    /**
+     * Set the unlock status for a function card.
+     * FSRS state is preserved when locking/unlocking.
+     */
+    suspend fun setFunctionCardUnlocked(cardId: String, unlocked: Boolean) {
+        Log.i(TAG, "Setting function card $cardId unlocked=$unlocked")
+        functionCardDao.setUnlocked(cardId, unlocked)
     }
 
     /**
-     * Get the current function unlock level (0-indexed).
+     * Get all function cards for the unlock management screen.
+     * Includes both locked and unlocked cards with their FSRS state.
      */
-    fun getFunctionUnlockLevel(): Int {
-        return prefs.getInt(PREF_KEY_FUNCTION_UNLOCK_LEVEL, 0)
+    fun getAllFunctionCardsForUnlockScreen(): Flow<List<FunctionCardWithFsrs>> {
+        return functionCardDao.getAllCardsWithFsrsOrderedFlow()
     }
 
     /**
-     * Check if there are more function cards to unlock.
+     * Get all function cards for the unlock management screen (suspend version).
      */
-    fun canUnlockMoreFunctions(): Boolean {
-        return getFunctionUnlockLevel() < FunctionDeck.MAX_UNLOCK_LEVEL
-    }
-
-    /**
-     * Unlock the next group of 3 function cards.
-     * @return true if unlock succeeded, false if already at max level
-     */
-    suspend fun unlockNextFunctionGroup(): Boolean {
-        val currentLevel = getFunctionUnlockLevel()
-        if (currentLevel >= FunctionDeck.MAX_UNLOCK_LEVEL) {
-            Log.i(TAG, "Already at max function unlock level ($currentLevel), cannot unlock more")
-            return false
-        }
-
-        val nextLevel = currentLevel + 1
-        val nextGroup = FunctionDeck.UNLOCK_ORDER[nextLevel]
-        val now = System.currentTimeMillis()
-
-        Log.i(TAG, "Unlocking function group $nextLevel: ${nextGroup.functions.map { it.displayName }} @ ${nextGroup.keyQuality} key, octave ${nextGroup.octave}, ${nextGroup.playbackMode}")
-
-        val newCards = nextGroup.functions.map { function ->
-            val cardId = "${function.name}_${nextGroup.keyQuality.name}_${nextGroup.octave}_${nextGroup.playbackMode.name}"
-            FunctionCardEntity(
-                id = cardId,
-                function = function.name,
-                keyQuality = nextGroup.keyQuality.name,
-                octave = nextGroup.octave,
-                playbackMode = nextGroup.playbackMode.name
-            )
-        }
-
-        val fsrsStates = newCards.map { card ->
-            FsrsStateEntity(
-                cardId = card.id,
-                gameType = GameType.CHORD_FUNCTION.name,
-                dueDate = now  // Due immediately
-            )
-        }
-
-        functionCardDao.insertAll(newCards)
-        fsrsStateDao.insertAll(fsrsStates)
-        prefs.edit().putInt(PREF_KEY_FUNCTION_UNLOCK_LEVEL, nextLevel).apply()
-        Log.i(TAG, "Unlocked ${newCards.size} new function cards with FSRS state, unlock level now $nextLevel")
-        return true
+    suspend fun getAllFunctionCardsForUnlockScreenSuspend(): List<FunctionCardWithFsrs> {
+        return functionCardDao.getAllCardsWithFsrsOrdered()
     }
 
     /**
