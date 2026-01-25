@@ -12,9 +12,9 @@ import net.xmppwocky.earbs.audio.PlaybackMode
  */
 data class Card(
     val chordType: ChordType,
-    val octave: Int,
-    val playbackMode: PlaybackMode
-) {
-    val id: String get() = "${chordType.name}_${octave}_${playbackMode.name}"
-    val displayName: String get() = "${chordType.displayName} @ Oct $octave (${playbackMode.name.lowercase()})"
+    override val octave: Int,
+    override val playbackMode: PlaybackMode
+) : GameCard {
+    override val id: String get() = "${chordType.name}_${octave}_${playbackMode.name}"
+    override val displayName: String get() = "${chordType.displayName} @ Oct $octave (${playbackMode.name.lowercase()})"
 }

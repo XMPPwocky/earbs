@@ -12,12 +12,12 @@ import net.xmppwocky.earbs.audio.PlaybackMode
 data class FunctionCard(
     val function: ChordFunction,
     val keyQuality: KeyQuality,
-    val octave: Int,
-    val playbackMode: PlaybackMode
-) {
-    val id: String get() = "${function.name}_${keyQuality.name}_${octave}_${playbackMode.name}"
+    override val octave: Int,
+    override val playbackMode: PlaybackMode
+) : GameCard {
+    override val id: String get() = "${function.name}_${keyQuality.name}_${octave}_${playbackMode.name}"
 
-    val displayName: String get() = "${function.displayName} in ${keyQuality.name.lowercase()} @ Oct $octave (${playbackMode.name.lowercase()})"
+    override val displayName: String get() = "${function.displayName} in ${keyQuality.name.lowercase()} @ Oct $octave (${playbackMode.name.lowercase()})"
 
     companion object {
         /**

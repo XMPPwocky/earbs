@@ -1,0 +1,28 @@
+package net.xmppwocky.earbs.model
+
+import net.xmppwocky.earbs.audio.ChordType
+
+/**
+ * Sealed interface for all game answer types.
+ * Each game type has its own answer type with the correct answer value.
+ */
+sealed interface GameAnswer {
+    /** Human-readable display name for answer buttons */
+    val displayName: String
+
+    /**
+     * Answer for the chord type recognition game.
+     * User identifies the chord quality (Major, Minor, Sus2, etc.)
+     */
+    data class ChordTypeAnswer(val chordType: ChordType) : GameAnswer {
+        override val displayName: String get() = chordType.displayName
+    }
+
+    /**
+     * Answer for the chord function recognition game.
+     * User identifies the roman numeral function (ii, IV, V, etc.)
+     */
+    data class FunctionAnswer(val function: ChordFunction) : GameAnswer {
+        override val displayName: String get() = function.displayName
+    }
+}
