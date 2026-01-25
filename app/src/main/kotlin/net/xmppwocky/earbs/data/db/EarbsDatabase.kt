@@ -23,7 +23,7 @@ private const val TAG = "EarbsDatabase"
         ReviewSessionEntity::class,
         TrialEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class EarbsDatabase : RoomDatabase() {
@@ -267,6 +267,154 @@ abstract class EarbsDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration from version 6 to 7:
+         * - Pre-create all cards (48 chord type + 72 function) for the new unlock system
+         * - Existing cards are preserved (INSERT OR IGNORE)
+         * - New cards are created with unlocked = 0 (locked)
+         * - Only group 0 cards (starting deck) are unlocked by default
+         */
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                Log.i(TAG, "Migrating database from version 6 to 7: pre-creating all cards")
+
+                // ========== Chord Type Cards (48 total) ==========
+                // Group 0: Triads @ Octave 4, Arpeggiated (starting deck - unlocked)
+                val chordTypeStartingCards = listOf(
+                    "MAJOR_4_ARPEGGIATED", "MINOR_4_ARPEGGIATED", "SUS2_4_ARPEGGIATED", "SUS4_4_ARPEGGIATED"
+                )
+                // All other chord type cards (locked by default)
+                val chordTypeLockedCards = listOf(
+                    // Group 1: Triads @ Octave 4, Block
+                    "MAJOR_4_BLOCK", "MINOR_4_BLOCK", "SUS2_4_BLOCK", "SUS4_4_BLOCK",
+                    // Group 2: Triads @ Octave 3, Arpeggiated
+                    "MAJOR_3_ARPEGGIATED", "MINOR_3_ARPEGGIATED", "SUS2_3_ARPEGGIATED", "SUS4_3_ARPEGGIATED",
+                    // Group 3: Triads @ Octave 3, Block
+                    "MAJOR_3_BLOCK", "MINOR_3_BLOCK", "SUS2_3_BLOCK", "SUS4_3_BLOCK",
+                    // Group 4: Triads @ Octave 5, Arpeggiated
+                    "MAJOR_5_ARPEGGIATED", "MINOR_5_ARPEGGIATED", "SUS2_5_ARPEGGIATED", "SUS4_5_ARPEGGIATED",
+                    // Group 5: Triads @ Octave 5, Block
+                    "MAJOR_5_BLOCK", "MINOR_5_BLOCK", "SUS2_5_BLOCK", "SUS4_5_BLOCK",
+                    // Group 6: 7ths @ Octave 4, Arpeggiated
+                    "DOM7_4_ARPEGGIATED", "MAJ7_4_ARPEGGIATED", "MIN7_4_ARPEGGIATED", "DIM7_4_ARPEGGIATED",
+                    // Group 7: 7ths @ Octave 4, Block
+                    "DOM7_4_BLOCK", "MAJ7_4_BLOCK", "MIN7_4_BLOCK", "DIM7_4_BLOCK",
+                    // Group 8: 7ths @ Octave 3, Arpeggiated
+                    "DOM7_3_ARPEGGIATED", "MAJ7_3_ARPEGGIATED", "MIN7_3_ARPEGGIATED", "DIM7_3_ARPEGGIATED",
+                    // Group 9: 7ths @ Octave 3, Block
+                    "DOM7_3_BLOCK", "MAJ7_3_BLOCK", "MIN7_3_BLOCK", "DIM7_3_BLOCK",
+                    // Group 10: 7ths @ Octave 5, Arpeggiated
+                    "DOM7_5_ARPEGGIATED", "MAJ7_5_ARPEGGIATED", "MIN7_5_ARPEGGIATED", "DIM7_5_ARPEGGIATED",
+                    // Group 11: 7ths @ Octave 5, Block
+                    "DOM7_5_BLOCK", "MAJ7_5_BLOCK", "MIN7_5_BLOCK", "DIM7_5_BLOCK"
+                )
+
+                // Insert starting deck cards (unlocked = 1)
+                for (cardId in chordTypeStartingCards) {
+                    val parts = cardId.split("_")
+                    val chordType = parts[0]
+                    val octave = parts[1]
+                    val playbackMode = parts[2]
+                    db.execSQL("""
+                        INSERT OR IGNORE INTO cards (id, chordType, octave, playbackMode, unlocked)
+                        VALUES ('$cardId', '$chordType', $octave, '$playbackMode', 1)
+                    """.trimIndent())
+                }
+
+                // Insert locked cards (unlocked = 0)
+                for (cardId in chordTypeLockedCards) {
+                    val parts = cardId.split("_")
+                    val chordType = parts[0]
+                    val octave = parts[1]
+                    val playbackMode = parts[2]
+                    db.execSQL("""
+                        INSERT OR IGNORE INTO cards (id, chordType, octave, playbackMode, unlocked)
+                        VALUES ('$cardId', '$chordType', $octave, '$playbackMode', 0)
+                    """.trimIndent())
+                }
+
+                Log.i(TAG, "Inserted chord type cards")
+
+                // ========== Function Cards (72 total) ==========
+                // Use explicit tuples: (id, function, keyQuality, octave, playbackMode, unlocked)
+                // Note: Function names like vii_dim contain underscores, so we can't parse the ID
+
+                // Helper to insert function card
+                fun insertFunctionCard(id: String, function: String, keyQuality: String, octave: Int, playbackMode: String, unlocked: Int) {
+                    db.execSQL("""
+                        INSERT OR IGNORE INTO function_cards (id, function, keyQuality, octave, playbackMode, unlocked)
+                        VALUES ('$id', '$function', '$keyQuality', $octave, '$playbackMode', $unlocked)
+                    """.trimIndent())
+                }
+
+                // Major key functions
+                val majorFunctions = listOf("IV", "V", "vi", "ii", "iii", "vii_dim")
+                val majorPrimary = listOf("IV", "V", "vi")
+                val majorSecondary = listOf("ii", "iii", "vii_dim")
+
+                // Minor key functions
+                val minorFunctions = listOf("iv", "v", "VI", "ii_dim", "III", "VII")
+                val minorPrimary = listOf("iv", "v", "VI")
+                val minorSecondary = listOf("ii_dim", "III", "VII")
+
+                val octaves = listOf(4, 3, 5)
+                val playbackModes = listOf("ARPEGGIATED", "BLOCK")
+
+                // Group 0 (starting deck) is Major Primary @ Octave 4, Arpeggiated
+                for (octave in octaves) {
+                    for (mode in playbackModes) {
+                        for (func in majorPrimary) {
+                            val id = "${func}_MAJOR_${octave}_$mode"
+                            // Starting deck: octave 4, arpeggiated, major primary
+                            val unlocked = if (octave == 4 && mode == "ARPEGGIATED") 1 else 0
+                            insertFunctionCard(id, func, "MAJOR", octave, mode, unlocked)
+                        }
+                        for (func in majorSecondary) {
+                            val id = "${func}_MAJOR_${octave}_$mode"
+                            insertFunctionCard(id, func, "MAJOR", octave, mode, 0)
+                        }
+                    }
+                }
+
+                for (octave in octaves) {
+                    for (mode in playbackModes) {
+                        for (func in minorPrimary) {
+                            val id = "${func}_MINOR_${octave}_$mode"
+                            insertFunctionCard(id, func, "MINOR", octave, mode, 0)
+                        }
+                        for (func in minorSecondary) {
+                            val id = "${func}_MINOR_${octave}_$mode"
+                            insertFunctionCard(id, func, "MINOR", octave, mode, 0)
+                        }
+                    }
+                }
+
+                Log.i(TAG, "Inserted function cards")
+
+                // ========== Create FSRS state for all new cards ==========
+                val now = System.currentTimeMillis()
+
+                // Create FSRS state for chord type cards (only for cards that don't have state yet)
+                db.execSQL("""
+                    INSERT OR IGNORE INTO fsrs_state (cardId, gameType, stability, difficulty, `interval`, dueDate, reviewCount, lastReview, phase, lapses)
+                    SELECT id, 'CHORD_TYPE', 2.5, 2.5, 0, $now, 0, NULL, 0, 0
+                    FROM cards
+                    WHERE id NOT IN (SELECT cardId FROM fsrs_state WHERE gameType = 'CHORD_TYPE')
+                """.trimIndent())
+
+                // Create FSRS state for function cards (only for cards that don't have state yet)
+                db.execSQL("""
+                    INSERT OR IGNORE INTO fsrs_state (cardId, gameType, stability, difficulty, `interval`, dueDate, reviewCount, lastReview, phase, lapses)
+                    SELECT id, 'CHORD_FUNCTION', 2.5, 2.5, 0, $now, 0, NULL, 0, 0
+                    FROM function_cards
+                    WHERE id NOT IN (SELECT cardId FROM fsrs_state WHERE gameType = 'CHORD_FUNCTION')
+                """.trimIndent())
+
+                Log.i(TAG, "Created FSRS state for new cards")
+                Log.i(TAG, "Migration 6->7 complete: pre-created all cards for new unlock system")
+            }
+        }
+
         fun getDatabase(context: Context): EarbsDatabase {
             return INSTANCE ?: synchronized(this) {
                 Log.i(TAG, "Creating database instance")
@@ -275,7 +423,7 @@ abstract class EarbsDatabase : RoomDatabase() {
                     EarbsDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
