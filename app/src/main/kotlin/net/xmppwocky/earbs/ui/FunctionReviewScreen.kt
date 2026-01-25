@@ -52,23 +52,26 @@ data class FunctionReviewScreenState(
 @Composable
 fun FunctionReviewScreen(
     state: FunctionReviewScreenState,
+    autoAdvanceDelayMs: Long = Timing.FEEDBACK_DELAY_MS,
     onPlayClicked: () -> Unit,
     onAnswerClicked: (ChordFunction) -> Unit,
     onTrialComplete: () -> Unit,
+    onAutoPlay: () -> Unit = {},
     onSessionComplete: () -> Unit
 ) {
     // Auto-advance after showing feedback
     LaunchedEffect(state.showingFeedback) {
         if (state.showingFeedback) {
-            Log.d(TAG, "Showing feedback, will advance in ${Timing.FEEDBACK_DELAY_MS}ms")
-            delay(Timing.FEEDBACK_DELAY_MS)
+            Log.d(TAG, "Showing feedback, will advance in ${autoAdvanceDelayMs}ms")
+            delay(autoAdvanceDelayMs)
 
             if (state.session.isComplete()) {
                 Log.i(TAG, "Session complete, navigating to results")
                 onSessionComplete()
             } else {
-                Log.d(TAG, "Advancing to next trial")
+                Log.d(TAG, "Advancing to next trial and auto-playing")
                 onTrialComplete()
+                onAutoPlay()
             }
         }
     }

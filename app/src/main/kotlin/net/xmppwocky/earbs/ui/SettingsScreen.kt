@@ -20,17 +20,21 @@ private const val TAG = "SettingsScreen"
 const val PREF_KEY_PLAYBACK_DURATION = "playback_duration"
 const val PREF_KEY_SESSION_SIZE = "session_size"
 const val PREF_KEY_TARGET_RETENTION = "target_retention"
+const val PREF_KEY_AUTO_ADVANCE_DELAY = "auto_advance_delay"
 
 // Default values
 const val DEFAULT_PLAYBACK_DURATION = 500
 const val DEFAULT_SESSION_SIZE = 20
 const val DEFAULT_TARGET_RETENTION = 0.9f
+const val DEFAULT_AUTO_ADVANCE_DELAY = 750  // ms
 
 // Ranges
 const val PLAYBACK_DURATION_MIN = 300
 const val PLAYBACK_DURATION_MAX = 1000
 const val TARGET_RETENTION_MIN = 0.7f
 const val TARGET_RETENTION_MAX = 0.95f
+const val AUTO_ADVANCE_DELAY_MIN = 300
+const val AUTO_ADVANCE_DELAY_MAX = 2000
 
 val SESSION_SIZE_OPTIONS = listOf(10, 20, 30)
 
@@ -50,9 +54,12 @@ fun SettingsScreen(
     var targetRetention by remember {
         mutableFloatStateOf(prefs.getFloat(PREF_KEY_TARGET_RETENTION, DEFAULT_TARGET_RETENTION))
     }
+    var autoAdvanceDelay by remember {
+        mutableIntStateOf(prefs.getInt(PREF_KEY_AUTO_ADVANCE_DELAY, DEFAULT_AUTO_ADVANCE_DELAY))
+    }
     var sessionSizeExpanded by remember { mutableStateOf(false) }
 
-    Log.d(TAG, "SettingsScreen composing with playbackDuration=$playbackDuration, sessionSize=$sessionSize, targetRetention=$targetRetention")
+    Log.d(TAG, "SettingsScreen composing with playbackDuration=$playbackDuration, sessionSize=$sessionSize, targetRetention=$targetRetention, autoAdvanceDelay=$autoAdvanceDelay")
 
     Scaffold(
         topBar = {
@@ -109,6 +116,45 @@ fun SettingsScreen(
                     )
                     Text(
                         text = "How long each chord plays",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Auto-Advance Delay Setting
+            SettingSection(title = "Auto-Advance Delay") {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${autoAdvanceDelay}ms",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "${AUTO_ADVANCE_DELAY_MIN}-${AUTO_ADVANCE_DELAY_MAX}ms",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Slider(
+                        value = autoAdvanceDelay.toFloat(),
+                        onValueChange = { newValue ->
+                            autoAdvanceDelay = newValue.roundToInt()
+                        },
+                        onValueChangeFinished = {
+                            Log.i(TAG, "Auto-advance delay changed to $autoAdvanceDelay")
+                            prefs.edit().putInt(PREF_KEY_AUTO_ADVANCE_DELAY, autoAdvanceDelay).apply()
+                        },
+                        valueRange = AUTO_ADVANCE_DELAY_MIN.toFloat()..AUTO_ADVANCE_DELAY_MAX.toFloat(),
+                        steps = ((AUTO_ADVANCE_DELAY_MAX - AUTO_ADVANCE_DELAY_MIN) / 100) - 1
+                    )
+                    Text(
+                        text = "Feedback display time before auto-playing next chord",
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -206,10 +252,12 @@ fun SettingsScreen(
                     playbackDuration = DEFAULT_PLAYBACK_DURATION
                     sessionSize = DEFAULT_SESSION_SIZE
                     targetRetention = DEFAULT_TARGET_RETENTION
+                    autoAdvanceDelay = DEFAULT_AUTO_ADVANCE_DELAY
                     prefs.edit()
                         .putInt(PREF_KEY_PLAYBACK_DURATION, DEFAULT_PLAYBACK_DURATION)
                         .putInt(PREF_KEY_SESSION_SIZE, DEFAULT_SESSION_SIZE)
                         .putFloat(PREF_KEY_TARGET_RETENTION, DEFAULT_TARGET_RETENTION)
+                        .putInt(PREF_KEY_AUTO_ADVANCE_DELAY, DEFAULT_AUTO_ADVANCE_DELAY)
                         .apply()
                 },
                 modifier = Modifier.fillMaxWidth()

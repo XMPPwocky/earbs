@@ -57,6 +57,7 @@ class ReviewSession(val cards: List<Card>) {
 
     /**
      * Get unique chord types in this session (for answer buttons).
+     * Sorted by enum ordinal for consistent button ordering.
      */
-    fun getChordTypes(): List<ChordType> = cards.map { it.chordType }.distinct()
+    fun getChordTypes(): List<ChordType> = cards.map { it.chordType }.distinct().sortedBy { it.ordinal }
 }
