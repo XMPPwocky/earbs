@@ -22,16 +22,25 @@ data class FunctionCard(
     companion object {
         /**
          * Parse a FunctionCard from its ID string.
+         * ID format: {function}_{keyQuality}_{octave}_{playbackMode}
+         * Note: function names may contain underscores (e.g., vii_dim), so we parse from the right.
          */
         fun fromId(id: String): FunctionCard? {
             val parts = id.split("_")
-            if (parts.size != 4) return null
+            if (parts.size < 4) return null
             return try {
+                // Parse from the right: playbackMode, octave, keyQuality are last 3 parts
+                // Everything before that is the function name (which may contain underscores)
+                val playbackMode = PlaybackMode.valueOf(parts.last())
+                val octave = parts[parts.size - 2].toInt()
+                val keyQuality = KeyQuality.valueOf(parts[parts.size - 3])
+                val functionName = parts.dropLast(3).joinToString("_")
+
                 FunctionCard(
-                    function = ChordFunction.valueOf(parts[0]),
-                    keyQuality = KeyQuality.valueOf(parts[1]),
-                    octave = parts[2].toInt(),
-                    playbackMode = PlaybackMode.valueOf(parts[3])
+                    function = ChordFunction.valueOf(functionName),
+                    keyQuality = keyQuality,
+                    octave = octave,
+                    playbackMode = playbackMode
                 )
             } catch (e: Exception) {
                 null
