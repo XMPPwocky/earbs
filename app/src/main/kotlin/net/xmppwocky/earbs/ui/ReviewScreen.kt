@@ -39,7 +39,8 @@ data class ReviewScreenState(
     val lastAnswer: AnswerResult? = null,
     val isPlaying: Boolean = false,
     val hasPlayedThisTrial: Boolean = false,
-    val showingFeedback: Boolean = false
+    val showingFeedback: Boolean = false,
+    val inLearningMode: Boolean = false  // True after wrong answer when feature enabled
 ) {
     val trialNumber: Int get() = minOf(session.currentTrial + 1, session.totalTrials)  // 1-indexed, capped
     val totalTrials: Int get() = session.totalTrials
@@ -64,11 +65,13 @@ fun ReviewScreen(
     onAnswerClicked: (ChordType) -> Unit,
     onTrialComplete: () -> Unit,
     onAutoPlay: () -> Unit = {},
-    onSessionComplete: () -> Unit
+    onSessionComplete: () -> Unit,
+    onPlayChordType: (ChordType) -> Unit = {},  // Play arbitrary chord type (for learning mode)
+    onNextClicked: () -> Unit = {}  // Manual advance (for learning mode)
 ) {
-    // Auto-advance after showing feedback
-    LaunchedEffect(state.showingFeedback) {
-        if (state.showingFeedback) {
+    // Auto-advance after showing feedback (only if NOT in learning mode)
+    LaunchedEffect(state.showingFeedback, state.inLearningMode) {
+        if (state.showingFeedback && !state.inLearningMode) {
             Log.d(TAG, "Showing feedback, will advance in ${autoAdvanceDelayMs}ms")
             delay(autoAdvanceDelayMs)
 
@@ -107,11 +110,12 @@ fun ReviewScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Play Button
+        // Play Button (enabled in learning mode to replay correct chord)
         ReviewPlayButton(
             isPlaying = state.isPlaying,
             hasPlayedThisTrial = state.hasPlayedThisTrial,
             showingFeedback = state.showingFeedback,
+            inLearningMode = state.inLearningMode,
             onClick = onPlayClicked
         )
 
@@ -128,9 +132,26 @@ fun ReviewScreen(
         // Answer Buttons
         ReviewAnswerButtons(
             chordTypes = state.session.getChordTypes(),
-            enabled = state.hasPlayedThisTrial && !state.isPlaying && !state.showingFeedback,
-            onAnswerClicked = onAnswerClicked
+            enabled = state.hasPlayedThisTrial && !state.isPlaying &&
+                      (!state.showingFeedback || state.inLearningMode),
+            isLearningMode = state.inLearningMode,
+            onAnswerClicked = onAnswerClicked,
+            onPlayChordType = onPlayChordType
         )
+
+        // Next button (only visible in learning mode)
+        if (state.inLearningMode) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(
+                onClick = onNextClicked,
+                enabled = !state.isPlaying,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AppColors.Success
+                )
+            ) {
+                Text("Next", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+        }
     }
 }
 
@@ -192,11 +213,12 @@ private fun ReviewPlayButton(
     isPlaying: Boolean,
     hasPlayedThisTrial: Boolean,
     showingFeedback: Boolean,
+    inLearningMode: Boolean = false,
     onClick: () -> Unit
 ) {
     Button(
         onClick = onClick,
-        enabled = !isPlaying && !showingFeedback,
+        enabled = !isPlaying && (!showingFeedback || inLearningMode),
         modifier = Modifier.size(100.dp),
         shape = MaterialTheme.shapes.extraLarge
     ) {
@@ -239,8 +261,13 @@ private fun ReviewFeedbackArea(
 private fun ReviewAnswerButtons(
     chordTypes: List<ChordType>,
     enabled: Boolean,
-    onAnswerClicked: (ChordType) -> Unit
+    isLearningMode: Boolean = false,
+    onAnswerClicked: (ChordType) -> Unit,
+    onPlayChordType: (ChordType) -> Unit = {}
 ) {
+    // In learning mode, clicking plays that chord instead of answering
+    val onClick: (ChordType) -> Unit = if (isLearningMode) onPlayChordType else onAnswerClicked
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -252,14 +279,14 @@ private fun ReviewAnswerButtons(
                 ReviewAnswerButton(
                     chordType = chordTypes[0],
                     enabled = enabled,
-                    onClick = { onAnswerClicked(chordTypes[0]) }
+                    onClick = { onClick(chordTypes[0]) }
                 )
             }
             if (chordTypes.size > 1) {
                 ReviewAnswerButton(
                     chordType = chordTypes[1],
                     enabled = enabled,
-                    onClick = { onAnswerClicked(chordTypes[1]) }
+                    onClick = { onClick(chordTypes[1]) }
                 )
             }
         }
@@ -274,14 +301,14 @@ private fun ReviewAnswerButtons(
                 ReviewAnswerButton(
                     chordType = chordTypes[2],
                     enabled = enabled,
-                    onClick = { onAnswerClicked(chordTypes[2]) }
+                    onClick = { onClick(chordTypes[2]) }
                 )
             }
             if (chordTypes.size > 3) {
                 ReviewAnswerButton(
                     chordType = chordTypes[3],
                     enabled = enabled,
-                    onClick = { onAnswerClicked(chordTypes[3]) }
+                    onClick = { onClick(chordTypes[3]) }
                 )
             }
         }
@@ -296,14 +323,14 @@ private fun ReviewAnswerButtons(
                     ReviewAnswerButton(
                         chordType = chordTypes[4],
                         enabled = enabled,
-                        onClick = { onAnswerClicked(chordTypes[4]) }
+                        onClick = { onClick(chordTypes[4]) }
                     )
                 }
                 if (chordTypes.size > 5) {
                     ReviewAnswerButton(
                         chordType = chordTypes[5],
                         enabled = enabled,
-                        onClick = { onAnswerClicked(chordTypes[5]) }
+                        onClick = { onClick(chordTypes[5]) }
                     )
                 }
             }
@@ -319,14 +346,14 @@ private fun ReviewAnswerButtons(
                     ReviewAnswerButton(
                         chordType = chordTypes[6],
                         enabled = enabled,
-                        onClick = { onAnswerClicked(chordTypes[6]) }
+                        onClick = { onClick(chordTypes[6]) }
                     )
                 }
                 if (chordTypes.size > 7) {
                     ReviewAnswerButton(
                         chordType = chordTypes[7],
                         enabled = enabled,
-                        onClick = { onAnswerClicked(chordTypes[7]) }
+                        onClick = { onClick(chordTypes[7]) }
                     )
                 }
             }

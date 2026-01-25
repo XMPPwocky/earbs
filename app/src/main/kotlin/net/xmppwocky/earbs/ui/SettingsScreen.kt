@@ -21,12 +21,14 @@ const val PREF_KEY_PLAYBACK_DURATION = "playback_duration"
 const val PREF_KEY_SESSION_SIZE = "session_size"
 const val PREF_KEY_TARGET_RETENTION = "target_retention"
 const val PREF_KEY_AUTO_ADVANCE_DELAY = "auto_advance_delay"
+const val PREF_KEY_LEARN_FROM_MISTAKES = "learn_from_mistakes"
 
 // Default values
 const val DEFAULT_PLAYBACK_DURATION = 500
 const val DEFAULT_SESSION_SIZE = 20
 const val DEFAULT_TARGET_RETENTION = 0.9f
 const val DEFAULT_AUTO_ADVANCE_DELAY = 750  // ms
+const val DEFAULT_LEARN_FROM_MISTAKES = true
 
 // Ranges
 const val PLAYBACK_DURATION_MIN = 300
@@ -57,9 +59,12 @@ fun SettingsScreen(
     var autoAdvanceDelay by remember {
         mutableIntStateOf(prefs.getInt(PREF_KEY_AUTO_ADVANCE_DELAY, DEFAULT_AUTO_ADVANCE_DELAY))
     }
+    var learnFromMistakes by remember {
+        mutableStateOf(prefs.getBoolean(PREF_KEY_LEARN_FROM_MISTAKES, DEFAULT_LEARN_FROM_MISTAKES))
+    }
     var sessionSizeExpanded by remember { mutableStateOf(false) }
 
-    Log.d(TAG, "SettingsScreen composing with playbackDuration=$playbackDuration, sessionSize=$sessionSize, targetRetention=$targetRetention, autoAdvanceDelay=$autoAdvanceDelay")
+    Log.d(TAG, "SettingsScreen composing with playbackDuration=$playbackDuration, sessionSize=$sessionSize, targetRetention=$targetRetention, autoAdvanceDelay=$autoAdvanceDelay, learnFromMistakes=$learnFromMistakes")
 
     Scaffold(
         topBar = {
@@ -161,6 +166,37 @@ fun SettingsScreen(
                 }
             }
 
+            // Learn from Mistakes Setting
+            SettingSection(title = "Learn from Mistakes") {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (learnFromMistakes) "Enabled" else "Disabled",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Switch(
+                            checked = learnFromMistakes,
+                            onCheckedChange = { newValue ->
+                                learnFromMistakes = newValue
+                                Log.i(TAG, "Learn from mistakes changed to $newValue")
+                                prefs.edit().putBoolean(PREF_KEY_LEARN_FROM_MISTAKES, newValue).apply()
+                            }
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "When wrong, hear your answer, explore chords, and manually advance",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             // Session Size Setting
             SettingSection(title = "Session Size") {
                 Column {
@@ -253,11 +289,13 @@ fun SettingsScreen(
                     sessionSize = DEFAULT_SESSION_SIZE
                     targetRetention = DEFAULT_TARGET_RETENTION
                     autoAdvanceDelay = DEFAULT_AUTO_ADVANCE_DELAY
+                    learnFromMistakes = DEFAULT_LEARN_FROM_MISTAKES
                     prefs.edit()
                         .putInt(PREF_KEY_PLAYBACK_DURATION, DEFAULT_PLAYBACK_DURATION)
                         .putInt(PREF_KEY_SESSION_SIZE, DEFAULT_SESSION_SIZE)
                         .putFloat(PREF_KEY_TARGET_RETENTION, DEFAULT_TARGET_RETENTION)
                         .putInt(PREF_KEY_AUTO_ADVANCE_DELAY, DEFAULT_AUTO_ADVANCE_DELAY)
+                        .putBoolean(PREF_KEY_LEARN_FROM_MISTAKES, DEFAULT_LEARN_FROM_MISTAKES)
                         .apply()
                 },
                 modifier = Modifier.fillMaxWidth()

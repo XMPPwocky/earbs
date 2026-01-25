@@ -40,7 +40,8 @@ data class FunctionReviewScreenState(
     val lastAnswer: FunctionAnswerResult? = null,
     val isPlaying: Boolean = false,
     val hasPlayedThisTrial: Boolean = false,
-    val showingFeedback: Boolean = false
+    val showingFeedback: Boolean = false,
+    val inLearningMode: Boolean = false  // True after wrong answer when feature enabled
 ) {
     val trialNumber: Int get() = minOf(session.currentTrial + 1, session.totalTrials)  // 1-indexed, capped
     val totalTrials: Int get() = session.totalTrials
@@ -57,11 +58,13 @@ fun FunctionReviewScreen(
     onAnswerClicked: (ChordFunction) -> Unit,
     onTrialComplete: () -> Unit,
     onAutoPlay: () -> Unit = {},
-    onSessionComplete: () -> Unit
+    onSessionComplete: () -> Unit,
+    onPlayFunction: (ChordFunction) -> Unit = {},  // Play arbitrary function (for learning mode)
+    onNextClicked: () -> Unit = {}  // Manual advance (for learning mode)
 ) {
-    // Auto-advance after showing feedback
-    LaunchedEffect(state.showingFeedback) {
-        if (state.showingFeedback) {
+    // Auto-advance after showing feedback (only if NOT in learning mode)
+    LaunchedEffect(state.showingFeedback, state.inLearningMode) {
+        if (state.showingFeedback && !state.inLearningMode) {
             Log.d(TAG, "Showing feedback, will advance in ${autoAdvanceDelayMs}ms")
             delay(autoAdvanceDelayMs)
 
@@ -105,11 +108,12 @@ fun FunctionReviewScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Play Button
+        // Play Button (enabled in learning mode to replay correct chord)
         FunctionPlayButton(
             isPlaying = state.isPlaying,
             hasPlayedThisTrial = state.hasPlayedThisTrial,
             showingFeedback = state.showingFeedback,
+            inLearningMode = state.inLearningMode,
             onClick = onPlayClicked
         )
 
@@ -126,9 +130,26 @@ fun FunctionReviewScreen(
         // Answer Buttons
         FunctionAnswerButtons(
             functions = state.session.getAllFunctionsForKey(),
-            enabled = state.hasPlayedThisTrial && !state.isPlaying && !state.showingFeedback,
-            onAnswerClicked = onAnswerClicked
+            enabled = state.hasPlayedThisTrial && !state.isPlaying &&
+                      (!state.showingFeedback || state.inLearningMode),
+            isLearningMode = state.inLearningMode,
+            onAnswerClicked = onAnswerClicked,
+            onPlayFunction = onPlayFunction
         )
+
+        // Next button (only visible in learning mode)
+        if (state.inLearningMode) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(
+                onClick = onNextClicked,
+                enabled = !state.isPlaying,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AppColors.Success
+                )
+            ) {
+                Text("Next", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+        }
     }
 }
 
@@ -215,11 +236,12 @@ private fun FunctionPlayButton(
     isPlaying: Boolean,
     hasPlayedThisTrial: Boolean,
     showingFeedback: Boolean,
+    inLearningMode: Boolean = false,
     onClick: () -> Unit
 ) {
     Button(
         onClick = onClick,
-        enabled = !isPlaying && !showingFeedback,
+        enabled = !isPlaying && (!showingFeedback || inLearningMode),
         modifier = Modifier.size(100.dp),
         shape = MaterialTheme.shapes.extraLarge
     ) {
@@ -262,8 +284,13 @@ private fun FunctionFeedbackArea(
 private fun FunctionAnswerButtons(
     functions: List<ChordFunction>,
     enabled: Boolean,
-    onAnswerClicked: (ChordFunction) -> Unit
+    isLearningMode: Boolean = false,
+    onAnswerClicked: (ChordFunction) -> Unit,
+    onPlayFunction: (ChordFunction) -> Unit = {}
 ) {
+    // In learning mode, clicking plays that function instead of answering
+    val onClick: (ChordFunction) -> Unit = if (isLearningMode) onPlayFunction else onAnswerClicked
+
     // Functions are displayed in a 3x2 grid for 6 functions
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
@@ -276,7 +303,7 @@ private fun FunctionAnswerButtons(
                 FunctionAnswerButton(
                     function = function,
                     enabled = enabled,
-                    onClick = { onAnswerClicked(function) }
+                    onClick = { onClick(function) }
                 )
             }
         }
@@ -291,7 +318,7 @@ private fun FunctionAnswerButtons(
                 FunctionAnswerButton(
                     function = function,
                     enabled = enabled,
-                    onClick = { onAnswerClicked(function) }
+                    onClick = { onClick(function) }
                 )
             }
         }

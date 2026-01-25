@@ -36,6 +36,10 @@ import net.xmppwocky.earbs.ui.DEFAULT_PLAYBACK_DURATION
 import net.xmppwocky.earbs.ui.PREF_KEY_PLAYBACK_DURATION
 import net.xmppwocky.earbs.ui.DEFAULT_AUTO_ADVANCE_DELAY
 import net.xmppwocky.earbs.ui.PREF_KEY_AUTO_ADVANCE_DELAY
+import net.xmppwocky.earbs.ui.DEFAULT_LEARN_FROM_MISTAKES
+import net.xmppwocky.earbs.ui.PREF_KEY_LEARN_FROM_MISTAKES
+import net.xmppwocky.earbs.audio.ChordType
+import net.xmppwocky.earbs.model.ChordFunction
 import kotlinx.coroutines.launch
 
 private const val PREFS_NAME = "earbs_prefs"
@@ -342,8 +346,36 @@ private fun ChordTypeReviewSessionScreen(
     }
     val coroutineScope = rememberCoroutineScope()
 
-    // Read auto-advance delay from prefs
+    // Read settings from prefs
     val autoAdvanceDelayMs = prefs.getInt(PREF_KEY_AUTO_ADVANCE_DELAY, DEFAULT_AUTO_ADVANCE_DELAY).toLong()
+    val learnFromMistakesEnabled = prefs.getBoolean(PREF_KEY_LEARN_FROM_MISTAKES, DEFAULT_LEARN_FROM_MISTAKES)
+    val playbackDuration = prefs.getInt(PREF_KEY_PLAYBACK_DURATION, DEFAULT_PLAYBACK_DURATION)
+
+    // Play arbitrary chord type (for learning mode)
+    fun playChordType(chordType: ChordType) {
+        val rootSemitones = reviewState.currentRootSemitones ?: return
+        val playbackMode = reviewState.currentCard?.playbackMode ?: return
+
+        Log.i(TAG, "Playing chord type ${chordType.displayName} for learning mode")
+        reviewState = reviewState.copy(isPlaying = true)
+
+        coroutineScope.launch {
+            try {
+                val frequencies = ChordBuilder.buildChord(chordType, rootSemitones)
+                AudioEngine.playChord(
+                    frequencies = frequencies,
+                    mode = playbackMode,
+                    durationMs = playbackDuration,
+                    chordType = chordType.displayName,
+                    rootSemitones = rootSemitones
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Error playing chord type", e)
+            } finally {
+                reviewState = reviewState.copy(isPlaying = false)
+            }
+        }
+    }
 
     // Shared play function for both manual play and auto-play
     fun playCurrentChord() {
@@ -363,7 +395,6 @@ private fun ChordTypeReviewSessionScreen(
 
         coroutineScope.launch {
             try {
-                val playbackDuration = prefs.getInt(PREF_KEY_PLAYBACK_DURATION, DEFAULT_PLAYBACK_DURATION)
                 AudioEngine.playChord(
                     frequencies = frequencies,
                     mode = playbackMode,
@@ -411,10 +442,18 @@ private fun ChordTypeReviewSessionScreen(
 
             session.recordAnswer(isCorrect)
 
+            val enterLearningMode = learnFromMistakesEnabled && !isCorrect
             reviewState = reviewState.copy(
                 lastAnswer = result,
-                showingFeedback = true
+                showingFeedback = true,
+                inLearningMode = enterLearningMode
             )
+
+            // Auto-play incorrect chord if entering learning mode
+            if (enterLearningMode) {
+                Log.i(TAG, "Entering learning mode - playing incorrect chord: ${answeredType.displayName}")
+                playChordType(answeredType)
+            }
         },
         onTrialComplete = {
             val nextCard = session.getCurrentCard()
@@ -426,7 +465,8 @@ private fun ChordTypeReviewSessionScreen(
                 currentRootSemitones = nextRootSemitones,
                 lastAnswer = null,
                 hasPlayedThisTrial = false,
-                showingFeedback = false
+                showingFeedback = false,
+                inLearningMode = false
             )
         },
         onAutoPlay = {
@@ -438,6 +478,27 @@ private fun ChordTypeReviewSessionScreen(
                 correctCount = session.correctCount,
                 totalTrials = session.totalTrials
             ))
+        },
+        onPlayChordType = { chordType ->
+            Log.i(TAG, "Learning mode: playing chord type ${chordType.displayName}")
+            playChordType(chordType)
+        },
+        onNextClicked = {
+            Log.i(TAG, "Learning mode: Next clicked, advancing to next trial")
+            val nextCard = session.getCurrentCard()
+            val nextRootSemitones = nextCard?.let { ChordBuilder.randomRootInOctave(it.octave) }
+
+            reviewState = reviewState.copy(
+                currentCard = nextCard,
+                currentRootSemitones = nextRootSemitones,
+                lastAnswer = null,
+                hasPlayedThisTrial = false,
+                showingFeedback = false,
+                inLearningMode = false
+            )
+
+            // Auto-play next chord
+            playCurrentChord()
         }
     )
 }
@@ -462,8 +523,42 @@ private fun FunctionReviewSessionScreen(
     }
     val coroutineScope = rememberCoroutineScope()
 
-    // Read auto-advance delay from prefs
+    // Read settings from prefs
     val autoAdvanceDelayMs = prefs.getInt(PREF_KEY_AUTO_ADVANCE_DELAY, DEFAULT_AUTO_ADVANCE_DELAY).toLong()
+    val learnFromMistakesEnabled = prefs.getBoolean(PREF_KEY_LEARN_FROM_MISTAKES, DEFAULT_LEARN_FROM_MISTAKES)
+    val playbackDuration = prefs.getInt(PREF_KEY_PLAYBACK_DURATION, DEFAULT_PLAYBACK_DURATION)
+
+    // Play arbitrary function (for learning mode)
+    fun playFunction(function: ChordFunction) {
+        val currentCard = reviewState.currentCard ?: return
+        val rootSemitones = reviewState.currentRootSemitones ?: return
+        val playbackMode = currentCard.playbackMode
+
+        Log.i(TAG, "Playing function ${function.displayName} for learning mode")
+        reviewState = reviewState.copy(isPlaying = true)
+
+        coroutineScope.launch {
+            try {
+                // Build reference (tonic) chord and target chord for the selected function
+                val referenceFreqs = ChordBuilder.buildTonicChord(rootSemitones, currentCard.keyQuality)
+                val targetFreqs = ChordBuilder.buildDiatonicChord(rootSemitones, function)
+                AudioEngine.playChordPair(
+                    referenceFreqs = referenceFreqs,
+                    targetFreqs = targetFreqs,
+                    mode = playbackMode,
+                    durationMs = playbackDuration,
+                    pauseMs = 300,
+                    keyQuality = currentCard.keyQuality.name,
+                    function = function.displayName,
+                    rootSemitones = rootSemitones
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Error playing function", e)
+            } finally {
+                reviewState = reviewState.copy(isPlaying = false)
+            }
+        }
+    }
 
     // Shared play function for both manual play and auto-play
     fun playCurrentChordPair() {
@@ -486,7 +581,6 @@ private fun FunctionReviewSessionScreen(
 
         coroutineScope.launch {
             try {
-                val playbackDuration = prefs.getInt(PREF_KEY_PLAYBACK_DURATION, DEFAULT_PLAYBACK_DURATION)
                 AudioEngine.playChordPair(
                     referenceFreqs = referenceFreqs,
                     targetFreqs = targetFreqs,
@@ -537,10 +631,18 @@ private fun FunctionReviewSessionScreen(
 
             session.recordAnswer(isCorrect)
 
+            val enterLearningMode = learnFromMistakesEnabled && !isCorrect
             reviewState = reviewState.copy(
                 lastAnswer = result,
-                showingFeedback = true
+                showingFeedback = true,
+                inLearningMode = enterLearningMode
             )
+
+            // Auto-play incorrect function if entering learning mode
+            if (enterLearningMode) {
+                Log.i(TAG, "Entering learning mode - playing incorrect function: ${answeredFunction.displayName}")
+                playFunction(answeredFunction)
+            }
         },
         onTrialComplete = {
             val nextCard = session.getCurrentCard()
@@ -552,7 +654,8 @@ private fun FunctionReviewSessionScreen(
                 currentRootSemitones = nextRootSemitones,
                 lastAnswer = null,
                 hasPlayedThisTrial = false,
-                showingFeedback = false
+                showingFeedback = false,
+                inLearningMode = false
             )
         },
         onAutoPlay = {
@@ -564,6 +667,27 @@ private fun FunctionReviewSessionScreen(
                 correctCount = session.correctCount,
                 totalTrials = session.totalTrials
             ))
+        },
+        onPlayFunction = { function ->
+            Log.i(TAG, "Learning mode: playing function ${function.displayName}")
+            playFunction(function)
+        },
+        onNextClicked = {
+            Log.i(TAG, "Learning mode: Next clicked, advancing to next function trial")
+            val nextCard = session.getCurrentCard()
+            val nextRootSemitones = nextCard?.let { ChordBuilder.randomRootInOctave(it.octave) }
+
+            reviewState = reviewState.copy(
+                currentCard = nextCard,
+                currentRootSemitones = nextRootSemitones,
+                lastAnswer = null,
+                hasPlayedThisTrial = false,
+                showingFeedback = false,
+                inLearningMode = false
+            )
+
+            // Auto-play next chord pair
+            playCurrentChordPair()
         }
     )
 }
