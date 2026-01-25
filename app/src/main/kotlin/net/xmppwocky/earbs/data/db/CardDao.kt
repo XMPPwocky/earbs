@@ -154,4 +154,67 @@ interface CardDao {
         WHERE c.unlocked = 1 AND f.dueDate <= :now
     """)
     fun countDueFlow(now: Long): Flow<Int>
+
+    // ========== Unlock screen methods ==========
+
+    /**
+     * Get all cards (locked and unlocked) ordered by chordType, octave, playbackMode.
+     * Used for the unlock management screen.
+     */
+    @Query("""
+        SELECT * FROM cards
+        ORDER BY octave ASC, playbackMode ASC, chordType ASC
+    """)
+    suspend fun getAllCardsOrdered(): List<CardEntity>
+
+    /**
+     * Get all cards with their FSRS state (or null if no FSRS state exists).
+     * Used for the unlock management screen to show FSRS info for unlocked cards.
+     */
+    @Query("""
+        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked,
+               COALESCE(f.stability, 2.5) as stability,
+               COALESCE(f.difficulty, 2.5) as difficulty,
+               COALESCE(f.interval, 0) as interval,
+               COALESCE(f.dueDate, 0) as dueDate,
+               COALESCE(f.reviewCount, 0) as reviewCount,
+               f.lastReview as lastReview,
+               COALESCE(f.phase, 0) as phase,
+               COALESCE(f.lapses, 0) as lapses
+        FROM cards c
+        LEFT JOIN fsrs_state f ON c.id = f.cardId
+        ORDER BY octave ASC, playbackMode ASC, chordType ASC
+    """)
+    suspend fun getAllCardsWithFsrsOrdered(): List<CardWithFsrs>
+
+    /**
+     * Get all cards with their FSRS state as a Flow.
+     */
+    @Query("""
+        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked,
+               COALESCE(f.stability, 2.5) as stability,
+               COALESCE(f.difficulty, 2.5) as difficulty,
+               COALESCE(f.interval, 0) as interval,
+               COALESCE(f.dueDate, 0) as dueDate,
+               COALESCE(f.reviewCount, 0) as reviewCount,
+               f.lastReview as lastReview,
+               COALESCE(f.phase, 0) as phase,
+               COALESCE(f.lapses, 0) as lapses
+        FROM cards c
+        LEFT JOIN fsrs_state f ON c.id = f.cardId
+        ORDER BY octave ASC, playbackMode ASC, chordType ASC
+    """)
+    fun getAllCardsWithFsrsOrderedFlow(): Flow<List<CardWithFsrs>>
+
+    /**
+     * Get all card IDs. Used to check which cards already exist.
+     */
+    @Query("SELECT id FROM cards")
+    suspend fun getAllIds(): List<String>
+
+    /**
+     * Set the unlocked status for a card.
+     */
+    @Query("UPDATE cards SET unlocked = :unlocked WHERE id = :id")
+    suspend fun setUnlocked(id: String, unlocked: Boolean)
 }
