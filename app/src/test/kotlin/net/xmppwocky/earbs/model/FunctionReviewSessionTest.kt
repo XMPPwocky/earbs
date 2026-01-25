@@ -5,10 +5,13 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 
+/**
+ * Tests for GenericReviewSession using FunctionCard (chord function game).
+ */
 class FunctionReviewSessionTest {
 
     private lateinit var testCards: List<FunctionCard>
-    private lateinit var session: FunctionReviewSession
+    private lateinit var session: GenericReviewSession<FunctionCard>
 
     @Before
     fun setUp() {
@@ -17,7 +20,7 @@ class FunctionReviewSessionTest {
             FunctionCard(ChordFunction.V, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED),
             FunctionCard(ChordFunction.vi, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
         )
-        session = FunctionReviewSession(testCards)
+        session = GenericReviewSession(testCards, "function")
     }
 
     // ========== Initialization tests ==========
@@ -131,104 +134,80 @@ class FunctionReviewSessionTest {
         assertTrue(session.isComplete())
     }
 
-    // ========== getKeyQuality tests ==========
+    // ========== getKeyQuality tests (accessing card directly) ==========
 
     @Test
-    fun `getKeyQuality returns major for major session`() {
-        assertEquals(KeyQuality.MAJOR, session.getKeyQuality())
+    fun `keyQuality returns major for major session`() {
+        assertEquals(KeyQuality.MAJOR, session.cards.firstOrNull()?.keyQuality)
     }
 
     @Test
-    fun `getKeyQuality returns minor for minor session`() {
+    fun `keyQuality returns minor for minor session`() {
         val minorCards = listOf(
             FunctionCard(ChordFunction.iv, KeyQuality.MINOR, 4, PlaybackMode.ARPEGGIATED),
             FunctionCard(ChordFunction.v, KeyQuality.MINOR, 4, PlaybackMode.ARPEGGIATED)
         )
-        val minorSession = FunctionReviewSession(minorCards)
-        assertEquals(KeyQuality.MINOR, minorSession.getKeyQuality())
+        val minorSession = GenericReviewSession(minorCards, "function")
+        assertEquals(KeyQuality.MINOR, minorSession.cards.firstOrNull()?.keyQuality)
     }
 
     @Test
-    fun `getKeyQuality returns null for empty session`() {
-        val emptySession = FunctionReviewSession(emptyList())
-        assertNull(emptySession.getKeyQuality())
+    fun `keyQuality returns null for empty session`() {
+        val emptySession = GenericReviewSession<FunctionCard>(emptyList(), "function")
+        assertNull(emptySession.cards.firstOrNull()?.keyQuality)
     }
 
-    // ========== getFunctions tests ==========
+    // ========== GameTypeConfig getAnswerOptions tests (replaces getFunctions/getAllFunctionsForKey) ==========
 
     @Test
-    fun `getFunctions returns distinct functions`() {
-        val functions = session.getFunctions()
-        assertEquals(3, functions.size)
+    fun `GameTypeConfig getAnswerOptions returns 6 functions for major key`() {
+        val answers = GameTypeConfig.FunctionGame.getAnswerOptions(session)
+        assertEquals(6, answers.size)
+    }
+
+    @Test
+    fun `GameTypeConfig getAnswerOptions returns correct major key functions`() {
+        val answers = GameTypeConfig.FunctionGame.getAnswerOptions(session)
+        val functions = answers.map { it.function }
+
+        assertTrue(functions.contains(ChordFunction.ii))
+        assertTrue(functions.contains(ChordFunction.iii))
         assertTrue(functions.contains(ChordFunction.IV))
         assertTrue(functions.contains(ChordFunction.V))
         assertTrue(functions.contains(ChordFunction.vi))
+        assertTrue(functions.contains(ChordFunction.vii_dim))
     }
 
     @Test
-    fun `getFunctions with duplicates returns distinct`() {
-        val duplicateCards = listOf(
-            FunctionCard(ChordFunction.IV, KeyQuality.MAJOR, 3, PlaybackMode.ARPEGGIATED),
-            FunctionCard(ChordFunction.IV, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED),
-            FunctionCard(ChordFunction.V, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        )
-        val duplicateSession = FunctionReviewSession(duplicateCards)
-
-        val functions = duplicateSession.getFunctions()
-        assertEquals(2, functions.size)
-        assertTrue(functions.contains(ChordFunction.IV))
-        assertTrue(functions.contains(ChordFunction.V))
-    }
-
-    // ========== getAllFunctionsForKey tests ==========
-
-    @Test
-    fun `getAllFunctionsForKey returns 6 functions for major key`() {
-        val allFunctions = session.getAllFunctionsForKey()
-        assertEquals(6, allFunctions.size)
-    }
-
-    @Test
-    fun `getAllFunctionsForKey returns correct major key functions`() {
-        val allFunctions = session.getAllFunctionsForKey()
-
-        assertTrue(allFunctions.contains(ChordFunction.ii))
-        assertTrue(allFunctions.contains(ChordFunction.iii))
-        assertTrue(allFunctions.contains(ChordFunction.IV))
-        assertTrue(allFunctions.contains(ChordFunction.V))
-        assertTrue(allFunctions.contains(ChordFunction.vi))
-        assertTrue(allFunctions.contains(ChordFunction.vii_dim))
-    }
-
-    @Test
-    fun `getAllFunctionsForKey returns correct minor key functions`() {
+    fun `GameTypeConfig getAnswerOptions returns correct minor key functions`() {
         val minorCards = listOf(
             FunctionCard(ChordFunction.iv, KeyQuality.MINOR, 4, PlaybackMode.ARPEGGIATED)
         )
-        val minorSession = FunctionReviewSession(minorCards)
+        val minorSession = GenericReviewSession(minorCards, "function")
 
-        val allFunctions = minorSession.getAllFunctionsForKey()
-        assertEquals(6, allFunctions.size)
+        val answers = GameTypeConfig.FunctionGame.getAnswerOptions(minorSession)
+        assertEquals(6, answers.size)
+        val functions = answers.map { it.function }
 
-        assertTrue(allFunctions.contains(ChordFunction.ii_dim))
-        assertTrue(allFunctions.contains(ChordFunction.III))
-        assertTrue(allFunctions.contains(ChordFunction.iv))
-        assertTrue(allFunctions.contains(ChordFunction.v))
-        assertTrue(allFunctions.contains(ChordFunction.VI))
-        assertTrue(allFunctions.contains(ChordFunction.VII))
+        assertTrue(functions.contains(ChordFunction.ii_dim))
+        assertTrue(functions.contains(ChordFunction.III))
+        assertTrue(functions.contains(ChordFunction.iv))
+        assertTrue(functions.contains(ChordFunction.v))
+        assertTrue(functions.contains(ChordFunction.VI))
+        assertTrue(functions.contains(ChordFunction.VII))
     }
 
     @Test
-    fun `getAllFunctionsForKey returns empty for empty session`() {
-        val emptySession = FunctionReviewSession(emptyList())
-        assertTrue(emptySession.getAllFunctionsForKey().isEmpty())
+    fun `GameTypeConfig getAnswerOptions returns empty for empty session`() {
+        val emptySession = GenericReviewSession<FunctionCard>(emptyList(), "function")
+        assertTrue(GameTypeConfig.FunctionGame.getAnswerOptions(emptySession).isEmpty())
     }
 
     // ========== Empty session tests ==========
 
     @Test
     fun `empty session is immediately complete`() {
-        val emptySession = FunctionReviewSession(emptyList())
+        val emptySession = GenericReviewSession<FunctionCard>(emptyList(), "function")
         assertTrue(emptySession.isComplete())
         assertEquals(0, emptySession.totalTrials)
         assertNull(emptySession.getCurrentCard())
@@ -238,7 +217,7 @@ class FunctionReviewSessionTest {
 
     @Test
     fun `single card session works correctly`() {
-        val singleSession = FunctionReviewSession(listOf(testCards[0]))
+        val singleSession = GenericReviewSession(listOf(testCards[0]), "function")
 
         assertEquals(1, singleSession.totalTrials)
         assertFalse(singleSession.isComplete())

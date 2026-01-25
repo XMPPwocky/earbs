@@ -3,7 +3,8 @@ package net.xmppwocky.earbs.ui
 import net.xmppwocky.earbs.audio.ChordType
 import net.xmppwocky.earbs.audio.PlaybackMode
 import net.xmppwocky.earbs.model.Card
-import net.xmppwocky.earbs.model.ReviewSession
+import net.xmppwocky.earbs.model.GameAnswer
+import net.xmppwocky.earbs.model.GenericReviewSession
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -15,14 +16,14 @@ class ReviewScreenStateTest {
             Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED),
             Card(ChordType.MINOR, 4, PlaybackMode.ARPEGGIATED)
         )
-        val session = ReviewSession(cards)
+        val session = GenericReviewSession(cards, "chord type")
 
         // Answer both trials
         session.recordAnswer(true)
         session.recordAnswer(true)
 
         // currentTrial is now 2, but totalTrials is 2
-        val state = ReviewScreenState(session = session)
+        val state = GenericReviewScreenState<Card, GameAnswer.ChordTypeAnswer>(session = session)
 
         // trialNumber should be capped at totalTrials (2), not currentTrial + 1 (3)
         assertEquals(2, state.trialNumber)
@@ -36,21 +37,21 @@ class ReviewScreenStateTest {
             Card(ChordType.MINOR, 4, PlaybackMode.ARPEGGIATED),
             Card(ChordType.SUS2, 4, PlaybackMode.ARPEGGIATED)
         )
-        val session = ReviewSession(cards)
+        val session = GenericReviewSession(cards, "chord type")
 
         // Before any answers, trial 1 of 3
-        val state1 = ReviewScreenState(session = session)
+        val state1 = GenericReviewScreenState<Card, GameAnswer.ChordTypeAnswer>(session = session)
         assertEquals(1, state1.trialNumber)
         assertEquals(3, state1.totalTrials)
 
         // After first answer, trial 2 of 3
         session.recordAnswer(true)
-        val state2 = ReviewScreenState(session = session)
+        val state2 = GenericReviewScreenState<Card, GameAnswer.ChordTypeAnswer>(session = session)
         assertEquals(2, state2.trialNumber)
 
         // After second answer, trial 3 of 3
         session.recordAnswer(false)
-        val state3 = ReviewScreenState(session = session)
+        val state3 = GenericReviewScreenState<Card, GameAnswer.ChordTypeAnswer>(session = session)
         assertEquals(3, state3.trialNumber)
     }
 }

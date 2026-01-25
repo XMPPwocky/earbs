@@ -30,9 +30,10 @@ import net.xmppwocky.earbs.data.backup.DatabaseBackupManager
 import net.xmppwocky.earbs.data.db.EarbsDatabase
 import net.xmppwocky.earbs.data.entity.GameType
 import net.xmppwocky.earbs.data.repository.EarbsRepository
+import net.xmppwocky.earbs.model.Card
 import net.xmppwocky.earbs.model.ChordFunction
-import net.xmppwocky.earbs.model.FunctionReviewSession
-import net.xmppwocky.earbs.model.ReviewSession
+import net.xmppwocky.earbs.model.FunctionCard
+import net.xmppwocky.earbs.model.GenericReviewSession
 import net.xmppwocky.earbs.ui.AnswerResult
 import net.xmppwocky.earbs.ui.CardDetailsScreen
 import net.xmppwocky.earbs.ui.DEFAULT_AUTO_ADVANCE_DELAY
@@ -233,12 +234,12 @@ private fun EarbsApp(
     var selectedGameMode by remember { mutableStateOf(GameType.CHORD_TYPE) }
 
     // Chord type game state
-    var chordTypeSession by remember { mutableStateOf<ReviewSession?>(null) }
+    var chordTypeSession by remember { mutableStateOf<GenericReviewSession<Card>?>(null) }
     var chordTypeDueCount by remember { mutableIntStateOf(0) }
     var chordTypeUnlockedCount by remember { mutableIntStateOf(4) }
 
     // Function game state
-    var functionSession by remember { mutableStateOf<FunctionReviewSession?>(null) }
+    var functionSession by remember { mutableStateOf<GenericReviewSession<FunctionCard>?>(null) }
     var functionDueCount by remember { mutableIntStateOf(0) }
     var functionUnlockedCount by remember { mutableIntStateOf(0) }
 
@@ -300,7 +301,7 @@ private fun EarbsApp(
                                     Log.w(TAG, "No cards available for session")
                                     return@launch
                                 }
-                                chordTypeSession = ReviewSession(cards)
+                                chordTypeSession = GenericReviewSession(cards, "chord type")
                                 dbSessionId = repository.startSession(GameType.CHORD_TYPE)
                                 currentScreen = Screen.REVIEW
                             }
@@ -311,7 +312,7 @@ private fun EarbsApp(
                                     Log.w(TAG, "No function cards available for session")
                                     return@launch
                                 }
-                                functionSession = FunctionReviewSession(cards)
+                                functionSession = GenericReviewSession(cards, "function")
                                 dbSessionId = repository.startSession(GameType.CHORD_FUNCTION)
                                 currentScreen = Screen.FUNCTION_REVIEW
                             }
@@ -505,7 +506,7 @@ private fun EarbsApp(
 
 @Composable
 private fun ChordTypeReviewSessionScreen(
-    session: ReviewSession,
+    session: GenericReviewSession<Card>,
     sessionId: Long,
     repository: EarbsRepository,
     prefs: SharedPreferences,
@@ -697,7 +698,7 @@ private fun ChordTypeReviewSessionScreen(
 
 @Composable
 private fun FunctionReviewSessionScreen(
-    session: FunctionReviewSession,
+    session: GenericReviewSession<FunctionCard>,
     sessionId: Long,
     repository: EarbsRepository,
     prefs: SharedPreferences,

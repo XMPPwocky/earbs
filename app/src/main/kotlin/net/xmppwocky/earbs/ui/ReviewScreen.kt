@@ -18,7 +18,8 @@ import kotlinx.coroutines.delay
 import net.xmppwocky.earbs.audio.ChordType
 import net.xmppwocky.earbs.audio.PlaybackMode
 import net.xmppwocky.earbs.model.Card
-import net.xmppwocky.earbs.model.ReviewSession
+import net.xmppwocky.earbs.model.GameTypeConfig
+import net.xmppwocky.earbs.model.GenericReviewSession
 import net.xmppwocky.earbs.ui.components.AbortSessionDialog
 import net.xmppwocky.earbs.ui.components.ButtonColorState
 import net.xmppwocky.earbs.ui.components.PlaybackModeIndicator
@@ -42,7 +43,7 @@ sealed class AnswerResult {
  * State for the review screen UI.
  */
 data class ReviewScreenState(
-    val session: ReviewSession,
+    val session: GenericReviewSession<Card>,
     val currentCard: Card? = null,
     val currentRootSemitones: Int? = null,  // Root note for current trial (fixed for replays)
     val lastAnswer: AnswerResult? = null,
@@ -56,6 +57,9 @@ data class ReviewScreenState(
     val isComplete: Boolean get() = session.isComplete()
     // Playback mode comes from the current card
     val playbackMode: PlaybackMode get() = currentCard?.playbackMode ?: PlaybackMode.ARPEGGIATED
+
+    /** Get chord types in this session (for answer buttons). */
+    fun getChordTypes(): List<ChordType> = GameTypeConfig.ChordTypeGame.getAnswerOptions(session).map { it.chordType }
 }
 
 /**
@@ -158,7 +162,7 @@ fun ReviewScreen(
 
         // Answer Buttons (pinned to bottom)
         ReviewAnswerButtons(
-            chordTypes = state.session.getChordTypes(),
+            chordTypes = state.getChordTypes(),
             enabled = state.hasPlayedThisTrial && !state.isPlaying &&
                       (!state.showingFeedback || state.inLearningMode),
             isLearningMode = state.inLearningMode,

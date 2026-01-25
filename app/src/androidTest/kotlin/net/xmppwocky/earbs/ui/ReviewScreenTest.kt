@@ -10,20 +10,20 @@ import net.xmppwocky.earbs.ComposeTestBase
 import net.xmppwocky.earbs.audio.ChordType
 import net.xmppwocky.earbs.audio.PlaybackMode
 import net.xmppwocky.earbs.model.Card
-import net.xmppwocky.earbs.model.ReviewSession
+import net.xmppwocky.earbs.model.GenericReviewSession
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ReviewScreenTest : ComposeTestBase() {
 
-    private fun createTestSession(chordTypes: List<ChordType> = listOf(ChordType.MAJOR, ChordType.MINOR, ChordType.SUS2, ChordType.SUS4)): ReviewSession {
+    private fun createTestSession(chordTypes: List<ChordType> = listOf(ChordType.MAJOR, ChordType.MINOR, ChordType.SUS2, ChordType.SUS4)): GenericReviewSession<Card> {
         val cards = chordTypes.map { Card(it, 4, PlaybackMode.ARPEGGIATED) }
-        return ReviewSession(cards)
+        return GenericReviewSession(cards, "chord type")
     }
 
     private fun createTestState(
-        session: ReviewSession = createTestSession(),
+        session: GenericReviewSession<Card> = createTestSession(),
         currentCard: Card? = session.getCurrentCard(),
         isPlaying: Boolean = false,
         hasPlayedThisTrial: Boolean = false,
@@ -82,7 +82,7 @@ class ReviewScreenTest : ComposeTestBase() {
     @Test
     fun displaysOctaveInfo() {
         val card = Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        val session = ReviewSession(listOf(card))
+        val session = GenericReviewSession(listOf(card), "chord type")
 
         composeTestRule.setContent {
             ReviewScreen(
@@ -100,7 +100,7 @@ class ReviewScreenTest : ComposeTestBase() {
     @Test
     fun displaysArpeggiatedMode() {
         val card = Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        val session = ReviewSession(listOf(card))
+        val session = GenericReviewSession(listOf(card), "chord type")
 
         composeTestRule.setContent {
             ReviewScreen(
@@ -118,7 +118,7 @@ class ReviewScreenTest : ComposeTestBase() {
     @Test
     fun displaysBlockMode() {
         val card = Card(ChordType.MAJOR, 4, PlaybackMode.BLOCK)
-        val session = ReviewSession(listOf(card))
+        val session = GenericReviewSession(listOf(card), "chord type")
 
         composeTestRule.setContent {
             ReviewScreen(
@@ -428,7 +428,7 @@ class ReviewScreenTest : ComposeTestBase() {
     @Test
     fun learningMode_showsNextButton() {
         val card = Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        val session = ReviewSession(listOf(card))
+        val session = GenericReviewSession(listOf(card), "chord type")
 
         composeTestRule.setContent {
             ReviewScreen(
@@ -457,7 +457,7 @@ class ReviewScreenTest : ComposeTestBase() {
     @Test
     fun learningMode_nextButton_triggersCallback() {
         val card = Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        val session = ReviewSession(listOf(card))
+        val session = GenericReviewSession(listOf(card), "chord type")
         var nextClicked = false
 
         composeTestRule.setContent {
@@ -489,7 +489,7 @@ class ReviewScreenTest : ComposeTestBase() {
     fun learningMode_lastTrial_nextButton_callsSessionComplete() {
         // Create a single-card session
         val card = Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        val session = ReviewSession(listOf(card))
+        val session = GenericReviewSession(listOf(card), "chord type")
 
         // Record wrong answer - session is now complete
         session.recordAnswer(false)
@@ -542,7 +542,7 @@ class ReviewScreenTest : ComposeTestBase() {
     fun wrongAnswer_selectedButton_showsWrongColor() {
         // User selected Major but correct was Minor
         val card = Card(ChordType.MINOR, 4, PlaybackMode.ARPEGGIATED)
-        val session = ReviewSession(listOf(card, Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)))
+        val session = GenericReviewSession(listOf(card, Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)), "chord type")
 
         composeTestRule.setContent {
             ReviewScreen(
@@ -574,7 +574,7 @@ class ReviewScreenTest : ComposeTestBase() {
     fun wrongAnswer_correctButton_showsCorrectColor() {
         // User selected Major but correct was Minor
         val card = Card(ChordType.MINOR, 4, PlaybackMode.ARPEGGIATED)
-        val session = ReviewSession(listOf(card, Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)))
+        val session = GenericReviewSession(listOf(card, Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)), "chord type")
 
         composeTestRule.setContent {
             ReviewScreen(

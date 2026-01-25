@@ -6,10 +6,13 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 
+/**
+ * Tests for GenericReviewSession using Card (chord type game).
+ */
 class ReviewSessionTest {
 
     private lateinit var testCards: List<Card>
-    private lateinit var session: ReviewSession
+    private lateinit var session: GenericReviewSession<Card>
 
     @Before
     fun setUp() {
@@ -19,7 +22,7 @@ class ReviewSessionTest {
             Card(ChordType.SUS2, 4, PlaybackMode.ARPEGGIATED),
             Card(ChordType.SUS4, 4, PlaybackMode.ARPEGGIATED)
         )
-        session = ReviewSession(testCards)
+        session = GenericReviewSession(testCards, "chord type")
     }
 
     // ========== Initialization tests ==========
@@ -146,18 +149,19 @@ class ReviewSessionTest {
         assertTrue(session.isComplete())
     }
 
-    // ========== getChordTypes tests ==========
+    // ========== getChordTypes via GameTypeConfig tests ==========
 
     @Test
-    fun `getChordTypes returns distinct types only`() {
-        val types = session.getChordTypes()
-        assertEquals(4, types.size)
-        assertEquals(types.toSet().size, types.size) // All unique
+    fun `GameTypeConfig getAnswerOptions returns distinct types only`() {
+        val answers = GameTypeConfig.ChordTypeGame.getAnswerOptions(session)
+        assertEquals(4, answers.size)
+        assertEquals(answers.toSet().size, answers.size) // All unique
     }
 
     @Test
-    fun `getChordTypes returns correct types`() {
-        val types = session.getChordTypes()
+    fun `GameTypeConfig getAnswerOptions returns correct types`() {
+        val answers = GameTypeConfig.ChordTypeGame.getAnswerOptions(session)
+        val types = answers.map { it.chordType }
         assertTrue(types.contains(ChordType.MAJOR))
         assertTrue(types.contains(ChordType.MINOR))
         assertTrue(types.contains(ChordType.SUS2))
@@ -165,17 +169,18 @@ class ReviewSessionTest {
     }
 
     @Test
-    fun `getChordTypes with duplicate types returns distinct`() {
+    fun `GameTypeConfig getAnswerOptions with duplicate types returns distinct`() {
         val duplicateCards = listOf(
             Card(ChordType.MAJOR, 3, PlaybackMode.ARPEGGIATED),
             Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED),
             Card(ChordType.MINOR, 4, PlaybackMode.ARPEGGIATED),
             Card(ChordType.MAJOR, 5, PlaybackMode.BLOCK)
         )
-        val duplicateSession = ReviewSession(duplicateCards)
+        val duplicateSession = GenericReviewSession(duplicateCards, "chord type")
 
-        val types = duplicateSession.getChordTypes()
-        assertEquals(2, types.size)
+        val answers = GameTypeConfig.ChordTypeGame.getAnswerOptions(duplicateSession)
+        assertEquals(2, answers.size)
+        val types = answers.map { it.chordType }
         assertTrue(types.contains(ChordType.MAJOR))
         assertTrue(types.contains(ChordType.MINOR))
     }
@@ -184,7 +189,7 @@ class ReviewSessionTest {
 
     @Test
     fun `empty session is immediately complete`() {
-        val emptySession = ReviewSession(emptyList())
+        val emptySession = GenericReviewSession<Card>(emptyList(), "chord type")
         assertTrue(emptySession.isComplete())
         assertEquals(0, emptySession.totalTrials)
         assertNull(emptySession.getCurrentCard())
@@ -194,7 +199,7 @@ class ReviewSessionTest {
 
     @Test
     fun `single card session works correctly`() {
-        val singleSession = ReviewSession(listOf(testCards[0]))
+        val singleSession = GenericReviewSession(listOf(testCards[0]), "chord type")
 
         assertEquals(1, singleSession.totalTrials)
         assertFalse(singleSession.isComplete())

@@ -18,7 +18,8 @@ import kotlinx.coroutines.delay
 import net.xmppwocky.earbs.audio.PlaybackMode
 import net.xmppwocky.earbs.model.ChordFunction
 import net.xmppwocky.earbs.model.FunctionCard
-import net.xmppwocky.earbs.model.FunctionReviewSession
+import net.xmppwocky.earbs.model.GameTypeConfig
+import net.xmppwocky.earbs.model.GenericReviewSession
 import net.xmppwocky.earbs.model.KeyQuality
 import net.xmppwocky.earbs.ui.components.AbortSessionDialog
 import net.xmppwocky.earbs.ui.components.ButtonColorState
@@ -43,7 +44,7 @@ sealed class FunctionAnswerResult {
  * State for the function review screen UI.
  */
 data class FunctionReviewScreenState(
-    val session: FunctionReviewSession,
+    val session: GenericReviewSession<FunctionCard>,
     val currentCard: FunctionCard? = null,
     val currentRootSemitones: Int? = null,
     val lastAnswer: FunctionAnswerResult? = null,
@@ -57,6 +58,10 @@ data class FunctionReviewScreenState(
     val isComplete: Boolean get() = session.isComplete()
     val playbackMode: PlaybackMode get() = currentCard?.playbackMode ?: PlaybackMode.ARPEGGIATED
     val keyQuality: KeyQuality? get() = currentCard?.keyQuality
+
+    /** Get all functions for the current key quality (for answer buttons). */
+    fun getAllFunctionsForKey(): List<ChordFunction> =
+        GameTypeConfig.FunctionGame.getAnswerOptions(session).map { it.function }
 }
 
 @Composable
@@ -154,7 +159,7 @@ fun FunctionReviewScreen(
 
         // Answer Buttons (pinned to bottom)
         FunctionAnswerButtons(
-            functions = state.session.getAllFunctionsForKey(),
+            functions = state.getAllFunctionsForKey(),
             enabled = state.hasPlayedThisTrial && !state.isPlaying &&
                       (!state.showingFeedback || state.inLearningMode),
             isLearningMode = state.inLearningMode,

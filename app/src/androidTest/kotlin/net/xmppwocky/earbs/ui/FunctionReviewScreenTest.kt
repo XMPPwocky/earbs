@@ -9,7 +9,7 @@ import net.xmppwocky.earbs.ComposeTestBase
 import net.xmppwocky.earbs.audio.PlaybackMode
 import net.xmppwocky.earbs.model.ChordFunction
 import net.xmppwocky.earbs.model.FunctionCard
-import net.xmppwocky.earbs.model.FunctionReviewSession
+import net.xmppwocky.earbs.model.GenericReviewSession
 import net.xmppwocky.earbs.model.KeyQuality
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -20,13 +20,13 @@ class FunctionReviewScreenTest : ComposeTestBase() {
     private fun createTestSession(
         functions: List<ChordFunction> = listOf(ChordFunction.IV, ChordFunction.V, ChordFunction.vi),
         keyQuality: KeyQuality = KeyQuality.MAJOR
-    ): FunctionReviewSession {
+    ): GenericReviewSession<FunctionCard> {
         val cards = functions.map { FunctionCard(it, keyQuality, 4, PlaybackMode.ARPEGGIATED) }
-        return FunctionReviewSession(cards)
+        return GenericReviewSession(cards, "function")
     }
 
     private fun createTestState(
-        session: FunctionReviewSession = createTestSession(),
+        session: GenericReviewSession<FunctionCard> = createTestSession(),
         currentCard: FunctionCard? = session.getCurrentCard(),
         isPlaying: Boolean = false,
         hasPlayedThisTrial: Boolean = false,
@@ -101,7 +101,7 @@ class FunctionReviewScreenTest : ComposeTestBase() {
     @Test
     fun displaysOctaveAndKeyInfo() {
         val card = FunctionCard(ChordFunction.V, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        val session = FunctionReviewSession(listOf(card))
+        val session = GenericReviewSession(listOf(card), "function")
 
         composeTestRule.setContent {
             FunctionReviewScreen(
@@ -119,7 +119,7 @@ class FunctionReviewScreenTest : ComposeTestBase() {
     @Test
     fun displaysArpeggiatedMode() {
         val card = FunctionCard(ChordFunction.V, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        val session = FunctionReviewSession(listOf(card))
+        val session = GenericReviewSession(listOf(card), "function")
 
         composeTestRule.setContent {
             FunctionReviewScreen(
@@ -137,7 +137,7 @@ class FunctionReviewScreenTest : ComposeTestBase() {
     @Test
     fun displaysBlockMode() {
         val card = FunctionCard(ChordFunction.V, KeyQuality.MAJOR, 4, PlaybackMode.BLOCK)
-        val session = FunctionReviewSession(listOf(card))
+        val session = GenericReviewSession(listOf(card), "function")
 
         composeTestRule.setContent {
             FunctionReviewScreen(
@@ -346,7 +346,7 @@ class FunctionReviewScreenTest : ComposeTestBase() {
     @Test
     fun learningMode_showsNextButton() {
         val card = FunctionCard(ChordFunction.V, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        val session = FunctionReviewSession(listOf(card))
+        val session = GenericReviewSession(listOf(card), "function")
 
         composeTestRule.setContent {
             FunctionReviewScreen(
@@ -375,7 +375,7 @@ class FunctionReviewScreenTest : ComposeTestBase() {
     @Test
     fun learningMode_nextButton_triggersCallback() {
         val card = FunctionCard(ChordFunction.V, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        val session = FunctionReviewSession(listOf(card))
+        val session = GenericReviewSession(listOf(card), "function")
         var nextClicked = false
 
         composeTestRule.setContent {
@@ -407,7 +407,7 @@ class FunctionReviewScreenTest : ComposeTestBase() {
     fun learningMode_lastTrial_nextButton_callsSessionComplete() {
         // Create a single-card session
         val card = FunctionCard(ChordFunction.V, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        val session = FunctionReviewSession(listOf(card))
+        val session = GenericReviewSession(listOf(card), "function")
 
         // Record wrong answer - session is now complete
         session.recordAnswer(false)
