@@ -242,7 +242,7 @@ private fun FunctionPlayButton(
     Button(
         onClick = onClick,
         enabled = !isPlaying && (!showingFeedback || inLearningMode),
-        modifier = Modifier.size(100.dp),
+        modifier = Modifier.size(width = 140.dp, height = 100.dp),
         shape = MaterialTheme.shapes.extraLarge
     ) {
         Text(
