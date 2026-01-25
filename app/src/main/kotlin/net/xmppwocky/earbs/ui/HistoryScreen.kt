@@ -192,11 +192,34 @@ private fun SessionCard(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            Text(
-                text = "${session.correctTrials}/${session.totalTrials} correct",
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "${session.correctTrials}/${session.totalTrials} correct",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                // Game type badge
+                Surface(
+                    color = if (session.gameType == "CHORD_FUNCTION")
+                        MaterialTheme.colorScheme.tertiaryContainer
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant,
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text(
+                        text = if (session.gameType == "CHORD_FUNCTION") "Function" else "Chord",
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        fontSize = 11.sp,
+                        color = if (session.gameType == "CHORD_FUNCTION")
+                            MaterialTheme.colorScheme.onTertiaryContainer
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             if (session.completedAt == null) {
                 Text(
@@ -231,11 +254,24 @@ private fun SessionCard(
 
 @Composable
 private fun TrialRow(trial: TrialEntity) {
-    // Extract chord type from cardId (format: "MAJOR_4_ARPEGGIATED")
+    val isFunction = trial.gameType == "CHORD_FUNCTION"
+
+    // Parse card ID based on game type
+    // Chord type: "MAJOR_4_ARPEGGIATED"
+    // Function: "IV_MAJOR_4_ARPEGGIATED"
     val cardParts = trial.cardId.split("_")
-    val actualChordType = cardParts.getOrNull(0) ?: "?"
-    val octave = cardParts.getOrNull(1) ?: "?"
-    val mode = cardParts.getOrNull(2)?.lowercase()?.take(3) ?: ""  // "arp" or "blo"
+    val (displayText, octave, mode) = if (isFunction && cardParts.size >= 4) {
+        val function = cardParts[0]
+        val keyQuality = cardParts[1].lowercase()
+        Triple("$function ($keyQuality)", cardParts[2], cardParts[3].lowercase().take(3))
+    } else if (cardParts.size >= 3) {
+        Triple(cardParts[0], cardParts[1], cardParts[2].lowercase().take(3))
+    } else {
+        Triple(trial.cardId, "?", "")
+    }
+
+    // Get what user answered (wrong answers only)
+    val userAnswer = if (isFunction) trial.answeredFunction else trial.answeredChordType
 
     Row(
         modifier = Modifier
@@ -246,7 +282,7 @@ private fun TrialRow(trial: TrialEntity) {
     ) {
         if (trial.wasCorrect) {
             Text(
-                text = "$actualChordType @ $octave ($mode)",
+                text = "$displayText @ $octave ($mode)",
                 fontSize = 13.sp,
                 color = Color(0xFF4CAF50)
             )
@@ -258,11 +294,11 @@ private fun TrialRow(trial: TrialEntity) {
         } else {
             Column {
                 Text(
-                    text = "$actualChordType @ $octave ($mode)",
+                    text = "$displayText @ $octave ($mode)",
                     fontSize = 13.sp,
                     color = Color(0xFFF44336)
                 )
-                trial.answeredChordType?.let { answered ->
+                userAnswer?.let { answered ->
                     Text(
                         text = "You said: $answered",
                         fontSize = 12.sp,
@@ -452,6 +488,20 @@ private fun CardStatRow(stat: CardStatsView) {
         else -> Color(0xFFF44336)
     }
 
+    val isFunction = stat.gameType == "CHORD_FUNCTION"
+
+    // Parse card ID based on game type
+    val cardParts = stat.cardId.split("_")
+    val displayName = if (isFunction && cardParts.size >= 4) {
+        // Function: "IV_MAJOR_4_ARPEGGIATED"
+        "${cardParts[0]} (${cardParts[1].lowercase()}) @ Oct ${cardParts[2]}"
+    } else if (cardParts.size >= 3) {
+        // Chord type: "MAJOR_4_ARPEGGIATED"
+        "${cardParts[0]} @ Oct ${cardParts[1]}"
+    } else {
+        stat.cardId
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -463,10 +513,29 @@ private fun CardStatRow(stat: CardStatsView) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text(
-                    text = stat.cardId.replace("_", " @ Oct "),
-                    fontWeight = FontWeight.Medium
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = displayName,
+                        fontWeight = FontWeight.Medium
+                    )
+                    if (isFunction) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Text(
+                                text = "F",
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
+                }
                 Text(
                     text = "${stat.correctTrials}/${stat.totalTrials} trials",
                     fontSize = 12.sp,
