@@ -98,6 +98,64 @@ object AudioEngine {
         Log.i(TAG, "======================")
     }
 
+    /**
+     * Play a chord pair: reference (tonic) chord followed by target chord.
+     * Used for chord function game.
+     *
+     * @param referenceFreqs Frequencies for the reference/tonic chord
+     * @param targetFreqs Frequencies for the target chord
+     * @param mode BLOCK plays notes simultaneously, ARPEGGIATED plays sequentially
+     * @param durationMs Duration of each chord
+     * @param pauseMs Pause between reference and target chords
+     * @param keyQuality For logging purposes (MAJOR or MINOR)
+     * @param function For logging purposes (the function being played)
+     * @param rootSemitones For logging purposes
+     */
+    suspend fun playChordPair(
+        referenceFreqs: List<Float>,
+        targetFreqs: List<Float>,
+        mode: PlaybackMode,
+        durationMs: Int = 500,
+        pauseMs: Int = 300,
+        keyQuality: String = "unknown",
+        function: String = "unknown",
+        rootSemitones: Int = 0
+    ) = withContext(Dispatchers.IO) {
+        val timestamp = System.currentTimeMillis()
+
+        // Log synthesis details
+        Log.i(TAG, "=== CHORD PAIR SYNTHESIS ===")
+        Log.i(TAG, "Timestamp: $timestamp")
+        Log.i(TAG, "Key quality: $keyQuality")
+        Log.i(TAG, "Function: $function")
+        Log.i(TAG, "Root semitones from A4: $rootSemitones")
+        Log.i(TAG, "Reference frequencies: ${referenceFreqs.map { "%.2f Hz".format(it) }}")
+        Log.i(TAG, "Target frequencies: ${targetFreqs.map { "%.2f Hz".format(it) }}")
+        Log.i(TAG, "Mode: $mode")
+        Log.i(TAG, "Duration: ${durationMs}ms, Pause: ${pauseMs}ms")
+
+        // Play reference chord
+        Log.i(TAG, "Playing reference chord...")
+        when (mode) {
+            PlaybackMode.BLOCK -> playBlockChord(referenceFreqs, durationMs)
+            PlaybackMode.ARPEGGIATED -> playArpeggiatedChord(referenceFreqs, durationMs)
+        }
+
+        // Pause between chords
+        Log.i(TAG, "Pausing for ${pauseMs}ms...")
+        Thread.sleep(pauseMs.toLong())
+
+        // Play target chord
+        Log.i(TAG, "Playing target chord...")
+        when (mode) {
+            PlaybackMode.BLOCK -> playBlockChord(targetFreqs, durationMs)
+            PlaybackMode.ARPEGGIATED -> playArpeggiatedChord(targetFreqs, durationMs)
+        }
+
+        Log.i(TAG, "Chord pair playback complete at ${System.currentTimeMillis()}")
+        Log.i(TAG, "============================")
+    }
+
     private fun playBlockChord(frequencies: List<Float>, durationMs: Int) {
         Log.d(TAG, "Playing block chord with ${frequencies.size} notes")
 

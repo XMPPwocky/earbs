@@ -1,6 +1,9 @@
 package net.xmppwocky.earbs.audio
 
 import android.util.Log
+import net.xmppwocky.earbs.model.ChordFunction
+import net.xmppwocky.earbs.model.ChordQuality
+import net.xmppwocky.earbs.model.KeyQuality
 import kotlin.math.pow
 import kotlin.random.Random
 
@@ -112,5 +115,56 @@ object ChordBuilder {
         val type = ChordType.BASIC_TYPES.random()
         Log.d(TAG, "Random chord type selected: ${type.displayName}")
         return type
+    }
+
+    // ========== Diatonic chord functions for chord function game ==========
+
+    /**
+     * Build a tonic chord (I or i) for the given key root.
+     *
+     * @param keyRootSemitones The root of the key (semitones from A4)
+     * @param keyQuality MAJOR for I chord, MINOR for i chord
+     * @return List of frequencies in Hz for the tonic chord
+     */
+    fun buildTonicChord(keyRootSemitones: Int, keyQuality: KeyQuality): List<Float> {
+        val intervals = when (keyQuality) {
+            KeyQuality.MAJOR -> listOf(0, 4, 7)  // Major triad
+            KeyQuality.MINOR -> listOf(0, 3, 7)  // Minor triad
+        }
+
+        val frequencies = intervals.map { interval ->
+            noteFrequency(keyRootSemitones + interval)
+        }
+
+        Log.d(TAG, "Built tonic chord (${if (keyQuality == KeyQuality.MAJOR) "I" else "i"}) at root $keyRootSemitones")
+        Log.d(TAG, "Frequencies: ${frequencies.map { "%.2f".format(it) }}")
+
+        return frequencies
+    }
+
+    /**
+     * Build a diatonic chord for the given chord function within a key.
+     *
+     * @param keyRootSemitones The root of the key (semitones from A4)
+     * @param function The chord function (IV, V, vi, etc.)
+     * @return List of frequencies in Hz for the chord
+     */
+    fun buildDiatonicChord(keyRootSemitones: Int, function: ChordFunction): List<Float> {
+        // Chord root is key root + function's semitone offset
+        val chordRootSemitones = keyRootSemitones + function.semitoneOffset
+
+        // Get intervals based on chord quality
+        val intervals = function.quality.intervals
+
+        val frequencies = intervals.map { interval ->
+            noteFrequency(chordRootSemitones + interval)
+        }
+
+        Log.d(TAG, "Built diatonic chord ${function.displayName} at key root $keyRootSemitones")
+        Log.d(TAG, "Chord root: $chordRootSemitones (offset ${function.semitoneOffset})")
+        Log.d(TAG, "Quality: ${function.quality.name}, intervals: $intervals")
+        Log.d(TAG, "Frequencies: ${frequencies.map { "%.2f".format(it) }}")
+
+        return frequencies
     }
 }
