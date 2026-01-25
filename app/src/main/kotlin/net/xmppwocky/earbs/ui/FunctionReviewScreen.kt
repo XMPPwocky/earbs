@@ -42,7 +42,7 @@ data class FunctionReviewScreenState(
     val hasPlayedThisTrial: Boolean = false,
     val showingFeedback: Boolean = false
 ) {
-    val trialNumber: Int get() = session.currentTrial + 1
+    val trialNumber: Int get() = minOf(session.currentTrial + 1, session.totalTrials)  // 1-indexed, capped
     val totalTrials: Int get() = session.totalTrials
     val isComplete: Boolean get() = session.isComplete()
     val playbackMode: PlaybackMode get() = currentCard?.playbackMode ?: PlaybackMode.ARPEGGIATED
