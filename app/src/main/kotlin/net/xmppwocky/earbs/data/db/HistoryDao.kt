@@ -128,6 +128,8 @@ interface HistoryDao {
      *
      * For correct answers, actual == answered (the chord type).
      * For wrong answers, actual is parsed from cardId, answered is from answeredChordType.
+     *
+     * Note: Excludes wrong answers with null answeredChordType (legacy data from before migration 4->5).
      */
     @Query("""
         SELECT
@@ -140,6 +142,7 @@ interface HistoryDao {
         FROM trials
         WHERE gameType = 'CHORD_TYPE'
           AND (:octave IS NULL OR SUBSTR(cardId, INSTR(cardId, '_') + 1, 1) = CAST(:octave AS TEXT))
+          AND (wasCorrect = 1 OR answeredChordType IS NOT NULL)
         GROUP BY actual, answered
     """)
     suspend fun getChordTypeConfusionData(octave: Int?): List<ConfusionEntry>
@@ -150,6 +153,8 @@ interface HistoryDao {
      *
      * For correct answers, actual == answered (the function).
      * For wrong answers, actual is parsed from cardId, answered is from answeredFunction.
+     *
+     * Note: Excludes wrong answers with null answeredFunction (legacy data from before migration 4->5).
      */
     @Query("""
         SELECT
@@ -163,6 +168,7 @@ interface HistoryDao {
         WHERE gameType = 'CHORD_FUNCTION'
           AND SUBSTR(cardId, INSTR(cardId, '_') + 1,
               INSTR(SUBSTR(cardId, INSTR(cardId, '_') + 1), '_') - 1) = :keyQuality
+          AND (wasCorrect = 1 OR answeredFunction IS NOT NULL)
         GROUP BY actual, answered
     """)
     suspend fun getFunctionConfusionData(keyQuality: String): List<ConfusionEntry>

@@ -530,4 +530,92 @@ class HistoryDaoTest : DatabaseTestBase() {
         val minorConfusion = historyDao.getFunctionConfusionData("MINOR")
         assertTrue(minorConfusion.isEmpty())
     }
+
+    // ========== Null Answer Migration Edge Cases ==========
+
+    @Test
+    fun `getChordTypeConfusionData excludes wrong answers with null answeredChordType`() = runTest {
+        val sessionId = createSession(gameType = GameType.CHORD_TYPE)
+
+        // Insert a correct trial (should be included)
+        trialDao.insert(TrialEntity(
+            sessionId = sessionId,
+            cardId = "MAJOR_4_ARPEGGIATED",
+            timestamp = System.currentTimeMillis(),
+            wasCorrect = true,
+            gameType = GameType.CHORD_TYPE.name
+        ))
+
+        // Insert a wrong trial with answeredChordType set (should be included)
+        trialDao.insert(TrialEntity(
+            sessionId = sessionId,
+            cardId = "MINOR_4_ARPEGGIATED",
+            timestamp = System.currentTimeMillis() + 1,
+            wasCorrect = false,
+            gameType = GameType.CHORD_TYPE.name,
+            answeredChordType = "MAJOR"
+        ))
+
+        // Insert a wrong trial with null answeredChordType (migration edge case - should be excluded)
+        trialDao.insert(TrialEntity(
+            sessionId = sessionId,
+            cardId = "SUS2_4_ARPEGGIATED",
+            timestamp = System.currentTimeMillis() + 2,
+            wasCorrect = false,
+            gameType = GameType.CHORD_TYPE.name,
+            answeredChordType = null  // Old data before migration
+        ))
+
+        // Should not crash and should only return 2 entries (correct MAJOR, wrong MINOR->MAJOR)
+        val confusion = historyDao.getChordTypeConfusionData(null)
+
+        assertEquals(2, confusion.size)
+        assertTrue(confusion.any { it.actual == "MAJOR" && it.answered == "MAJOR" })
+        assertTrue(confusion.any { it.actual == "MINOR" && it.answered == "MAJOR" })
+        // SUS2 with null answer should be excluded
+        assertTrue(confusion.none { it.actual == "SUS2" })
+    }
+
+    @Test
+    fun `getFunctionConfusionData excludes wrong answers with null answeredFunction`() = runTest {
+        val sessionId = createSession(gameType = GameType.CHORD_FUNCTION)
+
+        // Insert a correct trial (should be included)
+        trialDao.insert(TrialEntity(
+            sessionId = sessionId,
+            cardId = "IV_MAJOR_4_ARPEGGIATED",
+            timestamp = System.currentTimeMillis(),
+            wasCorrect = true,
+            gameType = GameType.CHORD_FUNCTION.name
+        ))
+
+        // Insert a wrong trial with answeredFunction set (should be included)
+        trialDao.insert(TrialEntity(
+            sessionId = sessionId,
+            cardId = "V_MAJOR_4_ARPEGGIATED",
+            timestamp = System.currentTimeMillis() + 1,
+            wasCorrect = false,
+            gameType = GameType.CHORD_FUNCTION.name,
+            answeredFunction = "IV"
+        ))
+
+        // Insert a wrong trial with null answeredFunction (migration edge case - should be excluded)
+        trialDao.insert(TrialEntity(
+            sessionId = sessionId,
+            cardId = "I_MAJOR_4_ARPEGGIATED",
+            timestamp = System.currentTimeMillis() + 2,
+            wasCorrect = false,
+            gameType = GameType.CHORD_FUNCTION.name,
+            answeredFunction = null  // Old data before migration
+        ))
+
+        // Should not crash and should only return 2 entries (correct IV, wrong V->IV)
+        val confusion = historyDao.getFunctionConfusionData("MAJOR")
+
+        assertEquals(2, confusion.size)
+        assertTrue(confusion.any { it.actual == "IV" && it.answered == "IV" })
+        assertTrue(confusion.any { it.actual == "V" && it.answered == "IV" })
+        // I with null answer should be excluded
+        assertTrue(confusion.none { it.actual == "I" })
+    }
 }
