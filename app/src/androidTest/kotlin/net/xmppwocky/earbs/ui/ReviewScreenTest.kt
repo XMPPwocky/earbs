@@ -384,7 +384,7 @@ class ReviewScreenTest : ComposeTestBase() {
             ReviewScreen(
                 state = createTestState(
                     hasPlayedThisTrial = true,
-                    lastAnswer = AnswerResult.Wrong(ChordType.MINOR)
+                    lastAnswer = AnswerResult.Wrong(ChordType.MINOR, ChordType.MAJOR)
                 ),
                 onPlayClicked = {},
                 onAnswerClicked = {},
@@ -435,7 +435,7 @@ class ReviewScreenTest : ComposeTestBase() {
                     session = session,
                     currentCard = card,
                     currentRootSemitones = 0,
-                    lastAnswer = AnswerResult.Wrong(ChordType.MAJOR),
+                    lastAnswer = AnswerResult.Wrong(ChordType.MAJOR, ChordType.MINOR),
                     isPlaying = false,
                     hasPlayedThisTrial = true,
                     showingFeedback = true,
@@ -465,7 +465,7 @@ class ReviewScreenTest : ComposeTestBase() {
                     session = session,
                     currentCard = card,
                     currentRootSemitones = 0,
-                    lastAnswer = AnswerResult.Wrong(ChordType.MAJOR),
+                    lastAnswer = AnswerResult.Wrong(ChordType.MAJOR, ChordType.MINOR),
                     isPlaying = false,
                     hasPlayedThisTrial = true,
                     showingFeedback = true,
@@ -503,7 +503,7 @@ class ReviewScreenTest : ComposeTestBase() {
                     session = session,
                     currentCard = card,  // Still showing the card for learning
                     currentRootSemitones = 0,
-                    lastAnswer = AnswerResult.Wrong(ChordType.MAJOR),
+                    lastAnswer = AnswerResult.Wrong(ChordType.MAJOR, ChordType.MINOR),
                     isPlaying = false,
                     hasPlayedThisTrial = true,
                     showingFeedback = true,

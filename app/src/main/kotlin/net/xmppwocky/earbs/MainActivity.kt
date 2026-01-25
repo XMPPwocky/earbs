@@ -474,7 +474,7 @@ private fun ChordTypeReviewSessionScreen(
                 AnswerResult.Correct
             } else {
                 Log.i(TAG, "WRONG! User answered ${answeredType.displayName}, actual was ${currentCard.chordType.displayName}")
-                AnswerResult.Wrong(currentCard.chordType)
+                AnswerResult.Wrong(actualType = currentCard.chordType, selectedType = answeredType)
             }
 
             coroutineScope.launch {

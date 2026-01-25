@@ -30,7 +30,17 @@ private const val TAG = "ReviewScreen"
  */
 sealed class AnswerResult {
     data object Correct : AnswerResult()
-    data class Wrong(val actualType: ChordType) : AnswerResult()
+    data class Wrong(val actualType: ChordType, val selectedType: ChordType) : AnswerResult()
+}
+
+/**
+ * Color state for answer buttons after a wrong answer.
+ */
+enum class ButtonColorState {
+    DEFAULT,    // Normal button colors
+    CORRECT,    // Green - the correct answer
+    WRONG,      // Red - the user's wrong selection
+    INACTIVE    // Gray - other buttons
 }
 
 /**
@@ -171,6 +181,7 @@ fun ReviewScreen(
             enabled = state.hasPlayedThisTrial && !state.isPlaying &&
                       (!state.showingFeedback || state.inLearningMode),
             isLearningMode = state.inLearningMode,
+            answerResult = state.lastAnswer,
             onAnswerClicked = onAnswerClicked,
             onPlayChordType = onPlayChordType
         )
@@ -311,11 +322,22 @@ private fun ReviewAnswerButtons(
     chordTypes: List<ChordType>,
     enabled: Boolean,
     isLearningMode: Boolean = false,
+    answerResult: AnswerResult? = null,
     onAnswerClicked: (ChordType) -> Unit,
     onPlayChordType: (ChordType) -> Unit = {}
 ) {
     // In learning mode, clicking plays that chord instead of answering
     val onClick: (ChordType) -> Unit = if (isLearningMode) onPlayChordType else onAnswerClicked
+
+    // Compute color state for a button based on answer result
+    fun getColorState(chordType: ChordType): ButtonColorState {
+        return when {
+            answerResult !is AnswerResult.Wrong -> ButtonColorState.DEFAULT
+            chordType == answerResult.selectedType -> ButtonColorState.WRONG
+            chordType == answerResult.actualType -> ButtonColorState.CORRECT
+            else -> ButtonColorState.INACTIVE
+        }
+    }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
@@ -328,6 +350,7 @@ private fun ReviewAnswerButtons(
                 ReviewAnswerButton(
                     chordType = chordTypes[0],
                     enabled = enabled,
+                    colorState = getColorState(chordTypes[0]),
                     onClick = { onClick(chordTypes[0]) }
                 )
             }
@@ -335,6 +358,7 @@ private fun ReviewAnswerButtons(
                 ReviewAnswerButton(
                     chordType = chordTypes[1],
                     enabled = enabled,
+                    colorState = getColorState(chordTypes[1]),
                     onClick = { onClick(chordTypes[1]) }
                 )
             }
@@ -350,6 +374,7 @@ private fun ReviewAnswerButtons(
                 ReviewAnswerButton(
                     chordType = chordTypes[2],
                     enabled = enabled,
+                    colorState = getColorState(chordTypes[2]),
                     onClick = { onClick(chordTypes[2]) }
                 )
             }
@@ -357,6 +382,7 @@ private fun ReviewAnswerButtons(
                 ReviewAnswerButton(
                     chordType = chordTypes[3],
                     enabled = enabled,
+                    colorState = getColorState(chordTypes[3]),
                     onClick = { onClick(chordTypes[3]) }
                 )
             }
@@ -372,6 +398,7 @@ private fun ReviewAnswerButtons(
                     ReviewAnswerButton(
                         chordType = chordTypes[4],
                         enabled = enabled,
+                        colorState = getColorState(chordTypes[4]),
                         onClick = { onClick(chordTypes[4]) }
                     )
                 }
@@ -379,6 +406,7 @@ private fun ReviewAnswerButtons(
                     ReviewAnswerButton(
                         chordType = chordTypes[5],
                         enabled = enabled,
+                        colorState = getColorState(chordTypes[5]),
                         onClick = { onClick(chordTypes[5]) }
                     )
                 }
@@ -395,6 +423,7 @@ private fun ReviewAnswerButtons(
                     ReviewAnswerButton(
                         chordType = chordTypes[6],
                         enabled = enabled,
+                        colorState = getColorState(chordTypes[6]),
                         onClick = { onClick(chordTypes[6]) }
                     )
                 }
@@ -402,6 +431,7 @@ private fun ReviewAnswerButtons(
                     ReviewAnswerButton(
                         chordType = chordTypes[7],
                         enabled = enabled,
+                        colorState = getColorState(chordTypes[7]),
                         onClick = { onClick(chordTypes[7]) }
                     )
                 }
@@ -414,12 +444,30 @@ private fun ReviewAnswerButtons(
 private fun ReviewAnswerButton(
     chordType: ChordType,
     enabled: Boolean,
+    colorState: ButtonColorState = ButtonColorState.DEFAULT,
     onClick: () -> Unit
 ) {
+    val buttonColors = when (colorState) {
+        ButtonColorState.CORRECT -> ButtonDefaults.buttonColors(
+            containerColor = AppColors.Success,
+            disabledContainerColor = AppColors.Success
+        )
+        ButtonColorState.WRONG -> ButtonDefaults.buttonColors(
+            containerColor = AppColors.Error,
+            disabledContainerColor = AppColors.Error
+        )
+        ButtonColorState.INACTIVE -> ButtonDefaults.buttonColors(
+            containerColor = Color.Gray,
+            disabledContainerColor = Color.Gray
+        )
+        ButtonColorState.DEFAULT -> ButtonDefaults.buttonColors()
+    }
+
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier.size(width = 140.dp, height = 60.dp)
+        modifier = Modifier.size(width = 140.dp, height = 60.dp),
+        colors = buttonColors
     ) {
         Text(
             text = chordType.displayName,
