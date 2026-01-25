@@ -2,7 +2,22 @@
 
 ## Overview
 
-Build an Android app (Kotlin, Jetpack Compose) for ear training focused on chord recognition. The user hears a chord and identifies its type (major, minor, sus2, etc.). The app uses FSRS (Free Spaced Repetition Scheduler) to optimize review scheduling.
+Build an Android app (Kotlin, Jetpack Compose) for ear training focused on chord recognition. The app uses FSRS (Free Spaced Repetition Scheduler) to optimize review scheduling.
+
+## Game Modes
+
+The app has two training games:
+
+### Chord Type Game (Game 1)
+The original game mode. The user hears a chord and identifies its type (major, minor, sus2, etc.).
+- **48 total cards** (8 types × 3 octaves × 2 playback modes)
+- User answers chord quality only
+
+### Chord Function Game (Game 2)
+A second game mode focused on recognizing chord functions within a key. The user hears a tonic chord followed by a target chord and identifies the roman numeral function.
+- **72 total cards** (12 functions × 3 octaves × 2 playback modes)
+- User answers the chord function (roman numeral)
+- Audio plays tonic chord first to establish key, then target chord
 
 ## Core Concepts
 
@@ -96,9 +111,39 @@ This order ensures:
 - Each playback mode is practiced separately
 - Octave expansion happens gradually
 
+### Chord Function Game Details
+
+**Card model:** `(function, key_quality, octave, playback_mode)`
+
+**Functions (12 total):**
+- **Major key (6):** ii, iii, IV, V, vi, vii°
+- **Minor key (6):** ii°, III, iv, v, VI, VII
+
+Note: The tonic (I/i) is not included as it's always played as the reference chord.
+
+**Audio playback:**
+1. Play tonic chord (I or i depending on key quality)
+2. Brief pause
+3. Play target chord (the function being tested)
+
+The key's root note is randomized within the octave to prevent memorizing absolute pitches.
+
+**Unlock order (24 groups of 3 cards each):**
+Cards unlock in groups of 3 functions. Major key functions are unlocked first, followed by minor key functions. Within each key quality, octave 4 arpeggiated comes first, then block, then other octaves.
+
+| # | Functions | Key | Octave | Mode |
+|---|-----------|-----|--------|------|
+| 1 | ii, iii, IV | Major | 4 | Arpeggiated | **Starting deck** |
+| 2 | V, vi, vii° | Major | 4 | Arpeggiated |
+| 3 | ii, iii, IV | Major | 4 | Block |
+| 4 | V, vi, vii° | Major | 4 | Block |
+| ... | (continues for octaves 3, 5) | | | |
+| 13-24 | (minor key functions follow same pattern) | | | |
+
 ### Audio Synthesis
 
 - **Square wave synthesis** (simple, distinctive tone)
+- **PolyBLEP anti-aliasing** for reduced aliasing artifacts and smoother sound
 - Sum square waves at the appropriate frequencies for each chord tone
 - Two playback modes (determined by the card, not user choice):
   - **Block**: all notes simultaneously
@@ -129,37 +174,72 @@ The root note should be randomized within the octave (any of the 12 semitones) s
 ### UX Flow
 
 **Home screen:**
+- **Game mode tabs**: Switch between Chord Type and Chord Function games
+  - Tab titles show due counts (e.g., "Chord Type (5 due)")
+  - Each game has separate unlock progression
 - "Start Review" / "Practice Early" button (label depends on whether cards are due)
-- "Add 4 Cards" button (to unlock next 4 cards in progression)
-- Shows deck overview (X/48 cards unlocked, how many due)
+- "Add Cards" button (to unlock next group of cards in progression)
+- Shows deck overview (cards unlocked, how many due)
 - "History" button (view past sessions and card stats)
 - "Settings" button (configure playback, session, and FSRS settings)
 
 **Review screen:**
 - Progress indicator (e.g., "Trial 5 / 20")
-- Current card info (octave)
+- Current card info (octave, and key quality for Chord Function game)
 - Playback mode indicator (shows Block or Arpeggiated, based on current card)
 - "Play" / "Replay" button (plays current chord using the card's playback mode)
 - Can replay as many times as desired (same root note on replay)
-- Answer buttons for each chord type in the session's cards
-- After tapping answer: brief feedback (correct/incorrect with actual answer if wrong), FSRS update, auto-advance after 500ms
+- Answer buttons for each chord type/function in the session's cards
+- After tapping answer: brief feedback (correct/incorrect with actual answer if wrong), FSRS update
+
+**Auto-advance behavior:**
+- On correct answer: auto-advances after configurable delay (300-2000ms, default 750ms)
+- On wrong answer with Learn From Mistakes OFF: auto-advances after delay
+- On wrong answer with Learn From Mistakes ON: enters learning mode (see below)
+
+**Learn From Mistakes mode** (when enabled in settings):
+- After a wrong answer, the chord the user selected is played automatically
+- User can tap any answer button to hear that chord for comparison
+- "Next" button appears to manually advance to next trial
+- Helps user understand the difference between confused chords
 - After all trials: navigate to results screen
 
 **Results screen:**
 - Shows total correct / total trials (e.g., "15 / 20 correct")
 - Shows accuracy percentage
 - Color-coded based on performance (green ≥90%, amber ≥70%, red <70%)
+- **Per-card breakdown**: Expandable section showing each card's result
+  - Shows card details (chord type, octave, playback mode)
+  - Indicates correct/incorrect with color coding
+  - If wrong, shows what user answered
 - "Done" button returns to home screen
 
 **History screen (3 tabs):**
 - **Sessions tab:** List of past sessions with accuracy, expandable to show individual trials (including wrong answers given)
 - **Cards tab:** All unlocked cards with FSRS state (stability, difficulty, interval, due date)
-- **Stats tab:** Overall accuracy and per-card lifetime accuracy
+  - Tap a card to open Card Details screen
+- **Stats tab:**
+  - Overall accuracy and per-card lifetime accuracy
+  - **Confusion matrices**: Visual heatmap showing which chord types are confused with each other
+    - Rows = actual chord type, Columns = user's answer
+    - Filter by octave and key quality (for Chord Function game)
+    - Color intensity indicates frequency of confusion
+
+**Card Details screen** (accessed from Cards tab):
+- Accuracy over time chart (line graph of recent performance)
+- FSRS parameters display (stability, difficulty, interval, due date, phase)
+- Lifetime statistics (total reviews, correct count, accuracy %)
+- **Reset FSRS button**: Resets card to initial FSRS state (new card)
+- Back button returns to Cards tab
 
 **Settings screen:**
 - Playback duration (300-1000ms slider)
 - Session size (10, 20, or 30 cards)
 - Target retention (0.70-0.95 slider, default 0.90)
+- Auto-advance delay (300-2000ms slider, default 750ms)
+- Learn from mistakes toggle (default ON)
+- **Database backup button**: Export database to file via SAF (Storage Access Framework)
+- **Database restore button**: Import database from file via SAF
 
 ---
 
