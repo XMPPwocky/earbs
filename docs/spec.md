@@ -83,33 +83,40 @@ Sessions prefer cards from the same `(octave, playbackMode)` group to keep pract
 
 This keeps sessions focused on one octave and playback mode when possible, improving the learning experience.
 
-### Progression / Unlocking
+### Card Unlock System
 
-The user starts with a minimal deck and can tap "Add 4 Cards" to expand.
+All 48 chord type cards (and 72 function cards) are pre-created in the database. Users can unlock or lock any card at any time through the History > Cards tab.
+
+**Key features:**
+- **Per-card toggle**: Each card has an individual lock/unlock toggle
+- **Flexible progression**: Users can unlock cards in any order
+- **FSRS preservation**: FSRS state is preserved when locking/unlocking cards
+- **Visual grouping**: Cards are displayed grouped by type category, octave, and playback mode
 
 **Total cards:** 8 chord types × 3 octaves × 2 playback modes = 48 cards
 
-**Unlock order (12 groups of 4 cards each):**
+**Starting deck (unlocked by default):**
+- Major, Minor, Sus2, Sus4 @ octave 4, arpeggiated (Chord Type game)
+- IV, V, vi @ major key, octave 4, arpeggiated (Chord Function game)
 
-| # | Cards | Octave | Mode | Notes |
-|---|-------|--------|------|-------|
-| 1 | Major, Minor, Sus2, Sus4 | 4 | Arpeggiated | **Starting deck** |
-| 2 | Major, Minor, Sus2, Sus4 | 4 | Block | |
-| 3 | Major, Minor, Sus2, Sus4 | 3 | Arpeggiated | |
-| 4 | Major, Minor, Sus2, Sus4 | 3 | Block | |
-| 5 | Major, Minor, Sus2, Sus4 | 5 | Arpeggiated | |
-| 6 | Major, Minor, Sus2, Sus4 | 5 | Block | |
-| 7 | Dom7, Maj7, Min7, Dim7 | 4 | Arpeggiated | |
-| 8 | Dom7, Maj7, Min7, Dim7 | 4 | Block | |
-| 9 | Dom7, Maj7, Min7, Dim7 | 3 | Arpeggiated | |
-| 10 | Dom7, Maj7, Min7, Dim7 | 3 | Block | |
-| 11 | Dom7, Maj7, Min7, Dim7 | 5 | Arpeggiated | |
-| 12 | Dom7, Maj7, Min7, Dim7 | 5 | Block | **Full deck** |
+**Card groups (12 groups for Chord Type):**
 
-This order ensures:
-- All triads are learned before 7th chords
-- Each playback mode is practiced separately
-- Octave expansion happens gradually
+| # | Cards | Octave | Mode |
+|---|-------|--------|------|
+| 1 | Major, Minor, Sus2, Sus4 | 4 | Arpeggiated |
+| 2 | Major, Minor, Sus2, Sus4 | 4 | Block |
+| 3 | Major, Minor, Sus2, Sus4 | 3 | Arpeggiated |
+| 4 | Major, Minor, Sus2, Sus4 | 3 | Block |
+| 5 | Major, Minor, Sus2, Sus4 | 5 | Arpeggiated |
+| 6 | Major, Minor, Sus2, Sus4 | 5 | Block |
+| 7 | Dom7, Maj7, Min7, Dim7 | 4 | Arpeggiated |
+| 8 | Dom7, Maj7, Min7, Dim7 | 4 | Block |
+| 9 | Dom7, Maj7, Min7, Dim7 | 3 | Arpeggiated |
+| 10 | Dom7, Maj7, Min7, Dim7 | 3 | Block |
+| 11 | Dom7, Maj7, Min7, Dim7 | 5 | Arpeggiated |
+| 12 | Dom7, Maj7, Min7, Dim7 | 5 | Block |
+
+Only unlocked cards appear in review sessions. Locked cards are shown in the Cards tab but grayed out.
 
 ### Chord Function Game Details
 
@@ -175,12 +182,11 @@ The root note should be randomized within the octave (any of the 12 semitones) s
 
 **Home screen:**
 - **Game mode tabs**: Switch between Chord Type and Chord Function games
-  - Tab titles show due counts (e.g., "Chord Type (5 due)")
-  - Each game has separate unlock progression
+  - Tab titles show due counts (e.g., "Chord Type (5)")
+  - Each game has separate unlock status
 - "Start Review" / "Practice Early" button (label depends on whether cards are due)
-- "Add Cards" button (to unlock next group of cards in progression)
 - Shows deck overview (cards unlocked, how many due)
-- "History" button (view past sessions and card stats)
+- "History" button (view past sessions, manage card unlocks, and view stats)
 - "Settings" button (configure playback, session, and FSRS settings)
 
 **Review screen:**
@@ -216,8 +222,12 @@ The root note should be randomized within the octave (any of the 12 semitones) s
 
 **History screen (3 tabs):**
 - **Sessions tab:** List of past sessions with accuracy, expandable to show individual trials (including wrong answers given)
-- **Cards tab:** All unlocked cards with FSRS state (stability, difficulty, interval, due date)
-  - Tap a card to open Card Details screen
+- **Cards tab:** All cards (locked and unlocked) for managing card unlocks
+  - Cards grouped by type category (Triads/7ths), octave, and playback mode
+  - Each card has a checkbox to toggle lock/unlock status
+  - Locked cards appear grayed out with minimal info
+  - Unlocked cards show due date and stability
+  - Tap a card row (not checkbox) to open Card Details screen
 - **Stats tab:**
   - Overall accuracy and per-card lifetime accuracy
   - **Confusion matrices**: Visual heatmap showing which chord types are confused with each other
@@ -226,10 +236,13 @@ The root note should be randomized within the octave (any of the 12 semitones) s
     - Color intensity indicates frequency of confusion
 
 **Card Details screen** (accessed from Cards tab):
-- Accuracy over time chart (line graph of recent performance)
-- FSRS parameters display (stability, difficulty, interval, due date, phase)
-- Lifetime statistics (total reviews, correct count, accuracy %)
-- **Reset FSRS button**: Resets card to initial FSRS state (new card)
+- Card header with lock/unlock toggle switch
+- For locked cards: Shows message that card is locked with instructions
+- For unlocked cards:
+  - Accuracy over time chart (line graph of recent performance)
+  - FSRS parameters display (stability, difficulty, interval, due date, phase)
+  - Lifetime statistics (total reviews, correct count, accuracy %)
+  - **Reset FSRS button**: Resets card to initial FSRS state (new card)
 - Back button returns to Cards tab
 
 **Settings screen:**
