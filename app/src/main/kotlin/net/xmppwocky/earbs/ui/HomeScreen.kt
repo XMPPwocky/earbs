@@ -9,31 +9,48 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import net.xmppwocky.earbs.data.entity.GameType
 import net.xmppwocky.earbs.model.Deck
+import net.xmppwocky.earbs.model.FunctionDeck
 
 @Composable
 fun HomeScreen(
-    dueCount: Int = 0,
-    unlockedCount: Int = 4,
-    canUnlockMore: Boolean = true,
+    // Game mode selection
+    selectedGameMode: GameType = GameType.CHORD_TYPE,
+    onGameModeChanged: (GameType) -> Unit = {},
+    // Chord type game stats
+    chordTypeDueCount: Int = 0,
+    chordTypeUnlockedCount: Int = 4,
+    canUnlockMoreChordTypes: Boolean = true,
+    // Function game stats
+    functionDueCount: Int = 0,
+    functionUnlockedCount: Int = 0,
+    canUnlockMoreFunctions: Boolean = true,
+    // Actions
     onStartReviewClicked: () -> Unit,
     onAddCardsClicked: () -> Unit = {},
     onHistoryClicked: () -> Unit = {},
     onSettingsClicked: () -> Unit = {}
 ) {
+    // Current game stats based on selected mode
+    val dueCount = if (selectedGameMode == GameType.CHORD_TYPE) chordTypeDueCount else functionDueCount
+    val unlockedCount = if (selectedGameMode == GameType.CHORD_TYPE) chordTypeUnlockedCount else functionUnlockedCount
+    val totalCards = if (selectedGameMode == GameType.CHORD_TYPE) Deck.TOTAL_CARDS else FunctionDeck.TOTAL_CARDS
+    val canUnlockMore = if (selectedGameMode == GameType.CHORD_TYPE) canUnlockMoreChordTypes else canUnlockMoreFunctions
+    val cardsPerUnlock = if (selectedGameMode == GameType.CHORD_TYPE) 4 else FunctionDeck.CARDS_PER_GROUP
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // App title
         Text(
             text = "Earbs",
             fontSize = 48.sp,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 16.dp)
+            modifier = Modifier.padding(bottom = 8.dp)
         )
 
         // Subtitle
@@ -41,8 +58,27 @@ fun HomeScreen(
             text = "Chord Ear Training",
             fontSize = 20.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 8.dp)
+            modifier = Modifier.padding(bottom = 16.dp)
         )
+
+        // Game mode tabs
+        TabRow(
+            selectedTabIndex = if (selectedGameMode == GameType.CHORD_TYPE) 0 else 1,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Tab(
+                selected = selectedGameMode == GameType.CHORD_TYPE,
+                onClick = { onGameModeChanged(GameType.CHORD_TYPE) },
+                text = { Text("Chord Type") }
+            )
+            Tab(
+                selected = selectedGameMode == GameType.CHORD_FUNCTION,
+                onClick = { onGameModeChanged(GameType.CHORD_FUNCTION) },
+                text = { Text("Function") }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
 
         // Unlock progress
         Surface(
@@ -51,7 +87,7 @@ fun HomeScreen(
             modifier = Modifier.padding(bottom = 16.dp)
         ) {
             Text(
-                text = "$unlockedCount / ${Deck.TOTAL_CARDS} cards unlocked",
+                text = "$unlockedCount / $totalCards cards unlocked",
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -80,7 +116,7 @@ fun HomeScreen(
                 modifier = Modifier.padding(bottom = 24.dp)
             ) {
                 Text(
-                    text = "No cards due",
+                    text = if (unlockedCount == 0) "Tap 'Add Cards' to start!" else "No cards due",
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     fontSize = 16.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -91,6 +127,7 @@ fun HomeScreen(
         // Start Review button
         Button(
             onClick = onStartReviewClicked,
+            enabled = unlockedCount > 0,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(64.dp)
@@ -134,7 +171,7 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Add 4 Cards button
+        // Add Cards button
         if (canUnlockMore) {
             Button(
                 onClick = onAddCardsClicked,
@@ -146,7 +183,7 @@ fun HomeScreen(
                 )
             ) {
                 Text(
-                    text = "Add 4 Cards",
+                    text = "Add $cardsPerUnlock Cards",
                     fontSize = 18.sp
                 )
             }
@@ -175,7 +212,11 @@ fun HomeScreen(
 
         // Info text
         Text(
-            text = "1 trial per card",
+            text = if (selectedGameMode == GameType.CHORD_TYPE) {
+                "Identify chord quality (Major, Minor, etc.)"
+            } else {
+                "Identify chord function (IV, V, vi, etc.)"
+            },
             fontSize = 14.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
