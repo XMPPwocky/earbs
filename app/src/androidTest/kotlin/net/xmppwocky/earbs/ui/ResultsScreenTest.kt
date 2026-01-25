@@ -103,20 +103,20 @@ class ResultsScreenTest : ComposeTestBase() {
     @Test
     fun displaysCardStatsCorrectly() {
         val cardStats = listOf(
-            SessionCardStats("MAJOR_4_ARPEGGIATED", "CHORD_TYPE", 4, 3)
+            SessionCardStats("MAJOR_4_ARPEGGIATED", "CHORD_TYPE", 4, 2)  // 2/4 = 50%
         )
 
         composeTestRule.setContent {
             ResultsScreenContent(
-                result = SessionResult(3, 4, 1L, "CHORD_TYPE"),
+                result = SessionResult(3, 4, 1L, "CHORD_TYPE"),  // 75% overall
                 cardStats = cardStats,
                 onDoneClicked = {}
             )
         }
 
-        // Verify correct/total is displayed
-        composeTestRule.onNodeWithText("3/4").assertIsDisplayed()
-        composeTestRule.onNodeWithText("75%").assertIsDisplayed()
+        // Verify card stats: 2/4 = 50%
+        composeTestRule.onNodeWithText("2/4").assertIsDisplayed()
+        composeTestRule.onNodeWithText("50%").assertIsDisplayed()
     }
 
     @Test
