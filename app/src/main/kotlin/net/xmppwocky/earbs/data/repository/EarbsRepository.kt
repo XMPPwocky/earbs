@@ -24,12 +24,19 @@ import net.xmppwocky.earbs.fsrs.DEFAULT_PARAMS
 import net.xmppwocky.earbs.fsrs.FSRS
 import net.xmppwocky.earbs.fsrs.FlashCard
 import net.xmppwocky.earbs.fsrs.Rating
+import net.xmppwocky.earbs.data.db.FunctionCardWithFsrs
+import net.xmppwocky.earbs.data.entity.FunctionCardEntity
 import net.xmppwocky.earbs.model.Card
+import net.xmppwocky.earbs.model.ChordFunction
 import net.xmppwocky.earbs.model.Deck
+import net.xmppwocky.earbs.model.FunctionCard
+import net.xmppwocky.earbs.model.FunctionDeck
+import net.xmppwocky.earbs.model.KeyQuality
 import java.time.LocalDateTime
 
 private const val TAG = "EarbsRepository"
 private const val PREF_KEY_UNLOCK_LEVEL = "unlock_level"
+private const val PREF_KEY_FUNCTION_UNLOCK_LEVEL = "function_unlock_level"
 private const val PREF_KEY_SESSION_SIZE = "session_size"
 private const val PREF_KEY_TARGET_RETENTION = "target_retention"
 private const val DEFAULT_SESSION_SIZE = 20
@@ -492,6 +499,289 @@ class EarbsRepository(
     suspend fun getTrialsForSession(sessionId: Long): List<TrialEntity> {
         return trialDao.getTrialsForSession(sessionId)
     }
+
+    // ========== Chord Function Game (Game 2) ==========
+
+    /**
+     * Initialize the function game starting deck on first launch.
+     * Creates 3 cards: IV, V, vi @ major key, octave 4, arpeggiated.
+     */
+    suspend fun initializeFunctionStartingDeck() {
+        val existingCount = functionCardDao.count()
+        if (existingCount > 0) {
+            Log.i(TAG, "Database already has $existingCount function cards, skipping initialization")
+            return
+        }
+
+        Log.i(TAG, "Initializing function starting deck with 3 primary major functions @ octave 4")
+        val now = System.currentTimeMillis()
+
+        // Starting deck is group 0: IV, V, vi @ major key, octave 4, arpeggiated
+        val startingGroup = FunctionDeck.UNLOCK_ORDER[0]
+        val startingCards = startingGroup.functions.map { function ->
+            val cardId = "${function.name}_${startingGroup.keyQuality.name}_${startingGroup.octave}_${startingGroup.playbackMode.name}"
+            FunctionCardEntity(
+                id = cardId,
+                function = function.name,
+                keyQuality = startingGroup.keyQuality.name,
+                octave = startingGroup.octave,
+                playbackMode = startingGroup.playbackMode.name
+            )
+        }
+
+        // Create FSRS state for each card
+        val fsrsStates = startingCards.map { card ->
+            FsrsStateEntity(
+                cardId = card.id,
+                gameType = GameType.CHORD_FUNCTION.name,
+                dueDate = now  // Immediately due
+            )
+        }
+
+        functionCardDao.insertAll(startingCards)
+        fsrsStateDao.insertAll(fsrsStates)
+        prefs.edit().putInt(PREF_KEY_FUNCTION_UNLOCK_LEVEL, 0).apply()
+        Log.i(TAG, "Inserted ${startingCards.size} function starting cards with FSRS state, unlock level set to 0")
+    }
+
+    /**
+     * Get the current function unlock level (0-indexed).
+     */
+    fun getFunctionUnlockLevel(): Int {
+        return prefs.getInt(PREF_KEY_FUNCTION_UNLOCK_LEVEL, 0)
+    }
+
+    /**
+     * Check if there are more function cards to unlock.
+     */
+    fun canUnlockMoreFunctions(): Boolean {
+        return getFunctionUnlockLevel() < FunctionDeck.MAX_UNLOCK_LEVEL
+    }
+
+    /**
+     * Unlock the next group of 3 function cards.
+     * @return true if unlock succeeded, false if already at max level
+     */
+    suspend fun unlockNextFunctionGroup(): Boolean {
+        val currentLevel = getFunctionUnlockLevel()
+        if (currentLevel >= FunctionDeck.MAX_UNLOCK_LEVEL) {
+            Log.i(TAG, "Already at max function unlock level ($currentLevel), cannot unlock more")
+            return false
+        }
+
+        val nextLevel = currentLevel + 1
+        val nextGroup = FunctionDeck.UNLOCK_ORDER[nextLevel]
+        val now = System.currentTimeMillis()
+
+        Log.i(TAG, "Unlocking function group $nextLevel: ${nextGroup.functions.map { it.displayName }} @ ${nextGroup.keyQuality} key, octave ${nextGroup.octave}, ${nextGroup.playbackMode}")
+
+        val newCards = nextGroup.functions.map { function ->
+            val cardId = "${function.name}_${nextGroup.keyQuality.name}_${nextGroup.octave}_${nextGroup.playbackMode.name}"
+            FunctionCardEntity(
+                id = cardId,
+                function = function.name,
+                keyQuality = nextGroup.keyQuality.name,
+                octave = nextGroup.octave,
+                playbackMode = nextGroup.playbackMode.name
+            )
+        }
+
+        val fsrsStates = newCards.map { card ->
+            FsrsStateEntity(
+                cardId = card.id,
+                gameType = GameType.CHORD_FUNCTION.name,
+                dueDate = now  // Due immediately
+            )
+        }
+
+        functionCardDao.insertAll(newCards)
+        fsrsStateDao.insertAll(fsrsStates)
+        prefs.edit().putInt(PREF_KEY_FUNCTION_UNLOCK_LEVEL, nextLevel).apply()
+        Log.i(TAG, "Unlocked ${newCards.size} new function cards with FSRS state, unlock level now $nextLevel")
+        return true
+    }
+
+    /**
+     * Get the number of unlocked function cards.
+     */
+    suspend fun getFunctionUnlockedCount(): Int {
+        return functionCardDao.countUnlocked()
+    }
+
+    /**
+     * Observe the number of unlocked function cards.
+     */
+    fun getFunctionUnlockedCountFlow(): Flow<Int> {
+        return functionCardDao.countUnlockedFlow()
+    }
+
+    /**
+     * Select function cards for a review session.
+     * Similar logic to chord type game but groups by (keyQuality, octave, playbackMode).
+     */
+    suspend fun selectFunctionCardsForReview(): List<FunctionCard> {
+        val sessionSize = getSessionSize()
+        val now = System.currentTimeMillis()
+        Log.i(TAG, "Selecting $sessionSize function cards for review (now=$now)")
+
+        val allDue = functionCardDao.getDueCards(now)
+        Log.i(TAG, "Found ${allDue.size} total due function cards")
+
+        if (allDue.isEmpty()) {
+            Log.i(TAG, "No due function cards, selecting from all unlocked")
+            return selectFunctionCardsFromAllUnlocked(sessionSize)
+        }
+
+        // Group due cards by (keyQuality, octave, playbackMode)
+        val grouped = allDue.groupBy { Triple(it.keyQuality, it.octave, it.playbackMode) }
+        Log.i(TAG, "Due function cards grouped into ${grouped.size} groups")
+
+        // Pick group with most due cards
+        val (bestGroup, bestDue) = grouped.maxByOrNull { (_, cards) ->
+            cards.size * 1_000_000_000L - cards.minOf { it.dueDate }
+        }!!
+
+        val (keyQuality, octave, mode) = bestGroup
+        Log.i(TAG, "Selected best group: $keyQuality/$octave/$mode with ${bestDue.size} due cards")
+
+        val selected = mutableListOf<FunctionCardWithFsrs>()
+        selected.addAll(bestDue.sortedBy { it.dueDate }.take(sessionSize))
+        Log.i(TAG, "Added ${selected.size} due function cards from best group")
+
+        if (selected.size >= sessionSize) {
+            return selected.shuffled().map { it.toFunctionCard() }.also { logFunctionSelection(it) }
+        }
+
+        // Pad with non-due from same group
+        val nonDueSameGroup = functionCardDao.getNonDueCardsByGroup(now, keyQuality, octave, mode, sessionSize - selected.size)
+        Log.i(TAG, "Padding with ${nonDueSameGroup.size} non-due function cards from same group")
+        selected.addAll(nonDueSameGroup)
+
+        if (selected.size >= sessionSize) {
+            return selected.shuffled().map { it.toFunctionCard() }.also { logFunctionSelection(it) }
+        }
+
+        // Pad with due cards from other groups
+        val selectedIds = selected.map { it.id }.toSet()
+        val otherDueCards = allDue.filter { it.id !in selectedIds }.sortedBy { it.dueDate }
+        val toAddFromOther = otherDueCards.take(sessionSize - selected.size)
+        Log.i(TAG, "Padding with ${toAddFromOther.size} due function cards from other groups")
+        selected.addAll(toAddFromOther)
+
+        if (selected.size >= sessionSize) {
+            return selected.shuffled().map { it.toFunctionCard() }.also { logFunctionSelection(it) }
+        }
+
+        // If still not enough, get non-due from any group
+        val stillSelectedIds = selected.map { it.id }.toSet()
+        val moreNonDue = functionCardDao.getNonDueCards(now, sessionSize - selected.size)
+            .filter { it.id !in stillSelectedIds }
+        Log.i(TAG, "Padding with ${moreNonDue.size} non-due function cards from any group")
+        selected.addAll(moreNonDue)
+
+        return selected.take(sessionSize).shuffled().map { it.toFunctionCard() }.also { logFunctionSelection(it) }
+    }
+
+    /**
+     * Select function cards when no cards are due.
+     */
+    private suspend fun selectFunctionCardsFromAllUnlocked(sessionSize: Int): List<FunctionCard> {
+        val allCards = functionCardDao.getAllUnlockedWithFsrs()
+        if (allCards.isEmpty()) {
+            Log.w(TAG, "No unlocked function cards available")
+            return emptyList()
+        }
+
+        // Group by (keyQuality, octave, playbackMode) and pick the largest group
+        val grouped = allCards.groupBy { Triple(it.keyQuality, it.octave, it.playbackMode) }
+        val (bestGroup, bestCards) = grouped.maxByOrNull { (_, cards) ->
+            cards.size * 1_000_000_000L - cards.minOf { it.dueDate }
+        }!!
+
+        Log.i(TAG, "No due function cards - selected group: ${bestGroup.first}/${bestGroup.second}/${bestGroup.third} with ${bestCards.size} cards")
+
+        val selected = mutableListOf<FunctionCardWithFsrs>()
+        selected.addAll(bestCards.sortedBy { it.dueDate }.take(sessionSize))
+
+        if (selected.size < sessionSize) {
+            val selectedIds = selected.map { it.id }.toSet()
+            val otherCards = allCards.filter { it.id !in selectedIds }.sortedBy { it.dueDate }
+            selected.addAll(otherCards.take(sessionSize - selected.size))
+        }
+
+        return selected.take(sessionSize).shuffled().map { it.toFunctionCard() }.also { logFunctionSelection(it) }
+    }
+
+    /**
+     * Log the final function card selection for debugging.
+     */
+    private fun logFunctionSelection(cards: List<FunctionCard>) {
+        Log.i(TAG, "Final function selection of ${cards.size} cards:")
+        cards.forEachIndexed { index, card ->
+            Log.i(TAG, "  $index: ${card.function.displayName} in ${card.keyQuality.name}@${card.octave}/${card.playbackMode.name}")
+        }
+    }
+
+    /**
+     * Record a function game trial and update FSRS state.
+     *
+     * @param answeredFunction The function the user selected
+     * @return the new due date for the card
+     */
+    suspend fun recordFunctionTrialAndUpdateFsrs(
+        sessionId: Long,
+        card: FunctionCard,
+        wasCorrect: Boolean,
+        answeredFunction: ChordFunction
+    ): Long {
+        val timestamp = System.currentTimeMillis()
+        val cardId = card.id
+
+        Log.i(TAG, "Recording function trial for $cardId: ${if (wasCorrect) "CORRECT" else "WRONG (answered ${answeredFunction.displayName})"}")
+
+        // 1. Insert trial record
+        trialDao.insert(TrialEntity(
+            sessionId = sessionId,
+            cardId = cardId,
+            timestamp = timestamp,
+            wasCorrect = wasCorrect,
+            gameType = GameType.CHORD_FUNCTION.name,
+            answeredFunction = if (wasCorrect) null else answeredFunction.name
+        ))
+
+        // 2. Get FSRS state
+        val fsrsState = fsrsStateDao.getByCardId(cardId)
+        if (fsrsState == null) {
+            Log.e(TAG, "FSRS state not found: $cardId")
+            return timestamp
+        }
+
+        // 3. Calculate rating: correct=Good, wrong=Again
+        val rating = if (wasCorrect) Rating.Good else Rating.Again
+
+        // 4. Apply FSRS update
+        return applyFsrsUpdate(fsrsState, rating)
+    }
+
+    /**
+     * Get count of due function cards.
+     */
+    suspend fun getFunctionDueCount(): Int {
+        val count = fsrsStateDao.countDueByGameType(GameType.CHORD_FUNCTION.name, System.currentTimeMillis())
+        Log.d(TAG, "Function due count: $count")
+        return count
+    }
+
+    fun getFunctionDueCountFlow(): Flow<Int> {
+        return fsrsStateDao.countDueByGameTypeFlow(GameType.CHORD_FUNCTION.name, System.currentTimeMillis())
+    }
+
+    /**
+     * Get all function cards with FSRS flow for UI.
+     */
+    fun getAllFunctionCardsWithFsrsFlow(): Flow<List<FunctionCardWithFsrs>> {
+        return functionCardDao.getAllUnlockedWithFsrsFlow()
+    }
 }
 
 /**
@@ -510,4 +800,16 @@ private fun CardWithFsrs.toCard(): Card {
  */
 private fun Card.toCardId(): String {
     return "${chordType.name}_${octave}_${playbackMode.name}"
+}
+
+/**
+ * Convert FunctionCardWithFsrs to domain FunctionCard.
+ */
+private fun FunctionCardWithFsrs.toFunctionCard(): FunctionCard {
+    return FunctionCard(
+        function = ChordFunction.valueOf(function),
+        keyQuality = KeyQuality.valueOf(keyQuality),
+        octave = octave,
+        playbackMode = PlaybackMode.valueOf(playbackMode)
+    )
 }
