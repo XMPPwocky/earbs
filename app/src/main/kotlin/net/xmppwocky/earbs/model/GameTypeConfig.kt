@@ -47,6 +47,22 @@ sealed class GameTypeConfig<C : GameCard, A : GameAnswer> {
     abstract fun getCorrectAnswer(card: C): A
 
     /**
+     * Get the unlock group index for a card.
+     * Returns the group index or -1 if not found.
+     */
+    abstract fun getUnlockGroupIndex(card: C): Int
+
+    /**
+     * Get a human-readable name for an unlock group.
+     */
+    abstract fun getUnlockGroupName(groupIndex: Int): String
+
+    /**
+     * Total number of unlock groups.
+     */
+    abstract val unlockGroupCount: Int
+
+    /**
      * Configuration for the Chord Type recognition game.
      * User hears a chord and identifies its quality (Major, Minor, Sus2, etc.)
      */
@@ -57,6 +73,7 @@ sealed class GameTypeConfig<C : GameCard, A : GameAnswer> {
         override val maxUnlockLevel: Int = Deck.MAX_UNLOCK_LEVEL
         override val displayName: String = "Chord Type"
         override val description: String = "Identify chord quality (Major, Minor, etc.)"
+        override val unlockGroupCount: Int = Deck.UNLOCK_ORDER.size
 
         override fun getAnswerOptions(session: GenericReviewSession<Card>): List<GameAnswer.ChordTypeAnswer> {
             return session.cards
@@ -73,6 +90,14 @@ sealed class GameTypeConfig<C : GameCard, A : GameAnswer> {
         override fun getCorrectAnswer(card: Card): GameAnswer.ChordTypeAnswer {
             return GameAnswer.ChordTypeAnswer(card.chordType)
         }
+
+        override fun getUnlockGroupIndex(card: Card): Int {
+            return Deck.getGroupIndex(card)
+        }
+
+        override fun getUnlockGroupName(groupIndex: Int): String {
+            return Deck.getGroupName(groupIndex)
+        }
     }
 
     /**
@@ -86,6 +111,7 @@ sealed class GameTypeConfig<C : GameCard, A : GameAnswer> {
         override val maxUnlockLevel: Int = FunctionDeck.MAX_UNLOCK_LEVEL
         override val displayName: String = "Chord Function"
         override val description: String = "Identify chord function (ii, IV, V, etc.)"
+        override val unlockGroupCount: Int = FunctionDeck.UNLOCK_ORDER.size
 
         override fun getAnswerOptions(session: GenericReviewSession<FunctionCard>): List<GameAnswer.FunctionAnswer> {
             // For function game, show all functions for the key quality (not just those in session)
@@ -100,6 +126,14 @@ sealed class GameTypeConfig<C : GameCard, A : GameAnswer> {
 
         override fun getCorrectAnswer(card: FunctionCard): GameAnswer.FunctionAnswer {
             return GameAnswer.FunctionAnswer(card.function)
+        }
+
+        override fun getUnlockGroupIndex(card: FunctionCard): Int {
+            return FunctionDeck.getGroupIndex(card)
+        }
+
+        override fun getUnlockGroupName(groupIndex: Int): String {
+            return FunctionDeck.getGroupName(groupIndex)
         }
     }
 
