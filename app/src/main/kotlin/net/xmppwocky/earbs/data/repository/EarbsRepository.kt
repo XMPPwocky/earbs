@@ -67,6 +67,19 @@ class EarbsRepository(
         return prefs.getInt(PREF_KEY_SESSION_SIZE, DEFAULT_SESSION_SIZE)
     }
 
+    /**
+     * Repeat cards cyclically to fill the target size.
+     * Example: [A, B] with targetSize=5 → [A, B, A, B, A]
+     */
+    private fun <T> repeatToFill(cards: List<T>, targetSize: Int): List<T> {
+        if (cards.isEmpty() || cards.size >= targetSize) return cards
+        val result = mutableListOf<T>()
+        while (result.size < targetSize) {
+            result.addAll(cards.take(targetSize - result.size))
+        }
+        return result
+    }
+
     // ========== Chord Type Game (Game 1) ==========
 
     /**
@@ -257,7 +270,10 @@ class EarbsRepository(
         Log.i(TAG, "Padding with ${moreNonDue.size} non-due cards from any group")
         selected.addAll(moreNonDue)
 
-        return selected.take(sessionSize).shuffled().map { it.toCard() }.also { logSelection(it) }
+        // Repeat cards to fill session if still not enough unique cards
+        val cards = selected.take(sessionSize).map { it.toCard() }
+        val filled = repeatToFill(cards, sessionSize)
+        return filled.shuffled().also { logSelection(it) }
     }
 
     /**
@@ -289,7 +305,10 @@ class EarbsRepository(
             selected.addAll(otherCards.take(sessionSize - selected.size))
         }
 
-        return selected.take(sessionSize).shuffled().map { it.toCard() }.also { logSelection(it) }
+        // Repeat cards to fill session if still not enough unique cards
+        val cards = selected.take(sessionSize).map { it.toCard() }
+        val filled = repeatToFill(cards, sessionSize)
+        return filled.shuffled().also { logSelection(it) }
     }
 
     /**
@@ -679,7 +698,10 @@ class EarbsRepository(
         Log.i(TAG, "Padding with ${moreNonDue.size} non-due function cards from any group")
         selected.addAll(moreNonDue)
 
-        return selected.take(sessionSize).shuffled().map { it.toFunctionCard() }.also { logFunctionSelection(it) }
+        // Repeat cards to fill session if still not enough unique cards
+        val cards = selected.take(sessionSize).map { it.toFunctionCard() }
+        val filled = repeatToFill(cards, sessionSize)
+        return filled.shuffled().also { logFunctionSelection(it) }
     }
 
     /**
@@ -709,7 +731,10 @@ class EarbsRepository(
             selected.addAll(otherCards.take(sessionSize - selected.size))
         }
 
-        return selected.take(sessionSize).shuffled().map { it.toFunctionCard() }.also { logFunctionSelection(it) }
+        // Repeat cards to fill session if still not enough unique cards
+        val cards = selected.take(sessionSize).map { it.toFunctionCard() }
+        val filled = repeatToFill(cards, sessionSize)
+        return filled.shuffled().also { logFunctionSelection(it) }
     }
 
     /**

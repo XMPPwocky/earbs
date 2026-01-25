@@ -41,14 +41,41 @@ class CardSelectionTest : DatabaseTestBase() {
     }
 
     @Test
-    fun `selectCardsForReview returns all cards when fewer than session size`() = runTest {
+    fun `selectCardsForReview repeats cards when fewer than session size`() = runTest {
         val now = System.currentTimeMillis()
-        // Create 3 due cards
+        // Session size is 5, but only 3 cards available
         createCardsInGroup("ARPEGGIATED", 4, listOf("MAJOR", "MINOR", "SUS2"), now - HOUR_MS)
 
         val cards = repository.selectCardsForReview()
 
-        assertEquals(3, cards.size)
+        assertEquals(5, cards.size)  // Should repeat to fill session
+        // Verify all 3 chord types appear (possibly multiple times)
+        assertTrue(cards.any { it.chordType.name == "MAJOR" })
+        assertTrue(cards.any { it.chordType.name == "MINOR" })
+        assertTrue(cards.any { it.chordType.name == "SUS2" })
+    }
+
+    @Test
+    fun `selectCardsForReview with single card repeats to session size`() = runTest {
+        val now = System.currentTimeMillis()
+        createCardsInGroup("ARPEGGIATED", 4, listOf("MAJOR"), now - HOUR_MS)
+
+        val cards = repository.selectCardsForReview()
+
+        assertEquals(5, cards.size)  // Single card repeated 5 times
+        assertTrue(cards.all { it.chordType.name == "MAJOR" })
+    }
+
+    @Test
+    fun `selectCardsForReview with two cards repeats to fill session size`() = runTest {
+        val now = System.currentTimeMillis()
+        createCardsInGroup("ARPEGGIATED", 4, listOf("MAJOR", "MINOR"), now - HOUR_MS)
+
+        val cards = repository.selectCardsForReview()
+
+        assertEquals(5, cards.size)  // Should repeat to fill session
+        assertTrue(cards.any { it.chordType.name == "MAJOR" })
+        assertTrue(cards.any { it.chordType.name == "MINOR" })
     }
 
     @Test
@@ -259,6 +286,30 @@ class CardSelectionTest : DatabaseTestBase() {
         }
 
         assertTrue("Selection should be shuffled", orderings.size > 1)
+    }
+
+    @Test
+    fun `selectFunctionCardsForReview repeats cards when fewer than session size`() = runTest {
+        val now = System.currentTimeMillis()
+        // Session size is 5, but only 2 cards available
+        createFunctionCardsInGroup("MAJOR", 4, "ARPEGGIATED", listOf("IV", "V"), now - HOUR_MS)
+
+        val cards = repository.selectFunctionCardsForReview()
+
+        assertEquals(5, cards.size)  // Should repeat to fill session
+        assertTrue(cards.any { it.function.name == "IV" })
+        assertTrue(cards.any { it.function.name == "V" })
+    }
+
+    @Test
+    fun `selectFunctionCardsForReview with single card repeats to session size`() = runTest {
+        val now = System.currentTimeMillis()
+        createFunctionCardsInGroup("MAJOR", 4, "ARPEGGIATED", listOf("IV"), now - HOUR_MS)
+
+        val cards = repository.selectFunctionCardsForReview()
+
+        assertEquals(5, cards.size)  // Single card repeated 5 times
+        assertTrue(cards.all { it.function.name == "IV" })
     }
 
     // ========== Helper Methods ==========
