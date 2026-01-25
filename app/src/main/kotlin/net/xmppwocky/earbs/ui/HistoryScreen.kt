@@ -10,9 +10,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -52,7 +54,8 @@ fun HistoryScreen(
     onBackClicked: () -> Unit,
     onLoadTrials: (suspend (Long) -> List<TrialEntity>)? = null,
     onLoadChordConfusion: (suspend (Int?) -> List<ConfusionEntry>)? = null,
-    onLoadFunctionConfusion: (suspend (String) -> List<ConfusionEntry>)? = null
+    onLoadFunctionConfusion: (suspend (String) -> List<ConfusionEntry>)? = null,
+    onResetFsrs: (suspend (String) -> Unit)? = null
 ) {
     var selectedTab by remember { mutableStateOf(HistoryTab.SESSIONS) }
 
@@ -99,7 +102,7 @@ fun HistoryScreen(
 
             when (selectedTab) {
                 HistoryTab.SESSIONS -> SessionsTab(sessions, onLoadTrials)
-                HistoryTab.CARDS -> CardsTab(cards)
+                HistoryTab.CARDS -> CardsTab(cards, onResetFsrs)
                 HistoryTab.STATS -> StatsTab(
                     cardStats = cardStats,
                     onLoadChordConfusion = onLoadChordConfusion,
@@ -332,7 +335,10 @@ private fun TrialRow(trial: TrialEntity) {
 }
 
 @Composable
-private fun CardsTab(cards: List<CardWithFsrs>) {
+private fun CardsTab(
+    cards: List<CardWithFsrs>,
+    onResetFsrs: (suspend (String) -> Unit)? = null
+) {
     if (cards.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -346,23 +352,63 @@ private fun CardsTab(cards: List<CardWithFsrs>) {
         return
     }
 
+    val coroutineScope = rememberCoroutineScope()
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(cards) { card ->
-            CardWithFsrsRow(card)
+            CardWithFsrsRow(
+                card = card,
+                onResetFsrs = if (onResetFsrs != null) {
+                    { coroutineScope.launch { onResetFsrs(card.id) } }
+                } else null
+            )
         }
     }
 }
 
 @Composable
-private fun CardWithFsrsRow(card: CardWithFsrs) {
+private fun CardWithFsrsRow(
+    card: CardWithFsrs,
+    onResetFsrs: (() -> Unit)? = null
+) {
     val dateFormat = remember { SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()) }
     val dueDate = dateFormat.format(Date(card.dueDate))
     val now = System.currentTimeMillis()
     val isDue = card.dueDate <= now
+
+    var showMenu by remember { mutableStateOf(false) }
+    var showConfirmDialog by remember { mutableStateOf(false) }
+
+    // Confirmation dialog
+    if (showConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showConfirmDialog = false },
+            title = { Text("Reset FSRS State?") },
+            text = {
+                Text("This will reset scheduling for ${card.chordType} @ Oct ${card.octave} to initial values. Review history will be preserved.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        Log.i(TAG, "Resetting FSRS state for card ${card.id}")
+                        onResetFsrs?.invoke()
+                        showConfirmDialog = false
+                    }
+                ) {
+                    Text("Reset")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth()
@@ -380,18 +426,46 @@ private fun CardWithFsrsRow(card: CardWithFsrs) {
                     fontWeight = FontWeight.Medium
                 )
 
-                if (isDue) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Text(
-                            text = "DUE",
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (isDue) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Text(
+                                text = "DUE",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+
+                    if (onResetFsrs != null) {
+                        Box {
+                            IconButton(onClick = { showMenu = true }) {
+                                Icon(
+                                    imageVector = Icons.Filled.MoreVert,
+                                    contentDescription = "More options"
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Reset FSRS State") },
+                                    onClick = {
+                                        showMenu = false
+                                        showConfirmDialog = true
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }

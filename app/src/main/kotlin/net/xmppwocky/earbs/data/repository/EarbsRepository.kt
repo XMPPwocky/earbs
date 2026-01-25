@@ -822,6 +822,26 @@ class EarbsRepository(
     fun getAllFunctionCardsWithFsrsFlow(): Flow<List<FunctionCardWithFsrs>> {
         return functionCardDao.getAllUnlockedWithFsrsFlow()
     }
+
+    /**
+     * Reset FSRS state for a card to initial values.
+     * Review history is preserved.
+     */
+    suspend fun resetFsrsState(cardId: String, gameType: GameType) {
+        val now = System.currentTimeMillis()
+        fsrsStateDao.updateFsrsState(
+            cardId = cardId,
+            stability = 2.5,
+            difficulty = 2.5,
+            interval = 0,
+            dueDate = now,
+            reviewCount = 0,
+            lastReview = null,
+            phase = 0,
+            lapses = 0
+        )
+        Log.i(TAG, "Reset FSRS state for card $cardId (gameType=$gameType)")
+    }
 }
 
 /**

@@ -311,6 +311,9 @@ private fun EarbsApp(repository: EarbsRepository, prefs: SharedPreferences) {
                 },
                 onLoadFunctionConfusion = { keyQuality ->
                     repository.getFunctionConfusionData(keyQuality)
+                },
+                onResetFsrs = { cardId ->
+                    repository.resetFsrsState(cardId, GameType.CHORD_TYPE)
                 }
             )
         }
