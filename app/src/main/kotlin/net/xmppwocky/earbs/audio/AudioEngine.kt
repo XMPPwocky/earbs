@@ -3,9 +3,13 @@ package net.xmppwocky.earbs.audio
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.math.sign
 
 private const val TAG = "AudioEngine"
@@ -19,11 +23,60 @@ enum class PlaybackMode {
 object AudioEngine {
 
     /**
+     * Calculate how many samples each note in an arpeggiated chord should get.
+     * Ensures total samples are preserved exactly (no truncation from integer division).
+     *
+     * @param totalDurationMs Total duration for the arpeggio in milliseconds
+     * @param noteCount Number of notes in the chord
+     * @param sampleRate Sample rate in Hz (default 44100)
+     * @return IntArray with sample count for each note (remainder goes to last note)
+     */
+    fun calculateArpeggioSampleDistribution(
+        totalDurationMs: Int,
+        noteCount: Int,
+        sampleRate: Int = SAMPLE_RATE
+    ): IntArray {
+        // Calculate total samples directly from duration to avoid truncation
+        val totalSamples = (sampleRate * totalDurationMs / 1000.0).toInt()
+        val samplesPerNote = totalSamples / noteCount
+        val remainderSamples = totalSamples % noteCount
+
+        return IntArray(noteCount) { index ->
+            if (index == noteCount - 1) {
+                samplesPerNote + remainderSamples  // Last note gets remainder
+            } else {
+                samplesPerNote
+            }
+        }
+    }
+
+    /**
      * Generate a square wave for a given frequency and duration.
      */
     fun generateSquareWave(frequency: Float, durationMs: Int, sampleRate: Int = SAMPLE_RATE): ShortArray {
         val numSamples = (sampleRate * durationMs / 1000.0).toInt()
         val samples = ShortArray(numSamples)
+        generateSquareWaveInto(samples, 0, numSamples, frequency, sampleRate)
+        return samples
+    }
+
+    /**
+     * Generate a square wave directly into a pre-allocated buffer.
+     * Zero-allocation version for use in arpeggiated playback.
+     *
+     * @param buffer The buffer to write samples into
+     * @param offset Starting index in the buffer
+     * @param numSamples Number of samples to generate
+     * @param frequency Frequency in Hz
+     * @param sampleRate Sample rate in Hz (default 44100)
+     */
+    fun generateSquareWaveInto(
+        buffer: ShortArray,
+        offset: Int,
+        numSamples: Int,
+        frequency: Float,
+        sampleRate: Int = SAMPLE_RATE
+    ) {
         val samplesPerCycle = sampleRate / frequency
         val amplitude = 8000 // Keep low to allow mixing without clipping
 
@@ -31,10 +84,8 @@ object AudioEngine {
             val cyclePosition = (i % samplesPerCycle) / samplesPerCycle
             // Square wave: positive for first half, negative for second half
             val value = if (cyclePosition < 0.5f) amplitude else -amplitude
-            samples[i] = value.toShort()
+            buffer[offset + i] = value.toShort()
         }
-
-        return samples
     }
 
     /**
@@ -171,18 +222,25 @@ object AudioEngine {
         playAudio(mixed)
     }
 
-    private fun playArpeggiatedChord(frequencies: List<Float>, noteDurationMs: Int) {
-        val arpDuration = noteDurationMs / frequencies.size
-        Log.d(TAG, "Playing arpeggiated chord: ${frequencies.size} notes @ ${arpDuration}ms each")
+    private fun playArpeggiatedChord(frequencies: List<Float>, totalDurationMs: Int) {
+        // Calculate sample distribution with no truncation
+        val sampleDistribution = calculateArpeggioSampleDistribution(totalDurationMs, frequencies.size)
+        val totalSamples = sampleDistribution.sum()
 
-        // Generate and concatenate waves sequentially
-        val allSamples = mutableListOf<Short>()
-        for (freq in frequencies) {
-            val wave = generateSquareWave(freq, arpDuration)
-            allSamples.addAll(wave.toList())
+        Log.d(TAG, "Playing arpeggiated chord: ${frequencies.size} notes, " +
+                "samples per note: ${sampleDistribution.toList()}, total: $totalSamples")
+
+        // Pre-allocate the entire buffer (zero allocations during generation)
+        val allSamples = ShortArray(totalSamples)
+
+        // Generate each note directly into the buffer
+        var offset = 0
+        for (i in frequencies.indices) {
+            generateSquareWaveInto(allSamples, offset, sampleDistribution[i], frequencies[i])
+            offset += sampleDistribution[i]
         }
 
-        playAudio(allSamples.toShortArray())
+        playAudio(allSamples)
     }
 
     private fun playAudio(samples: ShortArray) {
@@ -210,13 +268,35 @@ object AudioEngine {
             .setTransferMode(AudioTrack.MODE_STATIC)
             .build()
 
+        // Use CountDownLatch to wait for actual playback completion
+        val completionLatch = CountDownLatch(1)
+
         try {
             audioTrack.write(samples, 0, samples.size)
+
+            // Set marker at last sample position to detect playback end
+            audioTrack.notificationMarkerPosition = samples.size
+            audioTrack.setPlaybackPositionUpdateListener(
+                object : AudioTrack.OnPlaybackPositionUpdateListener {
+                    override fun onMarkerReached(track: AudioTrack?) {
+                        Log.d(TAG, "Playback marker reached at sample ${samples.size}")
+                        completionLatch.countDown()
+                    }
+                    override fun onPeriodicNotification(track: AudioTrack?) {}
+                },
+                Handler(Looper.getMainLooper())
+            )
+
             audioTrack.play()
 
-            // Wait for playback to complete
-            val durationMs = (samples.size * 1000L) / SAMPLE_RATE
-            Thread.sleep(durationMs + 50) // Add small buffer for completion
+            // Wait for marker callback, with timeout as fallback
+            val expectedDurationMs = (samples.size * 1000L) / SAMPLE_RATE
+            val timeoutMs = expectedDurationMs + 500  // 500ms safety margin
+            val completed = completionLatch.await(timeoutMs, TimeUnit.MILLISECONDS)
+
+            if (!completed) {
+                Log.w(TAG, "Playback completion timeout after ${timeoutMs}ms, proceeding anyway")
+            }
         } finally {
             audioTrack.stop()
             audioTrack.release()

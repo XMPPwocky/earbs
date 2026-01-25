@@ -198,6 +198,53 @@ class AudioEngineTest {
         assertTrue(mixed.all { it <= 8000 })
     }
 
+    // ========== Arpeggio sample distribution tests ==========
+
+    @Test
+    fun `calculateArpeggioSampleDistribution preserves total samples for triads`() {
+        val distribution = AudioEngine.calculateArpeggioSampleDistribution(500, 3)
+        assertEquals(22050, distribution.sum())  // 44100 * 0.5
+    }
+
+    @Test
+    fun `calculateArpeggioSampleDistribution preserves total samples for 7th chords`() {
+        val distribution = AudioEngine.calculateArpeggioSampleDistribution(500, 4)
+        assertEquals(22050, distribution.sum())
+    }
+
+    @Test
+    fun `calculateArpeggioSampleDistribution gives remainder to last note`() {
+        // 22094 samples (501ms) / 3 notes = 7364 each with 2 remainder → last gets 7366
+        val dist = AudioEngine.calculateArpeggioSampleDistribution(501, 3)
+        assertEquals(3, dist.size)
+        assertTrue(dist.last() >= dist.first())
+        val expected = (44100 * 501 / 1000.0).toInt()
+        assertEquals(expected, dist.sum())
+    }
+
+    @Test
+    fun `calculateArpeggioSampleDistribution handles single note`() {
+        val distribution = AudioEngine.calculateArpeggioSampleDistribution(100, 1)
+        assertEquals(1, distribution.size)
+        assertEquals(4410, distribution[0])  // 44100 * 0.1
+    }
+
+    @Test
+    fun `calculateArpeggioSampleDistribution handles various durations`() {
+        // Test that no samples are lost for various durations
+        for (durationMs in listOf(100, 250, 333, 500, 750, 1000)) {
+            for (noteCount in 1..4) {
+                val dist = AudioEngine.calculateArpeggioSampleDistribution(durationMs, noteCount)
+                val expected = (44100 * durationMs / 1000.0).toInt()
+                assertEquals(
+                    "Failed for duration=$durationMs, notes=$noteCount",
+                    expected,
+                    dist.sum()
+                )
+            }
+        }
+    }
+
     // ========== Integration tests ==========
 
     @Test
