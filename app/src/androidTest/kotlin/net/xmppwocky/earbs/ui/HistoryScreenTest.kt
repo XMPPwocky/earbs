@@ -1,6 +1,7 @@
 package net.xmppwocky.earbs.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import net.xmppwocky.earbs.ComposeTestBase
@@ -380,7 +381,7 @@ class HistoryScreenTest : ComposeTestBase() {
         }
 
         // Click back arrow (accessibility label)
-        composeTestRule.onNodeWithText("Back").performClick()
+        composeTestRule.onNodeWithContentDescription("Back").performClick()
 
         assertTrue(clicked)
     }
