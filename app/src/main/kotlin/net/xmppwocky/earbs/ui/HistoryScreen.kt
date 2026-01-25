@@ -1,6 +1,7 @@
 package net.xmppwocky.earbs.ui
 
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -58,6 +59,8 @@ fun HistoryScreen(
     onResetFsrs: (suspend (String) -> Unit)? = null,
     onCardClicked: ((String) -> Unit)? = null
 ) {
+    BackHandler { onBackClicked() }
+
     var selectedTab by remember { mutableStateOf(HistoryTab.SESSIONS) }
 
     Log.d(TAG, "HistoryScreen composing: ${sessions.size} sessions, ${cards.size} cards")

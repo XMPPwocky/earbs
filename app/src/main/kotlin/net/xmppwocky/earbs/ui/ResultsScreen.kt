@@ -1,6 +1,7 @@
 package net.xmppwocky.earbs.ui
 
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -31,6 +32,8 @@ fun ResultsScreen(
     repository: EarbsRepository,
     onDoneClicked: () -> Unit
 ) {
+    BackHandler { onDoneClicked() }
+
     // Load per-card stats for this session
     var cardStats by remember { mutableStateOf<List<SessionCardStats>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }

@@ -2,6 +2,7 @@ package net.xmppwocky.earbs.ui
 
 import android.content.SharedPreferences
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -46,6 +47,8 @@ fun SettingsScreen(
     prefs: SharedPreferences,
     onBackClicked: () -> Unit
 ) {
+    BackHandler { onBackClicked() }
+
     // Load current values from prefs
     var playbackDuration by remember {
         mutableIntStateOf(prefs.getInt(PREF_KEY_PLAYBACK_DURATION, DEFAULT_PLAYBACK_DURATION))

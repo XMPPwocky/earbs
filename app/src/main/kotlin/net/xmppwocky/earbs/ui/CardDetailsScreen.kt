@@ -1,6 +1,7 @@
 package net.xmppwocky.earbs.ui
 
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -44,6 +45,8 @@ fun CardDetailsScreen(
     repository: EarbsRepository,
     onBackClicked: () -> Unit
 ) {
+    BackHandler { onBackClicked() }
+
     var card by remember { mutableStateOf<CardWithFsrs?>(null) }
     var sessionAccuracy by remember { mutableStateOf<List<CardSessionAccuracy>>(emptyList()) }
     var lifetimeStats by remember { mutableStateOf<Pair<Int, Int>?>(null) }
