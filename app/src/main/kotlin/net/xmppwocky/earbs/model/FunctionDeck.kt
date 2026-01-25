@@ -124,4 +124,41 @@ object FunctionDeck {
      * Number of cards per unlock group.
      */
     const val CARDS_PER_GROUP = 3
+
+    /**
+     * Generate all possible function cards in the deck (72 cards).
+     * Used for pre-creating all cards in the database.
+     */
+    fun getAllCards(): List<FunctionCard> {
+        return UNLOCK_ORDER.flatMap { group -> group.toCards() }
+    }
+
+    /**
+     * Get the unlock group index for a card.
+     * Returns the group index (0-23) or -1 if not found.
+     */
+    fun getGroupIndex(card: FunctionCard): Int {
+        return UNLOCK_ORDER.indexOfFirst { group ->
+            group.keyQuality == card.keyQuality &&
+            group.octave == card.octave &&
+            group.playbackMode == card.playbackMode &&
+            card.function in group.functions
+        }
+    }
+
+    /**
+     * Get a human-readable name for an unlock group.
+     */
+    fun getGroupName(groupIndex: Int): String {
+        if (groupIndex < 0 || groupIndex >= UNLOCK_ORDER.size) return "Unknown Group"
+        val group = UNLOCK_ORDER[groupIndex]
+        val keyName = group.keyQuality.name.lowercase().replaceFirstChar { it.uppercase() }
+        val functionType = if (group.functions == MAJOR_PRIMARY || group.functions == MINOR_PRIMARY) {
+            "Primary"
+        } else {
+            "Secondary"
+        }
+        val modeName = group.playbackMode.name.lowercase().replaceFirstChar { it.uppercase() }
+        return "$keyName Key $functionType @ Octave ${group.octave}, $modeName"
+    }
 }

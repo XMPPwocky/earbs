@@ -92,4 +92,35 @@ object Deck {
      * Maximum unlock level (0-indexed).
      */
     val MAX_UNLOCK_LEVEL = UNLOCK_ORDER.size - 1
+
+    /**
+     * Generate all possible cards in the deck (48 cards).
+     * Used for pre-creating all cards in the database.
+     */
+    fun getAllCards(): List<Card> {
+        return UNLOCK_ORDER.flatMap { group -> group.toCards() }
+    }
+
+    /**
+     * Get the unlock group index for a card.
+     * Returns the group index (0-11) or -1 if not found.
+     */
+    fun getGroupIndex(card: Card): Int {
+        return UNLOCK_ORDER.indexOfFirst { group ->
+            group.octave == card.octave &&
+            group.playbackMode == card.playbackMode &&
+            card.chordType in group.chordTypes
+        }
+    }
+
+    /**
+     * Get a human-readable name for an unlock group.
+     */
+    fun getGroupName(groupIndex: Int): String {
+        if (groupIndex < 0 || groupIndex >= UNLOCK_ORDER.size) return "Unknown Group"
+        val group = UNLOCK_ORDER[groupIndex]
+        val chordCategory = if (group.chordTypes == ChordType.TRIADS) "Triads" else "7ths"
+        val modeName = group.playbackMode.name.lowercase().replaceFirstChar { it.uppercase() }
+        return "$chordCategory @ Octave ${group.octave}, $modeName"
+    }
 }
