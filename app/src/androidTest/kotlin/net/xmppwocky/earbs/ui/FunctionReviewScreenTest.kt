@@ -340,4 +340,117 @@ class FunctionReviewScreenTest : ComposeTestBase() {
 
         composeTestRule.onNodeWithText("Wrong - it was IV").assertIsDisplayed()
     }
+
+    // ========== Learning Mode Tests ==========
+
+    @Test
+    fun learningMode_showsNextButton() {
+        val card = FunctionCard(ChordFunction.V, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
+        val session = FunctionReviewSession(listOf(card))
+
+        composeTestRule.setContent {
+            FunctionReviewScreen(
+                state = FunctionReviewScreenState(
+                    session = session,
+                    currentCard = card,
+                    currentRootSemitones = 0,
+                    lastAnswer = FunctionAnswerResult.Wrong(ChordFunction.V),
+                    isPlaying = false,
+                    hasPlayedThisTrial = true,
+                    showingFeedback = true,
+                    inLearningMode = true
+                ),
+                onPlayClicked = {},
+                onAnswerClicked = {},
+                onTrialComplete = {},
+                onSessionComplete = {},
+                onNextClicked = {}
+            )
+        }
+
+        composeTestRule.onNodeWithText("Next").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Next").assertIsEnabled()
+    }
+
+    @Test
+    fun learningMode_nextButton_triggersCallback() {
+        val card = FunctionCard(ChordFunction.V, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
+        val session = FunctionReviewSession(listOf(card))
+        var nextClicked = false
+
+        composeTestRule.setContent {
+            FunctionReviewScreen(
+                state = FunctionReviewScreenState(
+                    session = session,
+                    currentCard = card,
+                    currentRootSemitones = 0,
+                    lastAnswer = FunctionAnswerResult.Wrong(ChordFunction.V),
+                    isPlaying = false,
+                    hasPlayedThisTrial = true,
+                    showingFeedback = true,
+                    inLearningMode = true
+                ),
+                onPlayClicked = {},
+                onAnswerClicked = {},
+                onTrialComplete = {},
+                onSessionComplete = {},
+                onNextClicked = { nextClicked = true }
+            )
+        }
+
+        composeTestRule.onNodeWithText("Next").performClick()
+
+        assertTrue(nextClicked)
+    }
+
+    @Test
+    fun learningMode_lastTrial_nextButton_callsSessionComplete() {
+        // Create a single-card session
+        val card = FunctionCard(ChordFunction.V, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
+        val session = FunctionReviewSession(listOf(card))
+
+        // Record wrong answer - session is now complete
+        session.recordAnswer(false)
+        assertTrue("Session should be complete after recording answer", session.isComplete())
+
+        var sessionCompleted = false
+        var stuckOnLoading = false
+
+        composeTestRule.setContent {
+            FunctionReviewScreen(
+                state = FunctionReviewScreenState(
+                    session = session,
+                    currentCard = card,  // Still showing the card for learning
+                    currentRootSemitones = 0,
+                    lastAnswer = FunctionAnswerResult.Wrong(ChordFunction.V),
+                    isPlaying = false,
+                    hasPlayedThisTrial = true,
+                    showingFeedback = true,
+                    inLearningMode = true
+                ),
+                onPlayClicked = {},
+                onAnswerClicked = {},
+                onTrialComplete = {},
+                onSessionComplete = { sessionCompleted = true },
+                onNextClicked = {
+                    // Simulate MainActivity's onNextClicked logic
+                    if (session.isComplete()) {
+                        sessionCompleted = true
+                    } else {
+                        // Would advance to next card - but if session is complete,
+                        // getCurrentCard() returns null and we'd be stuck
+                        val nextCard = session.getCurrentCard()
+                        if (nextCard == null) {
+                            stuckOnLoading = true
+                        }
+                    }
+                }
+            )
+        }
+
+        composeTestRule.onNodeWithText("Next").performClick()
+
+        assertTrue("Session should be marked complete", sessionCompleted)
+        assertTrue("Should not be stuck on loading", !stuckOnLoading)
+    }
 }

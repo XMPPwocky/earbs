@@ -421,4 +421,117 @@ class ReviewScreenTest : ComposeTestBase() {
         composeTestRule.onNodeWithText("Min7").assertIsDisplayed()
         composeTestRule.onNodeWithText("Dim7").assertIsDisplayed()
     }
+
+    // ========== Learning Mode Tests ==========
+
+    @Test
+    fun learningMode_showsNextButton() {
+        val card = Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)
+        val session = ReviewSession(listOf(card))
+
+        composeTestRule.setContent {
+            ReviewScreen(
+                state = ReviewScreenState(
+                    session = session,
+                    currentCard = card,
+                    currentRootSemitones = 0,
+                    lastAnswer = AnswerResult.Wrong(ChordType.MAJOR),
+                    isPlaying = false,
+                    hasPlayedThisTrial = true,
+                    showingFeedback = true,
+                    inLearningMode = true
+                ),
+                onPlayClicked = {},
+                onAnswerClicked = {},
+                onTrialComplete = {},
+                onSessionComplete = {},
+                onNextClicked = {}
+            )
+        }
+
+        composeTestRule.onNodeWithText("Next").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Next").assertIsEnabled()
+    }
+
+    @Test
+    fun learningMode_nextButton_triggersCallback() {
+        val card = Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)
+        val session = ReviewSession(listOf(card))
+        var nextClicked = false
+
+        composeTestRule.setContent {
+            ReviewScreen(
+                state = ReviewScreenState(
+                    session = session,
+                    currentCard = card,
+                    currentRootSemitones = 0,
+                    lastAnswer = AnswerResult.Wrong(ChordType.MAJOR),
+                    isPlaying = false,
+                    hasPlayedThisTrial = true,
+                    showingFeedback = true,
+                    inLearningMode = true
+                ),
+                onPlayClicked = {},
+                onAnswerClicked = {},
+                onTrialComplete = {},
+                onSessionComplete = {},
+                onNextClicked = { nextClicked = true }
+            )
+        }
+
+        composeTestRule.onNodeWithText("Next").performClick()
+
+        assertTrue(nextClicked)
+    }
+
+    @Test
+    fun learningMode_lastTrial_nextButton_callsSessionComplete() {
+        // Create a single-card session
+        val card = Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)
+        val session = ReviewSession(listOf(card))
+
+        // Record wrong answer - session is now complete
+        session.recordAnswer(false)
+        assertTrue("Session should be complete after recording answer", session.isComplete())
+
+        var sessionCompleted = false
+        var stuckOnLoading = false
+
+        composeTestRule.setContent {
+            ReviewScreen(
+                state = ReviewScreenState(
+                    session = session,
+                    currentCard = card,  // Still showing the card for learning
+                    currentRootSemitones = 0,
+                    lastAnswer = AnswerResult.Wrong(ChordType.MAJOR),
+                    isPlaying = false,
+                    hasPlayedThisTrial = true,
+                    showingFeedback = true,
+                    inLearningMode = true
+                ),
+                onPlayClicked = {},
+                onAnswerClicked = {},
+                onTrialComplete = {},
+                onSessionComplete = { sessionCompleted = true },
+                onNextClicked = {
+                    // Simulate MainActivity's onNextClicked logic
+                    if (session.isComplete()) {
+                        sessionCompleted = true
+                    } else {
+                        // Would advance to next card - but if session is complete,
+                        // getCurrentCard() returns null and we'd be stuck
+                        val nextCard = session.getCurrentCard()
+                        if (nextCard == null) {
+                            stuckOnLoading = true
+                        }
+                    }
+                }
+            )
+        }
+
+        composeTestRule.onNodeWithText("Next").performClick()
+
+        assertTrue("Session should be marked complete", sessionCompleted)
+        assertTrue("Should not be stuck on loading", !stuckOnLoading)
+    }
 }
