@@ -247,12 +247,13 @@ class HistoryScreenTest : ComposeTestBase() {
 
         composeTestRule.onNodeWithText("Cards").performClick()
 
-        composeTestRule.onNodeWithText("MAJOR @ Oct 4").assertIsDisplayed()
+        // New UI shows chord type name only
+        composeTestRule.onNodeWithText("MAJOR").assertIsDisplayed()
     }
 
     @Test
-    fun cardsTab_showsReviewCount() {
-        val card = createCardWithFsrs(reviewCount = 7)
+    fun cardsTab_showsStability() {
+        val card = createCardWithFsrs(stability = 4.5)
 
         composeTestRule.setContent {
             HistoryScreen(
@@ -265,12 +266,14 @@ class HistoryScreenTest : ComposeTestBase() {
 
         composeTestRule.onNodeWithText("Cards").performClick()
 
-        composeTestRule.onNodeWithText("Reviews: 7").assertIsDisplayed()
+        // New UI shows stability
+        composeTestRule.onNodeWithText("Stability: 4.5").assertIsDisplayed()
     }
 
     @Test
-    fun cardsTab_showsInterval() {
-        val card = createCardWithFsrs(interval = 5)
+    fun cardsTab_showsDueStatus() {
+        // Card due in the future
+        val card = createCardWithFsrs(dueDate = System.currentTimeMillis() + 3 * DAY_MS)
 
         composeTestRule.setContent {
             HistoryScreen(
@@ -283,7 +286,8 @@ class HistoryScreenTest : ComposeTestBase() {
 
         composeTestRule.onNodeWithText("Cards").performClick()
 
-        composeTestRule.onNodeWithText("Interval: 5d").assertIsDisplayed()
+        // New UI shows due status (format varies based on days until due)
+        composeTestRule.onNodeWithText("Due in", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -404,8 +408,8 @@ class HistoryScreenTest : ComposeTestBase() {
         // Switch to Cards tab
         composeTestRule.onNodeWithText("Cards").performClick()
 
-        // Click on the card
-        composeTestRule.onNodeWithText("MAJOR @ Oct 4").performClick()
+        // Click on the card (new UI shows chord type only)
+        composeTestRule.onNodeWithText("MAJOR").performClick()
 
         assertTrue(clickedCardId == "MAJOR_4_ARPEGGIATED")
     }

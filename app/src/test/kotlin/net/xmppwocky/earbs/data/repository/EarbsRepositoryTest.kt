@@ -6,8 +6,6 @@ import net.xmppwocky.earbs.data.entity.CardEntity
 import net.xmppwocky.earbs.data.entity.FsrsStateEntity
 import net.xmppwocky.earbs.data.entity.FunctionCardEntity
 import net.xmppwocky.earbs.data.entity.GameType
-import net.xmppwocky.earbs.model.Deck
-import net.xmppwocky.earbs.model.FunctionDeck
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -34,312 +32,168 @@ class EarbsRepositoryTest : DatabaseTestBase() {
     // ========== Initialization Tests (Chord Type) ==========
 
     @Test
-    fun `initializeStartingDeck creates 4 cards when empty`() = runTest {
-        repository.initializeStartingDeck()
+    fun `initializeStartingDeck creates FSRS states for existing cards`() = runTest {
+        // Pre-create cards (as migration would do)
+        cardDao.insert(CardEntity("MAJOR_4_ARPEGGIATED", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        cardDao.insert(CardEntity("MINOR_4_ARPEGGIATED", "MINOR", 4, "ARPEGGIATED", unlocked = true))
 
-        val count = cardDao.count()
-        assertEquals(4, count)
-    }
-
-    @Test
-    fun `initializeStartingDeck creates correct chord types`() = runTest {
-        repository.initializeStartingDeck()
-
-        val cards = cardDao.getAllUnlocked()
-        val chordTypes = cards.map { it.chordType }.toSet()
-
-        assertEquals(setOf("MAJOR", "MINOR", "SUS2", "SUS4"), chordTypes)
-    }
-
-    @Test
-    fun `initializeStartingDeck creates cards at octave 4 arpeggiated`() = runTest {
-        repository.initializeStartingDeck()
-
-        val cards = cardDao.getAllUnlocked()
-        assertTrue(cards.all { it.octave == 4 })
-        assertTrue(cards.all { it.playbackMode == "ARPEGGIATED" })
-    }
-
-    @Test
-    fun `initializeStartingDeck creates FSRS states`() = runTest {
         repository.initializeStartingDeck()
 
         val fsrsStates = fsrsStateDao.getByGameType(GameType.CHORD_TYPE.name)
-        assertEquals(4, fsrsStates.size)
+        assertEquals(2, fsrsStates.size)
         assertTrue(fsrsStates.all { it.gameType == GameType.CHORD_TYPE.name })
     }
 
     @Test
-    fun `initializeStartingDeck does nothing when cards exist`() = runTest {
-        // Insert existing card
-        cardDao.insert(CardEntity("EXISTING_CARD", "MAJOR", 4, "ARPEGGIATED"))
+    fun `initializeStartingDeck does nothing when FSRS states exist`() = runTest {
+        val now = System.currentTimeMillis()
+        // Pre-create cards and FSRS states
+        cardDao.insert(CardEntity("MAJOR_4_ARPEGGIATED", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        fsrsStateDao.insert(FsrsStateEntity(
+            cardId = "MAJOR_4_ARPEGGIATED",
+            gameType = GameType.CHORD_TYPE.name,
+            stability = 5.0,  // Non-default value to verify it wasn't recreated
+            dueDate = now
+        ))
 
         repository.initializeStartingDeck()
 
-        // Should not add starting deck
-        assertEquals(1, cardDao.count())
+        val fsrsState = fsrsStateDao.getByCardId("MAJOR_4_ARPEGGIATED")
+        assertEquals(5.0, fsrsState!!.stability, 0.01)  // Should preserve existing value
+    }
+
+    // ========== Card Unlock Tests ==========
+
+    @Test
+    fun `setCardUnlocked unlocks a locked card`() = runTest {
+        cardDao.insert(CardEntity("MAJOR_4_ARPEGGIATED", "MAJOR", 4, "ARPEGGIATED", unlocked = false))
+
+        repository.setCardUnlocked("MAJOR_4_ARPEGGIATED", true)
+
+        val card = cardDao.getById("MAJOR_4_ARPEGGIATED")
+        assertTrue(card!!.unlocked)
     }
 
     @Test
-    fun `initializeStartingDeck sets unlock level to 0`() = runTest {
-        repository.initializeStartingDeck()
+    fun `setCardUnlocked locks an unlocked card`() = runTest {
+        cardDao.insert(CardEntity("MAJOR_4_ARPEGGIATED", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
 
-        assertEquals(0, repository.getUnlockLevel())
-    }
+        repository.setCardUnlocked("MAJOR_4_ARPEGGIATED", false)
 
-    // ========== Unlock Tests (Chord Type) ==========
-
-    @Test
-    fun `unlockNextGroup adds new cards`() = runTest {
-        repository.initializeStartingDeck()
-        assertEquals(4, cardDao.count())
-
-        val result = repository.unlockNextGroup()
-
-        assertTrue(result)
-        assertEquals(8, cardDao.count())
+        val card = cardDao.getById("MAJOR_4_ARPEGGIATED")
+        assertFalse(card!!.unlocked)
     }
 
     @Test
-    fun `unlockNextGroup increments unlock level`() = runTest {
-        repository.initializeStartingDeck()
-        assertEquals(0, repository.getUnlockLevel())
+    fun `setCardUnlocked preserves FSRS state`() = runTest {
+        val now = System.currentTimeMillis()
+        cardDao.insert(CardEntity("MAJOR_4_ARPEGGIATED", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        fsrsStateDao.insert(FsrsStateEntity(
+            cardId = "MAJOR_4_ARPEGGIATED",
+            gameType = GameType.CHORD_TYPE.name,
+            stability = 8.5,
+            difficulty = 3.2,
+            interval = 14,
+            dueDate = now + DAY_MS,
+            reviewCount = 10
+        ))
 
-        repository.unlockNextGroup()
+        // Lock the card
+        repository.setCardUnlocked("MAJOR_4_ARPEGGIATED", false)
 
-        assertEquals(1, repository.getUnlockLevel())
-    }
-
-    @Test
-    fun `unlockNextGroup creates FSRS states for new cards`() = runTest {
-        repository.initializeStartingDeck()
-
-        repository.unlockNextGroup()
-
-        val fsrsStates = fsrsStateDao.getByGameType(GameType.CHORD_TYPE.name)
-        assertEquals(8, fsrsStates.size)
-    }
-
-    @Test
-    fun `unlockNextGroup returns false at max level`() = runTest {
-        repository.initializeStartingDeck()
-
-        // Unlock all groups
-        repeat(Deck.MAX_UNLOCK_LEVEL) {
-            repository.unlockNextGroup()
-        }
-
-        assertEquals(Deck.MAX_UNLOCK_LEVEL, repository.getUnlockLevel())
-
-        val result = repository.unlockNextGroup()
-
-        assertFalse(result)
-        assertEquals(Deck.MAX_UNLOCK_LEVEL, repository.getUnlockLevel())
-    }
-
-    @Test
-    fun `canUnlockMore returns true when not at max`() = runTest {
-        repository.initializeStartingDeck()
-
-        assertTrue(repository.canUnlockMore())
-    }
-
-    @Test
-    fun `canUnlockMore returns false at max level`() = runTest {
-        repository.initializeStartingDeck()
-
-        repeat(Deck.MAX_UNLOCK_LEVEL) {
-            repository.unlockNextGroup()
-        }
-
-        assertFalse(repository.canUnlockMore())
-    }
-
-    @Test
-    fun `full unlock results in 48 cards`() = runTest {
-        repository.initializeStartingDeck()
-
-        while (repository.canUnlockMore()) {
-            repository.unlockNextGroup()
-        }
-
-        assertEquals(Deck.TOTAL_CARDS, cardDao.count())
-    }
-
-    // ========== Initialization Tests (Function Cards) ==========
-
-    @Test
-    fun `initializeFunctionStartingDeck creates 3 cards when empty`() = runTest {
-        repository.initializeFunctionStartingDeck()
-
-        val count = functionCardDao.count()
-        assertEquals(3, count)
-    }
-
-    @Test
-    fun `initializeFunctionStartingDeck creates correct functions`() = runTest {
-        repository.initializeFunctionStartingDeck()
-
-        val cards = functionCardDao.getAllUnlocked()
-        val functions = cards.map { it.function }.toSet()
-
-        assertEquals(setOf("IV", "V", "vi"), functions)
-    }
-
-    @Test
-    fun `initializeFunctionStartingDeck creates major key cards`() = runTest {
-        repository.initializeFunctionStartingDeck()
-
-        val cards = functionCardDao.getAllUnlocked()
-        assertTrue(cards.all { it.keyQuality == "MAJOR" })
-        assertTrue(cards.all { it.octave == 4 })
-        assertTrue(cards.all { it.playbackMode == "ARPEGGIATED" })
-    }
-
-    @Test
-    fun `initializeFunctionStartingDeck creates FSRS states`() = runTest {
-        repository.initializeFunctionStartingDeck()
-
-        val fsrsStates = fsrsStateDao.getByGameType(GameType.CHORD_FUNCTION.name)
-        assertEquals(3, fsrsStates.size)
-        assertTrue(fsrsStates.all { it.gameType == GameType.CHORD_FUNCTION.name })
-    }
-
-    @Test
-    fun `initializeFunctionStartingDeck does nothing when cards exist`() = runTest {
-        functionCardDao.insert(FunctionCardEntity("EXISTING", "V", "MAJOR", 4, "ARPEGGIATED"))
-
-        repository.initializeFunctionStartingDeck()
-
-        assertEquals(1, functionCardDao.count())
-    }
-
-    @Test
-    fun `initializeFunctionStartingDeck sets unlock level to 0`() = runTest {
-        repository.initializeFunctionStartingDeck()
-
-        assertEquals(0, repository.getFunctionUnlockLevel())
-    }
-
-    // ========== Unlock Tests (Function Cards) ==========
-
-    @Test
-    fun `unlockNextFunctionGroup adds new cards`() = runTest {
-        repository.initializeFunctionStartingDeck()
-        assertEquals(3, functionCardDao.count())
-
-        val result = repository.unlockNextFunctionGroup()
-
-        assertTrue(result)
-        assertEquals(6, functionCardDao.count())
-    }
-
-    @Test
-    fun `unlockNextFunctionGroup increments unlock level`() = runTest {
-        repository.initializeFunctionStartingDeck()
-        assertEquals(0, repository.getFunctionUnlockLevel())
-
-        repository.unlockNextFunctionGroup()
-
-        assertEquals(1, repository.getFunctionUnlockLevel())
-    }
-
-    @Test
-    fun `unlockNextFunctionGroup creates FSRS states for new cards`() = runTest {
-        repository.initializeFunctionStartingDeck()
-
-        repository.unlockNextFunctionGroup()
-
-        val fsrsStates = fsrsStateDao.getByGameType(GameType.CHORD_FUNCTION.name)
-        assertEquals(6, fsrsStates.size)
-    }
-
-    @Test
-    fun `unlockNextFunctionGroup returns false at max level`() = runTest {
-        repository.initializeFunctionStartingDeck()
-
-        // Unlock all groups
-        repeat(FunctionDeck.MAX_UNLOCK_LEVEL) {
-            repository.unlockNextFunctionGroup()
-        }
-
-        assertEquals(FunctionDeck.MAX_UNLOCK_LEVEL, repository.getFunctionUnlockLevel())
-
-        val result = repository.unlockNextFunctionGroup()
-
-        assertFalse(result)
-    }
-
-    @Test
-    fun `canUnlockMoreFunctions returns true when not at max`() = runTest {
-        repository.initializeFunctionStartingDeck()
-
-        assertTrue(repository.canUnlockMoreFunctions())
-    }
-
-    @Test
-    fun `canUnlockMoreFunctions returns false at max level`() = runTest {
-        repository.initializeFunctionStartingDeck()
-
-        repeat(FunctionDeck.MAX_UNLOCK_LEVEL) {
-            repository.unlockNextFunctionGroup()
-        }
-
-        assertFalse(repository.canUnlockMoreFunctions())
-    }
-
-    @Test
-    fun `full function unlock results in 72 cards`() = runTest {
-        repository.initializeFunctionStartingDeck()
-
-        while (repository.canUnlockMoreFunctions()) {
-            repository.unlockNextFunctionGroup()
-        }
-
-        assertEquals(FunctionDeck.TOTAL_CARDS, functionCardDao.count())
+        // Verify FSRS state is preserved
+        val fsrsState = fsrsStateDao.getByCardId("MAJOR_4_ARPEGGIATED")
+        assertEquals(8.5, fsrsState!!.stability, 0.01)
+        assertEquals(3.2, fsrsState.difficulty, 0.01)
+        assertEquals(14, fsrsState.interval)
+        assertEquals(10, fsrsState.reviewCount)
     }
 
     // ========== Count Tests ==========
 
     @Test
     fun `getUnlockedCount returns correct count`() = runTest {
-        repository.initializeStartingDeck()
+        cardDao.insert(CardEntity("MAJOR_4_ARPEGGIATED", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        cardDao.insert(CardEntity("MINOR_4_ARPEGGIATED", "MINOR", 4, "ARPEGGIATED", unlocked = true))
+        cardDao.insert(CardEntity("SUS2_4_ARPEGGIATED", "SUS2", 4, "ARPEGGIATED", unlocked = false))
 
-        assertEquals(4, repository.getUnlockedCount())
-
-        repository.unlockNextGroup()
-
-        assertEquals(8, repository.getUnlockedCount())
+        assertEquals(2, repository.getUnlockedCount())
     }
 
     @Test
-    fun `getDueCount returns cards due now`() = runTest {
-        repository.initializeStartingDeck()
+    fun `getDueCount returns count of due cards with FSRS state`() = runTest {
+        val now = System.currentTimeMillis()
 
-        // All starting cards should be immediately due
-        val dueCount = repository.getDueCount()
+        // Due cards with FSRS state
+        cardDao.insert(CardEntity("MAJOR_4_ARPEGGIATED", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        fsrsStateDao.insert(FsrsStateEntity("MAJOR_4_ARPEGGIATED", GameType.CHORD_TYPE.name, dueDate = now - HOUR_MS))
 
-        assertEquals(4, dueCount)
+        cardDao.insert(CardEntity("MINOR_4_ARPEGGIATED", "MINOR", 4, "ARPEGGIATED", unlocked = true))
+        fsrsStateDao.insert(FsrsStateEntity("MINOR_4_ARPEGGIATED", GameType.CHORD_TYPE.name, dueDate = now - HOUR_MS))
+
+        // Not due card
+        cardDao.insert(CardEntity("SUS2_4_ARPEGGIATED", "SUS2", 4, "ARPEGGIATED", unlocked = true))
+        fsrsStateDao.insert(FsrsStateEntity("SUS2_4_ARPEGGIATED", GameType.CHORD_TYPE.name, dueDate = now + DAY_MS))
+
+        assertEquals(2, repository.getDueCount())
     }
+
+    // ========== Initialization Tests (Function Cards) ==========
+
+    @Test
+    fun `initializeFunctionStartingDeck creates FSRS states for existing cards`() = runTest {
+        // Pre-create cards (as migration would do)
+        functionCardDao.insert(FunctionCardEntity("IV_MAJOR_4_ARPEGGIATED", "IV", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        functionCardDao.insert(FunctionCardEntity("V_MAJOR_4_ARPEGGIATED", "V", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+
+        repository.initializeFunctionStartingDeck()
+
+        val fsrsStates = fsrsStateDao.getByGameType(GameType.CHORD_FUNCTION.name)
+        assertEquals(2, fsrsStates.size)
+        assertTrue(fsrsStates.all { it.gameType == GameType.CHORD_FUNCTION.name })
+    }
+
+    @Test
+    fun `initializeFunctionStartingDeck does nothing when FSRS states exist`() = runTest {
+        val now = System.currentTimeMillis()
+        // Pre-create cards and FSRS states
+        functionCardDao.insert(FunctionCardEntity("IV_MAJOR_4_ARPEGGIATED", "IV", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        fsrsStateDao.insert(FsrsStateEntity(
+            cardId = "IV_MAJOR_4_ARPEGGIATED",
+            gameType = GameType.CHORD_FUNCTION.name,
+            stability = 6.0,  // Non-default value
+            dueDate = now
+        ))
+
+        repository.initializeFunctionStartingDeck()
+
+        val fsrsState = fsrsStateDao.getByCardId("IV_MAJOR_4_ARPEGGIATED")
+        assertEquals(6.0, fsrsState!!.stability, 0.01)  // Should preserve existing value
+    }
+
+    // ========== Function Card Count Tests ==========
 
     @Test
     fun `getFunctionUnlockedCount returns correct count`() = runTest {
-        repository.initializeFunctionStartingDeck()
+        functionCardDao.insert(FunctionCardEntity("IV_MAJOR_4_ARPEGGIATED", "IV", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        functionCardDao.insert(FunctionCardEntity("V_MAJOR_4_ARPEGGIATED", "V", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        functionCardDao.insert(FunctionCardEntity("vi_MAJOR_4_ARPEGGIATED", "vi", "MAJOR", 4, "ARPEGGIATED", unlocked = false))
 
-        assertEquals(3, repository.getFunctionUnlockedCount())
-
-        repository.unlockNextFunctionGroup()
-
-        assertEquals(6, repository.getFunctionUnlockedCount())
+        assertEquals(2, repository.getFunctionUnlockedCount())
     }
 
     @Test
-    fun `getFunctionDueCount returns function cards due now`() = runTest {
-        repository.initializeFunctionStartingDeck()
+    fun `getFunctionDueCount returns count of due function cards with FSRS state`() = runTest {
+        val now = System.currentTimeMillis()
 
-        val dueCount = repository.getFunctionDueCount()
+        // Due function cards with FSRS state
+        functionCardDao.insert(FunctionCardEntity("IV_MAJOR_4_ARPEGGIATED", "IV", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        fsrsStateDao.insert(FsrsStateEntity("IV_MAJOR_4_ARPEGGIATED", GameType.CHORD_FUNCTION.name, dueDate = now - HOUR_MS))
 
-        assertEquals(3, dueCount)
+        functionCardDao.insert(FunctionCardEntity("V_MAJOR_4_ARPEGGIATED", "V", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        fsrsStateDao.insert(FsrsStateEntity("V_MAJOR_4_ARPEGGIATED", GameType.CHORD_FUNCTION.name, dueDate = now - HOUR_MS))
+
+        assertEquals(2, repository.getFunctionDueCount())
     }
 
     // ========== Session Size Tests ==========
@@ -363,31 +217,47 @@ class EarbsRepositoryTest : DatabaseTestBase() {
     // ========== Independent Game Tracking ==========
 
     @Test
-    fun `chord type and function cards have independent unlock levels`() = runTest {
-        repository.initializeStartingDeck()
-        repository.initializeFunctionStartingDeck()
-
-        repository.unlockNextGroup()
-        repository.unlockNextGroup()
-
-        assertEquals(2, repository.getUnlockLevel())
-        assertEquals(0, repository.getFunctionUnlockLevel())
-
-        repository.unlockNextFunctionGroup()
-
-        assertEquals(2, repository.getUnlockLevel())
-        assertEquals(1, repository.getFunctionUnlockLevel())
-    }
-
-    @Test
     fun `chord type and function cards have independent FSRS states`() = runTest {
-        repository.initializeStartingDeck()
-        repository.initializeFunctionStartingDeck()
+        val now = System.currentTimeMillis()
+
+        // Create chord type cards with FSRS
+        cardDao.insert(CardEntity("MAJOR_4_ARPEGGIATED", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        cardDao.insert(CardEntity("MINOR_4_ARPEGGIATED", "MINOR", 4, "ARPEGGIATED", unlocked = true))
+        fsrsStateDao.insert(FsrsStateEntity("MAJOR_4_ARPEGGIATED", GameType.CHORD_TYPE.name, dueDate = now))
+        fsrsStateDao.insert(FsrsStateEntity("MINOR_4_ARPEGGIATED", GameType.CHORD_TYPE.name, dueDate = now))
+
+        // Create function cards with FSRS
+        functionCardDao.insert(FunctionCardEntity("IV_MAJOR_4_ARPEGGIATED", "IV", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        functionCardDao.insert(FunctionCardEntity("V_MAJOR_4_ARPEGGIATED", "V", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        functionCardDao.insert(FunctionCardEntity("vi_MAJOR_4_ARPEGGIATED", "vi", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        fsrsStateDao.insert(FsrsStateEntity("IV_MAJOR_4_ARPEGGIATED", GameType.CHORD_FUNCTION.name, dueDate = now))
+        fsrsStateDao.insert(FsrsStateEntity("V_MAJOR_4_ARPEGGIATED", GameType.CHORD_FUNCTION.name, dueDate = now))
+        fsrsStateDao.insert(FsrsStateEntity("vi_MAJOR_4_ARPEGGIATED", GameType.CHORD_FUNCTION.name, dueDate = now))
 
         val chordFsrs = fsrsStateDao.getByGameType(GameType.CHORD_TYPE.name)
         val functionFsrs = fsrsStateDao.getByGameType(GameType.CHORD_FUNCTION.name)
 
-        assertEquals(4, chordFsrs.size)
+        assertEquals(2, chordFsrs.size)
         assertEquals(3, functionFsrs.size)
+    }
+
+    @Test
+    fun `getUnlockedCount only counts unlocked cards`() = runTest {
+        val now = System.currentTimeMillis()
+
+        // Unlocked chord cards
+        cardDao.insert(CardEntity("MAJOR_4_ARPEGGIATED", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        cardDao.insert(CardEntity("MINOR_4_ARPEGGIATED", "MINOR", 4, "ARPEGGIATED", unlocked = true))
+        fsrsStateDao.insert(FsrsStateEntity("MAJOR_4_ARPEGGIATED", GameType.CHORD_TYPE.name, dueDate = now - HOUR_MS))
+        fsrsStateDao.insert(FsrsStateEntity("MINOR_4_ARPEGGIATED", GameType.CHORD_TYPE.name, dueDate = now - HOUR_MS))
+
+        // Locked chord card
+        cardDao.insert(CardEntity("SUS2_4_ARPEGGIATED", "SUS2", 4, "ARPEGGIATED", unlocked = false))
+        fsrsStateDao.insert(FsrsStateEntity("SUS2_4_ARPEGGIATED", GameType.CHORD_TYPE.name, dueDate = now - HOUR_MS))
+
+        // getUnlockedCount only counts unlocked cards
+        assertEquals(2, repository.getUnlockedCount())
+        // Total cards = 3
+        assertEquals(3, cardDao.count())
     }
 }
