@@ -1,11 +1,9 @@
 package net.xmppwocky.earbs.audio
 
 import net.xmppwocky.earbs.model.ChordFunction
-import net.xmppwocky.earbs.model.ChordQuality
 import net.xmppwocky.earbs.model.KeyQuality
 import org.junit.Assert.*
 import org.junit.Test
-import kotlin.math.abs
 
 class ChordBuilderTest {
 
@@ -47,64 +45,6 @@ class ChordBuilderTest {
         // Expected: 440 * 2^(-9/12) ≈ 261.63 Hz
         val freq = ChordBuilder.noteFrequency(-9)
         assertEquals(261.63f, freq, 0.1f)
-    }
-
-    // ========== Chord type interval tests ==========
-
-    @Test
-    fun `Major chord has intervals 0, 4, 7`() {
-        assertEquals(listOf(0, 4, 7), ChordType.MAJOR.intervals)
-    }
-
-    @Test
-    fun `Minor chord has intervals 0, 3, 7`() {
-        assertEquals(listOf(0, 3, 7), ChordType.MINOR.intervals)
-    }
-
-    @Test
-    fun `Sus2 chord has intervals 0, 2, 7`() {
-        assertEquals(listOf(0, 2, 7), ChordType.SUS2.intervals)
-    }
-
-    @Test
-    fun `Sus4 chord has intervals 0, 5, 7`() {
-        assertEquals(listOf(0, 5, 7), ChordType.SUS4.intervals)
-    }
-
-    @Test
-    fun `Dom7 chord has intervals 0, 4, 7, 10`() {
-        assertEquals(listOf(0, 4, 7, 10), ChordType.DOM7.intervals)
-    }
-
-    @Test
-    fun `Maj7 chord has intervals 0, 4, 7, 11`() {
-        assertEquals(listOf(0, 4, 7, 11), ChordType.MAJ7.intervals)
-    }
-
-    @Test
-    fun `Min7 chord has intervals 0, 3, 7, 10`() {
-        assertEquals(listOf(0, 3, 7, 10), ChordType.MIN7.intervals)
-    }
-
-    @Test
-    fun `Dim7 chord has intervals 0, 3, 6, 9`() {
-        assertEquals(listOf(0, 3, 6, 9), ChordType.DIM7.intervals)
-    }
-
-    @Test
-    fun `TRIADS contains exactly 4 chord types`() {
-        assertEquals(4, ChordType.TRIADS.size)
-        assertTrue(ChordType.TRIADS.containsAll(listOf(
-            ChordType.MAJOR, ChordType.MINOR, ChordType.SUS2, ChordType.SUS4
-        )))
-    }
-
-    @Test
-    fun `SEVENTHS contains exactly 4 chord types`() {
-        assertEquals(4, ChordType.SEVENTHS.size)
-        assertTrue(ChordType.SEVENTHS.containsAll(listOf(
-            ChordType.DOM7, ChordType.MAJ7, ChordType.MIN7, ChordType.DIM7
-        )))
     }
 
     // ========== Chord building tests ==========

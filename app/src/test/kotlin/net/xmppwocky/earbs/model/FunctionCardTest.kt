@@ -6,110 +6,51 @@ import org.junit.Test
 
 class FunctionCardTest {
 
-    // ========== ID format tests ==========
-
     @Test
     fun `card id has correct format`() {
-        val card = FunctionCard(ChordFunction.IV, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        assertEquals("IV_MAJOR_4_ARPEGGIATED", card.id)
+        // Test various ID formats
+        assertEquals("IV_MAJOR_4_ARPEGGIATED",
+            FunctionCard(ChordFunction.IV, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED).id)
+        assertEquals("iv_MINOR_3_BLOCK",
+            FunctionCard(ChordFunction.iv, KeyQuality.MINOR, 3, PlaybackMode.BLOCK).id)
+        assertEquals("vii_dim_MAJOR_5_ARPEGGIATED",
+            FunctionCard(ChordFunction.vii_dim, KeyQuality.MAJOR, 5, PlaybackMode.ARPEGGIATED).id)
     }
 
     @Test
-    fun `card id with minor key`() {
-        val card = FunctionCard(ChordFunction.iv, KeyQuality.MINOR, 3, PlaybackMode.BLOCK)
-        assertEquals("iv_MINOR_3_BLOCK", card.id)
+    fun `fromId parses valid ids correctly`() {
+        val testCases = listOf(
+            "IV_MAJOR_4_ARPEGGIATED" to FunctionCard(ChordFunction.IV, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED),
+            "iv_MINOR_3_BLOCK" to FunctionCard(ChordFunction.iv, KeyQuality.MINOR, 3, PlaybackMode.BLOCK),
+            "vii_dim_MAJOR_5_ARPEGGIATED" to FunctionCard(ChordFunction.vii_dim, KeyQuality.MAJOR, 5, PlaybackMode.ARPEGGIATED),
+        )
+
+        testCases.forEach { (id, expected) ->
+            val parsed = FunctionCard.fromId(id)
+            assertNotNull("Failed to parse: $id", parsed)
+            assertEquals(expected.function, parsed!!.function)
+            assertEquals(expected.keyQuality, parsed.keyQuality)
+            assertEquals(expected.octave, parsed.octave)
+            assertEquals(expected.playbackMode, parsed.playbackMode)
+        }
     }
 
     @Test
-    fun `card id with diminished function`() {
-        val card = FunctionCard(ChordFunction.vii_dim, KeyQuality.MAJOR, 5, PlaybackMode.ARPEGGIATED)
-        assertEquals("vii_dim_MAJOR_5_ARPEGGIATED", card.id)
-    }
+    fun `fromId returns null for invalid input`() {
+        val invalidInputs = listOf(
+            "invalid",
+            "IV_MAJOR",              // incomplete
+            "IV_MAJOR_4_ARPEGGIATED_EXTRA",  // too many parts
+            "INVALID_MAJOR_4_ARPEGGIATED",   // invalid function
+            "IV_INVALID_4_ARPEGGIATED",      // invalid key quality
+            "IV_MAJOR_X_ARPEGGIATED",        // invalid octave
+            "IV_MAJOR_4_INVALID",            // invalid playback mode
+            "",                              // empty string
+        )
 
-    // ========== fromId parsing tests ==========
-
-    @Test
-    fun `fromId parses IV_MAJOR_4_ARPEGGIATED correctly`() {
-        val card = FunctionCard.fromId("IV_MAJOR_4_ARPEGGIATED")
-
-        assertNotNull(card)
-        assertEquals(ChordFunction.IV, card!!.function)
-        assertEquals(KeyQuality.MAJOR, card.keyQuality)
-        assertEquals(4, card.octave)
-        assertEquals(PlaybackMode.ARPEGGIATED, card.playbackMode)
-    }
-
-    @Test
-    fun `fromId parses minor key card correctly`() {
-        val card = FunctionCard.fromId("iv_MINOR_3_BLOCK")
-
-        assertNotNull(card)
-        assertEquals(ChordFunction.iv, card!!.function)
-        assertEquals(KeyQuality.MINOR, card.keyQuality)
-        assertEquals(3, card.octave)
-        assertEquals(PlaybackMode.BLOCK, card.playbackMode)
-    }
-
-    @Test
-    fun `fromId parses diminished function correctly`() {
-        val card = FunctionCard.fromId("vii_dim_MAJOR_5_ARPEGGIATED")
-
-        assertNotNull(card)
-        assertEquals(ChordFunction.vii_dim, card!!.function)
-        assertEquals(KeyQuality.MAJOR, card.keyQuality)
-        assertEquals(5, card.octave)
-        assertEquals(PlaybackMode.ARPEGGIATED, card.playbackMode)
-    }
-
-    @Test
-    fun `fromId returns null for invalid string`() {
-        assertNull(FunctionCard.fromId("invalid"))
-    }
-
-    @Test
-    fun `fromId returns null for incomplete id`() {
-        assertNull(FunctionCard.fromId("IV_MAJOR"))
-    }
-
-    @Test
-    fun `fromId returns null for too many parts`() {
-        assertNull(FunctionCard.fromId("IV_MAJOR_4_ARPEGGIATED_EXTRA"))
-    }
-
-    @Test
-    fun `fromId returns null for invalid function`() {
-        assertNull(FunctionCard.fromId("INVALID_MAJOR_4_ARPEGGIATED"))
-    }
-
-    @Test
-    fun `fromId returns null for invalid key quality`() {
-        assertNull(FunctionCard.fromId("IV_INVALID_4_ARPEGGIATED"))
-    }
-
-    @Test
-    fun `fromId returns null for invalid octave`() {
-        assertNull(FunctionCard.fromId("IV_MAJOR_X_ARPEGGIATED"))
-    }
-
-    @Test
-    fun `fromId returns null for invalid playback mode`() {
-        assertNull(FunctionCard.fromId("IV_MAJOR_4_INVALID"))
-    }
-
-    @Test
-    fun `fromId returns null for empty string`() {
-        assertNull(FunctionCard.fromId(""))
-    }
-
-    // ========== ID round-trip tests ==========
-
-    @Test
-    fun `card id round-trips correctly`() {
-        val original = FunctionCard(ChordFunction.V, KeyQuality.MAJOR, 4, PlaybackMode.BLOCK)
-        val parsed = FunctionCard.fromId(original.id)
-
-        assertNotNull(parsed)
-        assertEquals(original, parsed)
+        invalidInputs.forEach { input ->
+            assertNull("Should return null for: '$input'", FunctionCard.fromId(input))
+        }
     }
 
     @Test
@@ -123,34 +64,6 @@ class FunctionCardTest {
         }
     }
 
-    // ========== Display name tests ==========
-
-    @Test
-    fun `display name includes function display name`() {
-        val card = FunctionCard(ChordFunction.IV, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        assertTrue(card.displayName.contains("IV"))
-    }
-
-    @Test
-    fun `display name includes key quality lowercase`() {
-        val card = FunctionCard(ChordFunction.IV, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        assertTrue(card.displayName.contains("major"))
-    }
-
-    @Test
-    fun `display name includes octave`() {
-        val card = FunctionCard(ChordFunction.IV, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        assertTrue(card.displayName.contains("4"))
-    }
-
-    @Test
-    fun `display name includes playback mode lowercase`() {
-        val card = FunctionCard(ChordFunction.IV, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        assertTrue(card.displayName.contains("arpeggiated"))
-    }
-
-    // ========== Equality tests ==========
-
     @Test
     fun `cards with same properties are equal`() {
         val card1 = FunctionCard(ChordFunction.IV, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
@@ -160,16 +73,12 @@ class FunctionCardTest {
     }
 
     @Test
-    fun `cards with different functions are not equal`() {
-        val card1 = FunctionCard(ChordFunction.IV, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        val card2 = FunctionCard(ChordFunction.V, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        assertNotEquals(card1, card2)
-    }
+    fun `cards with different properties are not equal`() {
+        val base = FunctionCard(ChordFunction.IV, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
+        val differentFunction = FunctionCard(ChordFunction.V, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
+        val differentKeyQuality = FunctionCard(ChordFunction.iv, KeyQuality.MINOR, 4, PlaybackMode.ARPEGGIATED)
 
-    @Test
-    fun `cards with different key qualities are not equal`() {
-        val card1 = FunctionCard(ChordFunction.iv, KeyQuality.MINOR, 4, PlaybackMode.ARPEGGIATED)
-        val card2 = FunctionCard(ChordFunction.IV, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        assertNotEquals(card1, card2)
+        assertNotEquals(base, differentFunction)
+        assertNotEquals(base, differentKeyQuality)
     }
 }

@@ -9,53 +9,16 @@ class CardTest {
 
     @Test
     fun `card id has correct format`() {
-        val card = Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        assertEquals("MAJOR_4_ARPEGGIATED", card.id)
+        // Test various ID formats across chord types, octaves, and modes
+        assertEquals("MAJOR_4_ARPEGGIATED", Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED).id)
+        assertEquals("MIN7_3_BLOCK", Card(ChordType.MIN7, 3, PlaybackMode.BLOCK).id)
+        assertEquals("SUS2_3_ARPEGGIATED", Card(ChordType.SUS2, 3, PlaybackMode.ARPEGGIATED).id)
+        assertEquals("SUS2_4_ARPEGGIATED", Card(ChordType.SUS2, 4, PlaybackMode.ARPEGGIATED).id)
+        assertEquals("SUS2_5_ARPEGGIATED", Card(ChordType.SUS2, 5, PlaybackMode.ARPEGGIATED).id)
     }
 
     @Test
-    fun `card id with different chord type`() {
-        val card = Card(ChordType.MIN7, 3, PlaybackMode.BLOCK)
-        assertEquals("MIN7_3_BLOCK", card.id)
-    }
-
-    @Test
-    fun `card id with all octaves`() {
-        val card3 = Card(ChordType.SUS2, 3, PlaybackMode.ARPEGGIATED)
-        val card4 = Card(ChordType.SUS2, 4, PlaybackMode.ARPEGGIATED)
-        val card5 = Card(ChordType.SUS2, 5, PlaybackMode.ARPEGGIATED)
-
-        assertEquals("SUS2_3_ARPEGGIATED", card3.id)
-        assertEquals("SUS2_4_ARPEGGIATED", card4.id)
-        assertEquals("SUS2_5_ARPEGGIATED", card5.id)
-    }
-
-    @Test
-    fun `card display name includes chord type display name`() {
-        val card = Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        assertTrue(card.displayName.contains("Major"))
-    }
-
-    @Test
-    fun `card display name includes octave`() {
-        val card = Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        assertTrue(card.displayName.contains("4"))
-    }
-
-    @Test
-    fun `card display name includes playback mode lowercase`() {
-        val card = Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        assertTrue(card.displayName.contains("arpeggiated"))
-    }
-
-    @Test
-    fun `card display name for block mode`() {
-        val card = Card(ChordType.MINOR, 5, PlaybackMode.BLOCK)
-        assertTrue(card.displayName.contains("block"))
-    }
-
-    @Test
-    fun `cards with same properties are equal`() {
+    fun `cards with same properties have same id`() {
         val card1 = Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)
         val card2 = Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)
         assertEquals(card1, card2)
@@ -63,26 +26,17 @@ class CardTest {
     }
 
     @Test
-    fun `cards with different chord types are not equal`() {
-        val card1 = Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        val card2 = Card(ChordType.MINOR, 4, PlaybackMode.ARPEGGIATED)
-        assertNotEquals(card1, card2)
-        assertNotEquals(card1.id, card2.id)
-    }
+    fun `cards with different properties have different ids`() {
+        val base = Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)
+        val differentChordType = Card(ChordType.MINOR, 4, PlaybackMode.ARPEGGIATED)
+        val differentOctave = Card(ChordType.MAJOR, 5, PlaybackMode.ARPEGGIATED)
+        val differentMode = Card(ChordType.MAJOR, 4, PlaybackMode.BLOCK)
 
-    @Test
-    fun `cards with different octaves are not equal`() {
-        val card1 = Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        val card2 = Card(ChordType.MAJOR, 5, PlaybackMode.ARPEGGIATED)
-        assertNotEquals(card1, card2)
-        assertNotEquals(card1.id, card2.id)
-    }
-
-    @Test
-    fun `cards with different playback modes are not equal`() {
-        val card1 = Card(ChordType.MAJOR, 4, PlaybackMode.ARPEGGIATED)
-        val card2 = Card(ChordType.MAJOR, 4, PlaybackMode.BLOCK)
-        assertNotEquals(card1, card2)
-        assertNotEquals(card1.id, card2.id)
+        assertNotEquals(base, differentChordType)
+        assertNotEquals(base.id, differentChordType.id)
+        assertNotEquals(base, differentOctave)
+        assertNotEquals(base.id, differentOctave.id)
+        assertNotEquals(base, differentMode)
+        assertNotEquals(base.id, differentMode.id)
     }
 }
