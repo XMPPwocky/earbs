@@ -14,6 +14,7 @@ Android app (Kotlin, Jetpack Compose) for ear training chord recognition using F
 ## Environment
 
 - Android SDK: `~/android-sdk`
+- Package name: `net.xmppwocky.earbs`
 
 ## Core Concepts
 
