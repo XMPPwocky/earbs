@@ -69,12 +69,12 @@ fun HomeScreen(
             Tab(
                 selected = selectedGameMode == GameType.CHORD_TYPE,
                 onClick = { onGameModeChanged(GameType.CHORD_TYPE) },
-                text = { Text("Chord Type") }
+                text = { Text("Chord Type ($chordTypeDueCount)") }
             )
             Tab(
                 selected = selectedGameMode == GameType.CHORD_FUNCTION,
                 onClick = { onGameModeChanged(GameType.CHORD_FUNCTION) },
-                text = { Text("Function") }
+                text = { Text("Function ($functionDueCount)") }
             )
         }
 

@@ -220,7 +220,7 @@ class HomeScreenTest : ComposeTestBase() {
             )
         }
 
-        composeTestRule.onNodeWithText("Chord Type").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Chord Type (0)").assertIsDisplayed()
     }
 
     @Test
@@ -232,7 +232,7 @@ class HomeScreenTest : ComposeTestBase() {
             )
         }
 
-        composeTestRule.onNodeWithText("Function").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Function (0)").assertIsDisplayed()
     }
 
     @Test
@@ -246,7 +246,7 @@ class HomeScreenTest : ComposeTestBase() {
             )
         }
 
-        composeTestRule.onNodeWithText("Function").performClick()
+        composeTestRule.onNodeWithText("Function (0)").performClick()
 
         assertEquals(GameType.CHORD_FUNCTION, selectedMode)
     }
@@ -262,7 +262,7 @@ class HomeScreenTest : ComposeTestBase() {
             )
         }
 
-        composeTestRule.onNodeWithText("Chord Type").performClick()
+        composeTestRule.onNodeWithText("Chord Type (0)").performClick()
 
         assertEquals(GameType.CHORD_TYPE, selectedMode)
     }
@@ -317,5 +317,55 @@ class HomeScreenTest : ComposeTestBase() {
         }
 
         composeTestRule.onNodeWithText("Add 3 Cards").assertIsDisplayed()
+    }
+
+    // ========== Tab Due Count Tests ==========
+
+    @Test
+    fun tabTitle_showsChordTypeDueCount() {
+        composeTestRule.setContent {
+            HomeScreen(
+                chordTypeDueCount = 5,
+                onStartReviewClicked = {}
+            )
+        }
+        composeTestRule.onNodeWithText("Chord Type (5)").assertIsDisplayed()
+    }
+
+    @Test
+    fun tabTitle_showsFunctionDueCount() {
+        composeTestRule.setContent {
+            HomeScreen(
+                functionDueCount = 3,
+                onStartReviewClicked = {}
+            )
+        }
+        composeTestRule.onNodeWithText("Function (3)").assertIsDisplayed()
+    }
+
+    @Test
+    fun tabTitles_showZeroDueCounts() {
+        composeTestRule.setContent {
+            HomeScreen(
+                chordTypeDueCount = 0,
+                functionDueCount = 0,
+                onStartReviewClicked = {}
+            )
+        }
+        composeTestRule.onNodeWithText("Chord Type (0)").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Function (0)").assertIsDisplayed()
+    }
+
+    @Test
+    fun tabTitles_updateWithDifferentCounts() {
+        composeTestRule.setContent {
+            HomeScreen(
+                chordTypeDueCount = 12,
+                functionDueCount = 7,
+                onStartReviewClicked = {}
+            )
+        }
+        composeTestRule.onNodeWithText("Chord Type (12)").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Function (7)").assertIsDisplayed()
     }
 }
