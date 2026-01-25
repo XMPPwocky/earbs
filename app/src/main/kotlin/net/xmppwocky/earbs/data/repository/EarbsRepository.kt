@@ -34,6 +34,7 @@ import net.xmppwocky.earbs.model.ChordFunction
 import net.xmppwocky.earbs.model.Deck
 import net.xmppwocky.earbs.model.FunctionCard
 import net.xmppwocky.earbs.model.FunctionDeck
+import net.xmppwocky.earbs.model.GameCard
 import net.xmppwocky.earbs.model.KeyQuality
 import java.time.LocalDateTime
 
@@ -81,6 +82,145 @@ class EarbsRepository(
             result.addAll(cards.take(targetSize - result.size))
         }
         return result
+    }
+
+    // ========== Generic Card Operations (Adapters) ==========
+
+    /** Adapter for chord type card operations */
+    private val chordTypeOps by lazy { ChordTypeCardOperations(cardDao) }
+
+    /** Adapter for function card operations */
+    private val functionOps by lazy { FunctionCardOperations(functionCardDao) }
+
+    // ========== Generic Card Selection Algorithm ==========
+
+    /**
+     * Generic card selection algorithm that works with any game type.
+     * Selects cards for a review session, preferring same-group cards:
+     * 1. Get all due cards
+     * 2. Group by game-specific key (octave/mode for chord type, keyQuality/octave/mode for function)
+     * 3. Pick the group with most due cards (tie-break by most overdue)
+     * 4. If group has >= sessionSize due, take sessionSize from that group
+     * 5. If group has < sessionSize due:
+     *    a. Take all due from that group
+     *    b. Pad with non-due from SAME group first
+     *    c. If still < sessionSize, pad with cards from OTHER groups
+     * 6. Shuffle and return
+     */
+    private suspend fun <C : GameCard> selectCardsGeneric(
+        ops: GameCardOperations<C>,
+        gameName: String
+    ): List<C> {
+        val sessionSize = getSessionSize()
+        val now = System.currentTimeMillis()
+        Log.i(TAG, "Selecting $sessionSize $gameName cards for review (now=$now)")
+
+        val allDue = ops.getDueCards(now)
+        Log.i(TAG, "Found ${allDue.size} total due $gameName cards")
+
+        if (allDue.isEmpty()) {
+            Log.i(TAG, "No due $gameName cards, selecting from all unlocked")
+            return selectFromAllUnlockedGeneric(ops, sessionSize, gameName)
+        }
+
+        // Group due cards by their grouping key
+        val grouped = allDue.groupBy { ops.getGroupingKey(it) }
+        Log.i(TAG, "Due $gameName cards grouped into ${grouped.size} groups")
+
+        // Pick group with most due cards (tie-break by most overdue = lowest dueDate)
+        val (bestGroup, bestDue) = grouped.maxByOrNull { (_, cards) ->
+            cards.size * 1_000_000_000L - cards.minOf { it.dueDate }
+        }!!
+
+        val (groupKey, octave, mode) = bestGroup
+        Log.i(TAG, "Selected best group: groupKey=$groupKey, octave=$octave, mode=$mode with ${bestDue.size} due cards")
+
+        val selected = mutableListOf<CardWithFsrsData>()
+        selected.addAll(bestDue.sortedBy { it.dueDate }.take(sessionSize))
+        Log.i(TAG, "Added ${selected.size} due $gameName cards from best group")
+
+        if (selected.size >= sessionSize) {
+            return selected.shuffled().map { ops.toDomainCard(it) }.also { logGenericSelection(it, gameName) }
+        }
+
+        // Pad with non-due from same group
+        val nonDueSameGroup = ops.getNonDueCardsByGroup(now, groupKey, octave, mode, sessionSize - selected.size)
+        Log.i(TAG, "Padding with ${nonDueSameGroup.size} non-due $gameName cards from same group")
+        selected.addAll(nonDueSameGroup)
+
+        if (selected.size >= sessionSize) {
+            return selected.shuffled().map { ops.toDomainCard(it) }.also { logGenericSelection(it, gameName) }
+        }
+
+        // Pad with due cards from other groups
+        val selectedIds = selected.map { it.id }.toSet()
+        val otherDueCards = allDue.filter { it.id !in selectedIds }.sortedBy { it.dueDate }
+        val toAddFromOther = otherDueCards.take(sessionSize - selected.size)
+        Log.i(TAG, "Padding with ${toAddFromOther.size} due $gameName cards from other groups")
+        selected.addAll(toAddFromOther)
+
+        if (selected.size >= sessionSize) {
+            return selected.shuffled().map { ops.toDomainCard(it) }.also { logGenericSelection(it, gameName) }
+        }
+
+        // If still not enough, get non-due from any group
+        val stillSelectedIds = selected.map { it.id }.toSet()
+        val moreNonDue = ops.getNonDueCards(now, sessionSize - selected.size)
+            .filter { it.id !in stillSelectedIds }
+        Log.i(TAG, "Padding with ${moreNonDue.size} non-due $gameName cards from any group")
+        selected.addAll(moreNonDue)
+
+        // Repeat cards to fill session if still not enough unique cards
+        val cards = selected.take(sessionSize).map { ops.toDomainCard(it) }
+        val filled = repeatToFill(cards, sessionSize)
+        return filled.shuffled().also { logGenericSelection(it, gameName) }
+    }
+
+    /**
+     * Select cards when no cards are due. Prefers a single group.
+     */
+    private suspend fun <C : GameCard> selectFromAllUnlockedGeneric(
+        ops: GameCardOperations<C>,
+        sessionSize: Int,
+        gameName: String
+    ): List<C> {
+        val allCards = ops.getAllUnlockedWithFsrs()
+        if (allCards.isEmpty()) {
+            Log.w(TAG, "No unlocked $gameName cards available")
+            return emptyList()
+        }
+
+        // Group by grouping key and pick the largest group
+        val grouped = allCards.groupBy { ops.getGroupingKey(it) }
+        val (bestGroup, bestCards) = grouped.maxByOrNull { (_, cards) ->
+            cards.size * 1_000_000_000L - cards.minOf { it.dueDate }
+        }!!
+
+        Log.i(TAG, "No due $gameName cards - selected group: $bestGroup with ${bestCards.size} cards")
+
+        val selected = mutableListOf<CardWithFsrsData>()
+        selected.addAll(bestCards.sortedBy { it.dueDate }.take(sessionSize))
+
+        if (selected.size < sessionSize) {
+            val selectedIds = selected.map { it.id }.toSet()
+            val otherCards = allCards.filter { it.id !in selectedIds }.sortedBy { it.dueDate }
+            selected.addAll(otherCards.take(sessionSize - selected.size))
+        }
+
+        // Repeat cards to fill session if still not enough unique cards
+        val cards = selected.take(sessionSize).map { ops.toDomainCard(it) }
+        val filled = repeatToFill(cards, sessionSize)
+        return filled.shuffled().also { logGenericSelection(it, gameName) }
+    }
+
+    /**
+     * Log the final selection for debugging.
+     */
+    private fun <C : GameCard> logGenericSelection(cards: List<C>, gameName: String) {
+        Log.i(TAG, "Final $gameName selection of ${cards.size} cards:")
+        cards.forEachIndexed { index, card ->
+            Log.i(TAG, "  $index: ${card.displayName}")
+        }
     }
 
     // ========== Chord Type Game (Game 1) ==========
@@ -199,129 +339,11 @@ class EarbsRepository(
     }
 
     /**
-     * Select cards for a review session, preferring same-group cards:
-     * 1. Get all due cards
-     * 2. Group by (octave, playbackMode)
-     * 3. Pick the group with most due cards (tie-break by most overdue)
-     * 4. If group has >= sessionSize due, take sessionSize from that group
-     * 5. If group has < sessionSize due:
-     *    a. Take all due from that group
-     *    b. Pad with non-due from SAME group first
-     *    c. If still < sessionSize, pad with cards from OTHER groups
-     * 6. Shuffle and return
+     * Select cards for a review session.
+     * Uses the generic selection algorithm with chord type card operations.
      */
     suspend fun selectCardsForReview(): List<Card> {
-        val sessionSize = getSessionSize()
-        val now = System.currentTimeMillis()
-        Log.i(TAG, "Selecting $sessionSize cards for review (now=$now)")
-
-        val allDue = cardDao.getDueCards(now)
-        Log.i(TAG, "Found ${allDue.size} total due cards")
-
-        if (allDue.isEmpty()) {
-            // No due cards - pick from any unlocked, prefer a single group
-            Log.i(TAG, "No due cards, selecting from all unlocked cards")
-            return selectFromAllUnlocked(sessionSize)
-        }
-
-        // Group due cards by (octave, playbackMode)
-        val grouped = allDue.groupBy { it.octave to it.playbackMode }
-        Log.i(TAG, "Due cards grouped into ${grouped.size} groups: ${grouped.map { (k, v) -> "${k.first}/${k.second}=${v.size}" }}")
-
-        // Pick group with most due cards (tie-break by most overdue = lowest dueDate)
-        val (bestGroup, bestDue) = grouped.maxByOrNull { (_, cards) ->
-            // Primary: card count (multiplied to dominate)
-            // Secondary: negative of min dueDate (lower = more overdue = higher priority)
-            cards.size * 1_000_000_000L - cards.minOf { it.dueDate }
-        }!!
-
-        val (octave, mode) = bestGroup
-        Log.i(TAG, "Selected best group: octave=$octave, mode=$mode with ${bestDue.size} due cards")
-
-        val selected = mutableListOf<CardWithFsrs>()
-        selected.addAll(bestDue.sortedBy { it.dueDate }.take(sessionSize))
-        Log.i(TAG, "Added ${selected.size} due cards from best group")
-
-        if (selected.size >= sessionSize) {
-            return selected.shuffled().map { it.toCard() }.also { logSelection(it) }
-        }
-
-        // Pad with non-due from same group
-        val nonDueSameGroup = cardDao.getNonDueCardsByGroup(now, octave, mode, sessionSize - selected.size)
-        Log.i(TAG, "Padding with ${nonDueSameGroup.size} non-due cards from same group")
-        selected.addAll(nonDueSameGroup)
-
-        if (selected.size >= sessionSize) {
-            return selected.shuffled().map { it.toCard() }.also { logSelection(it) }
-        }
-
-        // Still not enough - pad with due cards from other groups
-        val selectedIds = selected.map { it.id }.toSet()
-        val otherDueCards = allDue.filter { it.id !in selectedIds }.sortedBy { it.dueDate }
-        val toAddFromOther = otherDueCards.take(sessionSize - selected.size)
-        Log.i(TAG, "Padding with ${toAddFromOther.size} due cards from other groups")
-        selected.addAll(toAddFromOther)
-
-        if (selected.size >= sessionSize) {
-            return selected.shuffled().map { it.toCard() }.also { logSelection(it) }
-        }
-
-        // If STILL not enough, get non-due from any group
-        val stillSelectedIds = selected.map { it.id }.toSet()
-        val moreNonDue = cardDao.getNonDueCards(now, sessionSize - selected.size)
-            .filter { it.id !in stillSelectedIds }
-        Log.i(TAG, "Padding with ${moreNonDue.size} non-due cards from any group")
-        selected.addAll(moreNonDue)
-
-        // Repeat cards to fill session if still not enough unique cards
-        val cards = selected.take(sessionSize).map { it.toCard() }
-        val filled = repeatToFill(cards, sessionSize)
-        return filled.shuffled().also { logSelection(it) }
-    }
-
-    /**
-     * Select cards when no cards are due. Prefers a single group.
-     */
-    private suspend fun selectFromAllUnlocked(sessionSize: Int): List<Card> {
-        val allCards = cardDao.getAllUnlockedWithFsrs()
-        if (allCards.isEmpty()) {
-            Log.w(TAG, "No unlocked cards available")
-            return emptyList()
-        }
-
-        // Group by (octave, playbackMode) and pick the largest group
-        val grouped = allCards.groupBy { it.octave to it.playbackMode }
-        val (bestGroup, bestCards) = grouped.maxByOrNull { (_, cards) ->
-            // Prefer groups with more cards, tie-break by earliest due date
-            cards.size * 1_000_000_000L - cards.minOf { it.dueDate }
-        }!!
-
-        Log.i(TAG, "No due cards - selected group: octave=${bestGroup.first}, mode=${bestGroup.second} with ${bestCards.size} cards")
-
-        val selected = mutableListOf<CardWithFsrs>()
-        selected.addAll(bestCards.sortedBy { it.dueDate }.take(sessionSize))
-
-        if (selected.size < sessionSize) {
-            // Pad from other groups
-            val selectedIds = selected.map { it.id }.toSet()
-            val otherCards = allCards.filter { it.id !in selectedIds }.sortedBy { it.dueDate }
-            selected.addAll(otherCards.take(sessionSize - selected.size))
-        }
-
-        // Repeat cards to fill session if still not enough unique cards
-        val cards = selected.take(sessionSize).map { it.toCard() }
-        val filled = repeatToFill(cards, sessionSize)
-        return filled.shuffled().also { logSelection(it) }
-    }
-
-    /**
-     * Log the final selection for debugging.
-     */
-    private fun logSelection(cards: List<Card>) {
-        Log.i(TAG, "Final selection of ${cards.size} cards:")
-        cards.forEachIndexed { index, card ->
-            Log.i(TAG, "  $index: ${card.chordType.name}@${card.octave}/${card.playbackMode.name}")
-        }
+        return selectCardsGeneric(chordTypeOps, "chord type")
     }
 
     /**
@@ -664,115 +686,10 @@ class EarbsRepository(
 
     /**
      * Select function cards for a review session.
-     * Similar logic to chord type game but groups by (keyQuality, octave, playbackMode).
+     * Uses the generic selection algorithm with function card operations.
      */
     suspend fun selectFunctionCardsForReview(): List<FunctionCard> {
-        val sessionSize = getSessionSize()
-        val now = System.currentTimeMillis()
-        Log.i(TAG, "Selecting $sessionSize function cards for review (now=$now)")
-
-        val allDue = functionCardDao.getDueCards(now)
-        Log.i(TAG, "Found ${allDue.size} total due function cards")
-
-        if (allDue.isEmpty()) {
-            Log.i(TAG, "No due function cards, selecting from all unlocked")
-            return selectFunctionCardsFromAllUnlocked(sessionSize)
-        }
-
-        // Group due cards by (keyQuality, octave, playbackMode)
-        val grouped = allDue.groupBy { Triple(it.keyQuality, it.octave, it.playbackMode) }
-        Log.i(TAG, "Due function cards grouped into ${grouped.size} groups")
-
-        // Pick group with most due cards
-        val (bestGroup, bestDue) = grouped.maxByOrNull { (_, cards) ->
-            cards.size * 1_000_000_000L - cards.minOf { it.dueDate }
-        }!!
-
-        val (keyQuality, octave, mode) = bestGroup
-        Log.i(TAG, "Selected best group: $keyQuality/$octave/$mode with ${bestDue.size} due cards")
-
-        val selected = mutableListOf<FunctionCardWithFsrs>()
-        selected.addAll(bestDue.sortedBy { it.dueDate }.take(sessionSize))
-        Log.i(TAG, "Added ${selected.size} due function cards from best group")
-
-        if (selected.size >= sessionSize) {
-            return selected.shuffled().map { it.toFunctionCard() }.also { logFunctionSelection(it) }
-        }
-
-        // Pad with non-due from same group
-        val nonDueSameGroup = functionCardDao.getNonDueCardsByGroup(now, keyQuality, octave, mode, sessionSize - selected.size)
-        Log.i(TAG, "Padding with ${nonDueSameGroup.size} non-due function cards from same group")
-        selected.addAll(nonDueSameGroup)
-
-        if (selected.size >= sessionSize) {
-            return selected.shuffled().map { it.toFunctionCard() }.also { logFunctionSelection(it) }
-        }
-
-        // Pad with due cards from other groups
-        val selectedIds = selected.map { it.id }.toSet()
-        val otherDueCards = allDue.filter { it.id !in selectedIds }.sortedBy { it.dueDate }
-        val toAddFromOther = otherDueCards.take(sessionSize - selected.size)
-        Log.i(TAG, "Padding with ${toAddFromOther.size} due function cards from other groups")
-        selected.addAll(toAddFromOther)
-
-        if (selected.size >= sessionSize) {
-            return selected.shuffled().map { it.toFunctionCard() }.also { logFunctionSelection(it) }
-        }
-
-        // If still not enough, get non-due from any group
-        val stillSelectedIds = selected.map { it.id }.toSet()
-        val moreNonDue = functionCardDao.getNonDueCards(now, sessionSize - selected.size)
-            .filter { it.id !in stillSelectedIds }
-        Log.i(TAG, "Padding with ${moreNonDue.size} non-due function cards from any group")
-        selected.addAll(moreNonDue)
-
-        // Repeat cards to fill session if still not enough unique cards
-        val cards = selected.take(sessionSize).map { it.toFunctionCard() }
-        val filled = repeatToFill(cards, sessionSize)
-        return filled.shuffled().also { logFunctionSelection(it) }
-    }
-
-    /**
-     * Select function cards when no cards are due.
-     */
-    private suspend fun selectFunctionCardsFromAllUnlocked(sessionSize: Int): List<FunctionCard> {
-        val allCards = functionCardDao.getAllUnlockedWithFsrs()
-        if (allCards.isEmpty()) {
-            Log.w(TAG, "No unlocked function cards available")
-            return emptyList()
-        }
-
-        // Group by (keyQuality, octave, playbackMode) and pick the largest group
-        val grouped = allCards.groupBy { Triple(it.keyQuality, it.octave, it.playbackMode) }
-        val (bestGroup, bestCards) = grouped.maxByOrNull { (_, cards) ->
-            cards.size * 1_000_000_000L - cards.minOf { it.dueDate }
-        }!!
-
-        Log.i(TAG, "No due function cards - selected group: ${bestGroup.first}/${bestGroup.second}/${bestGroup.third} with ${bestCards.size} cards")
-
-        val selected = mutableListOf<FunctionCardWithFsrs>()
-        selected.addAll(bestCards.sortedBy { it.dueDate }.take(sessionSize))
-
-        if (selected.size < sessionSize) {
-            val selectedIds = selected.map { it.id }.toSet()
-            val otherCards = allCards.filter { it.id !in selectedIds }.sortedBy { it.dueDate }
-            selected.addAll(otherCards.take(sessionSize - selected.size))
-        }
-
-        // Repeat cards to fill session if still not enough unique cards
-        val cards = selected.take(sessionSize).map { it.toFunctionCard() }
-        val filled = repeatToFill(cards, sessionSize)
-        return filled.shuffled().also { logFunctionSelection(it) }
-    }
-
-    /**
-     * Log the final function card selection for debugging.
-     */
-    private fun logFunctionSelection(cards: List<FunctionCard>) {
-        Log.i(TAG, "Final function selection of ${cards.size} cards:")
-        cards.forEachIndexed { index, card ->
-            Log.i(TAG, "  $index: ${card.function.displayName} in ${card.keyQuality.name}@${card.octave}/${card.playbackMode.name}")
-        }
+        return selectCardsGeneric(functionOps, "function")
     }
 
     /**
