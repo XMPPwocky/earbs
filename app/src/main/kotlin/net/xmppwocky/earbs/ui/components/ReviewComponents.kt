@@ -51,6 +51,9 @@ fun answerButtonColors(colorState: ButtonColorState): ButtonColors {
 
 /**
  * Generic progress indicator for review screens.
+ * Layout:
+ *   Trial 1 / 10                <-
+ *   ============================
  */
 @Composable
 fun ReviewProgressIndicator(
@@ -58,36 +61,42 @@ fun ReviewProgressIndicator(
     totalTrials: Int,
     onBackClicked: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Trial text and progress on the left
-        Column(modifier = Modifier.weight(1f)) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // Row with trial text and back button
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
                 text = "Trial $currentTrial / $totalTrials",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            LinearProgressIndicator(
-                progress = { currentTrial.toFloat() / totalTrials },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp),
-            )
+            // Back button on the right
+            IconButton(
+                onClick = {
+                    Log.d(TAG, "Back button clicked")
+                    onBackClicked()
+                }
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Exit review"
+                )
+            }
         }
 
-        // Back button on the right
-        IconButton(onClick = onBackClicked) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Exit review"
-            )
-        }
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Full-width progress bar below the row
+        LinearProgressIndicator(
+            progress = { currentTrial.toFloat() / totalTrials },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp),
+        )
     }
 }
 
