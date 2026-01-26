@@ -26,6 +26,7 @@ import kotlinx.coroutines.launch
 import net.xmppwocky.earbs.audio.AudioEngine
 import net.xmppwocky.earbs.audio.ChordBuilder
 import net.xmppwocky.earbs.audio.ChordType
+import net.xmppwocky.earbs.audio.ProgressionStrategy
 import net.xmppwocky.earbs.data.backup.DatabaseBackupManager
 import net.xmppwocky.earbs.data.db.EarbsDatabase
 import net.xmppwocky.earbs.data.entity.GameType
@@ -33,6 +34,7 @@ import net.xmppwocky.earbs.data.repository.EarbsRepository
 import net.xmppwocky.earbs.model.Card
 import net.xmppwocky.earbs.model.ChordFunction
 import net.xmppwocky.earbs.model.FunctionCard
+import net.xmppwocky.earbs.model.GameAnswer
 import net.xmppwocky.earbs.model.GenericReviewSession
 import net.xmppwocky.earbs.model.ProgressionCard
 import net.xmppwocky.earbs.model.ProgressionType
@@ -44,7 +46,10 @@ import net.xmppwocky.earbs.ui.DEFAULT_PLAYBACK_DURATION
 import net.xmppwocky.earbs.ui.FunctionAnswerResult
 import net.xmppwocky.earbs.ui.FunctionReviewScreen
 import net.xmppwocky.earbs.ui.FunctionReviewScreenState
+import net.xmppwocky.earbs.ui.GenericAnswerResult
 import net.xmppwocky.earbs.ui.HistoryScreen
+import net.xmppwocky.earbs.ui.ProgressionReviewScreen
+import net.xmppwocky.earbs.ui.ProgressionReviewState
 import net.xmppwocky.earbs.ui.HomeScreen
 import net.xmppwocky.earbs.ui.PREF_KEY_AUTO_ADVANCE_DELAY
 import net.xmppwocky.earbs.ui.PREF_KEY_LEARN_FROM_MISTAKES
@@ -415,20 +420,27 @@ private fun EarbsApp(
 
         Screen.PROGRESSION_REVIEW -> {
             progressionSession?.let { activeSession ->
-                // TODO: Implement ProgressionReviewSessionScreen in Phase 4
-                // For now, show a placeholder and go back to home
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("Progression Review Screen - Coming Soon")
-                }
-                LaunchedEffect(Unit) {
-                    Log.w(TAG, "Progression review screen not yet implemented")
-                    progressionSession = null
-                    dbSessionId = null
-                    currentScreen = Screen.HOME
-                }
+                ProgressionReviewSessionScreen(
+                    session = activeSession,
+                    sessionId = dbSessionId ?: 0L,
+                    repository = repository,
+                    prefs = prefs,
+                    onSessionComplete = { result ->
+                        coroutineScope.launch {
+                            Log.i(TAG, "Progression session complete: ${result.correctCount}/${result.totalTrials}")
+                            dbSessionId?.let { repository.completeSession(it) }
+                            progressionDueCount = repository.getProgressionDueCount()
+                            sessionResult = result
+                            currentScreen = Screen.RESULTS
+                        }
+                    },
+                    onAbortSession = {
+                        Log.i(TAG, "Progression session aborted by user")
+                        progressionSession = null
+                        dbSessionId = null
+                        currentScreen = Screen.HOME
+                    }
+                )
             } ?: run {
                 Log.w(TAG, "Progression review screen but no session, returning to home")
                 currentScreen = Screen.HOME
@@ -946,6 +958,197 @@ private fun FunctionReviewSessionScreen(
 
                 // Auto-play next chord pair
                 playCurrentChordPair()
+            }
+        },
+        onAbortSession = onAbortSession
+    )
+}
+
+/**
+ * Progression Review Session Screen - manages state and audio for progression game.
+ */
+@Composable
+private fun ProgressionReviewSessionScreen(
+    session: GenericReviewSession<ProgressionCard>,
+    sessionId: Long,
+    repository: EarbsRepository,
+    prefs: SharedPreferences,
+    onSessionComplete: (SessionResult) -> Unit,
+    onAbortSession: () -> Unit
+) {
+    val initialCard = session.getCurrentCard()
+    var reviewState by remember {
+        mutableStateOf(
+            ProgressionReviewState(
+                session = session,
+                currentCard = initialCard,
+                currentRootSemitones = initialCard?.let { ChordBuilder.randomRootInOctave(it.octave) }
+            )
+        )
+    }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Read settings from prefs
+    val autoAdvanceDelayMs = prefs.getInt(PREF_KEY_AUTO_ADVANCE_DELAY, DEFAULT_AUTO_ADVANCE_DELAY).toLong()
+    val learnFromMistakesEnabled = prefs.getBoolean(PREF_KEY_LEARN_FROM_MISTAKES, DEFAULT_LEARN_FROM_MISTAKES)
+    val playbackDuration = prefs.getInt(PREF_KEY_PLAYBACK_DURATION, DEFAULT_PLAYBACK_DURATION)
+
+    // Play arbitrary progression (for learning mode)
+    fun playProgression(progression: ProgressionType) {
+        val currentCard = reviewState.currentCard ?: return
+        val rootSemitones = reviewState.currentRootSemitones ?: return
+
+        Log.i(TAG, "Playing progression ${progression.displayName} for learning mode")
+        reviewState = reviewState.copy(isPlaying = true)
+
+        coroutineScope.launch {
+            try {
+                ProgressionStrategy.playAnswer(
+                    answer = GameAnswer.ProgressionAnswer(progression),
+                    card = currentCard,
+                    rootSemitones = rootSemitones,
+                    durationMs = playbackDuration
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Error playing progression", e)
+            } finally {
+                reviewState = reviewState.copy(isPlaying = false)
+            }
+        }
+    }
+
+    // Shared play function for both manual play and auto-play
+    fun playCurrentProgression() {
+        val currentCard = reviewState.currentCard ?: return
+        val rootSemitones = reviewState.currentRootSemitones ?: return
+
+        Log.i(TAG, "Playing progression for trial ${session.currentTrial + 1}")
+        Log.i(TAG, "Playing progression ${currentCard.displayName}, root: $rootSemitones, mode: ${currentCard.playbackMode}")
+
+        reviewState = reviewState.copy(
+            isPlaying = true,
+            lastAnswer = null
+        )
+
+        coroutineScope.launch {
+            try {
+                ProgressionStrategy.playCard(
+                    card = currentCard,
+                    rootSemitones = rootSemitones,
+                    durationMs = playbackDuration
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Error playing progression", e)
+            } finally {
+                reviewState = reviewState.copy(
+                    isPlaying = false,
+                    hasPlayedThisTrial = true
+                )
+                Log.i(TAG, "Progression playback finished, ready for answer")
+            }
+        }
+    }
+
+    ProgressionReviewScreen(
+        state = reviewState,
+        autoAdvanceDelayMs = autoAdvanceDelayMs,
+        onPlayClicked = {
+            Log.i(TAG, "Play button clicked for progression trial ${session.currentTrial + 1}")
+            playCurrentProgression()
+        },
+        onAnswerClicked = { answeredProgression ->
+            val currentCard = reviewState.currentCard ?: return@ProgressionReviewScreen
+
+            Log.i(TAG, "Progression answer clicked: ${answeredProgression.displayName}")
+
+            val isCorrect = answeredProgression == currentCard.progression
+
+            val result = if (isCorrect) {
+                Log.i(TAG, "CORRECT! User answered ${answeredProgression.displayName}")
+                GenericAnswerResult.Correct<GameAnswer.ProgressionAnswer>()
+            } else {
+                Log.i(TAG, "WRONG! User answered ${answeredProgression.displayName}, actual was ${currentCard.progression.displayName}")
+                GenericAnswerResult.Wrong(
+                    actualAnswer = GameAnswer.ProgressionAnswer(currentCard.progression),
+                    selectedAnswer = GameAnswer.ProgressionAnswer(answeredProgression)
+                )
+            }
+
+            coroutineScope.launch {
+                repository.recordProgressionTrialAndUpdateFsrs(sessionId, currentCard, isCorrect, answeredProgression)
+            }
+
+            session.recordAnswer(isCorrect)
+
+            val enterLearningMode = learnFromMistakesEnabled && !isCorrect
+            reviewState = reviewState.copy(
+                lastAnswer = result,
+                showingFeedback = true,
+                inLearningMode = enterLearningMode
+            )
+
+            // Auto-play incorrect progression if entering learning mode
+            if (enterLearningMode) {
+                Log.i(TAG, "Entering learning mode - playing incorrect progression: ${answeredProgression.displayName}")
+                playProgression(answeredProgression)
+            }
+        },
+        onTrialComplete = {
+            val nextCard = session.getCurrentCard()
+            val nextRootSemitones = nextCard?.let { ChordBuilder.randomRootInOctave(it.octave) }
+            Log.i(TAG, "Progression trial complete, next card: ${nextCard?.displayName}, root: $nextRootSemitones")
+
+            reviewState = reviewState.copy(
+                currentCard = nextCard,
+                currentRootSemitones = nextRootSemitones,
+                lastAnswer = null,
+                hasPlayedThisTrial = false,
+                showingFeedback = false,
+                inLearningMode = false
+            )
+        },
+        onAutoPlay = {
+            Log.i(TAG, "Auto-playing next progression")
+            playCurrentProgression()
+        },
+        onSessionComplete = {
+            onSessionComplete(SessionResult(
+                correctCount = session.correctCount,
+                totalTrials = session.totalTrials,
+                sessionId = sessionId,
+                gameType = GameType.CHORD_PROGRESSION.name
+            ))
+        },
+        onPlayProgression = { progression ->
+            Log.i(TAG, "Learning mode: playing progression ${progression.displayName}")
+            playProgression(progression)
+        },
+        onNextClicked = {
+            Log.i(TAG, "Learning mode: Next clicked")
+            if (session.isComplete()) {
+                Log.i(TAG, "Progression session complete after learning mode, navigating to results")
+                onSessionComplete(SessionResult(
+                    correctCount = session.correctCount,
+                    totalTrials = session.totalTrials,
+                    sessionId = sessionId,
+                    gameType = GameType.CHORD_PROGRESSION.name
+                ))
+            } else {
+                Log.i(TAG, "Advancing to next progression trial")
+                val nextCard = session.getCurrentCard()
+                val nextRootSemitones = nextCard?.let { ChordBuilder.randomRootInOctave(it.octave) }
+
+                reviewState = reviewState.copy(
+                    currentCard = nextCard,
+                    currentRootSemitones = nextRootSemitones,
+                    lastAnswer = null,
+                    hasPlayedThisTrial = false,
+                    showingFeedback = false,
+                    inLearningMode = false
+                )
+
+                // Auto-play next progression
+                playCurrentProgression()
             }
         },
         onAbortSession = onAbortSession
