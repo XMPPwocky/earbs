@@ -73,8 +73,16 @@ abstract class DatabaseTestBase {
         octave: Int = 4,
         playbackMode: String = "ARPEGGIATED",
         unlocked: Boolean = true,
+        deprecated: Boolean = false,
         withFsrsState: Boolean = true,
-        dueDate: Long = System.currentTimeMillis()
+        dueDate: Long = System.currentTimeMillis(),
+        stability: Double = 2.5,
+        difficulty: Double = 2.5,
+        interval: Int = 0,
+        reviewCount: Int = 0,
+        lastReview: Long? = null,
+        phase: Int = 0,
+        lapses: Int = 0
     ): CardEntity {
         val cardId = "${chordType}_${octave}_${playbackMode}"
         val card = CardEntity(
@@ -82,7 +90,8 @@ abstract class DatabaseTestBase {
             chordType = chordType,
             octave = octave,
             playbackMode = playbackMode,
-            unlocked = unlocked
+            unlocked = unlocked,
+            deprecated = deprecated
         )
         cardDao.insert(card)
 
@@ -91,7 +100,14 @@ abstract class DatabaseTestBase {
                 FsrsStateEntity(
                     cardId = cardId,
                     gameType = GameType.CHORD_TYPE.name,
-                    dueDate = dueDate
+                    dueDate = dueDate,
+                    stability = stability,
+                    difficulty = difficulty,
+                    interval = interval,
+                    reviewCount = reviewCount,
+                    lastReview = lastReview,
+                    phase = phase,
+                    lapses = lapses
                 )
             )
         }
@@ -108,8 +124,16 @@ abstract class DatabaseTestBase {
         octave: Int = 4,
         playbackMode: String = "ARPEGGIATED",
         unlocked: Boolean = true,
+        deprecated: Boolean = false,
         withFsrsState: Boolean = true,
-        dueDate: Long = System.currentTimeMillis()
+        dueDate: Long = System.currentTimeMillis(),
+        stability: Double = 2.5,
+        difficulty: Double = 2.5,
+        interval: Int = 0,
+        reviewCount: Int = 0,
+        lastReview: Long? = null,
+        phase: Int = 0,
+        lapses: Int = 0
     ): FunctionCardEntity {
         val cardId = "${function}_${keyQuality}_${octave}_${playbackMode}"
         val card = FunctionCardEntity(
@@ -118,7 +142,8 @@ abstract class DatabaseTestBase {
             keyQuality = keyQuality,
             octave = octave,
             playbackMode = playbackMode,
-            unlocked = unlocked
+            unlocked = unlocked,
+            deprecated = deprecated
         )
         functionCardDao.insert(card)
 
@@ -127,7 +152,64 @@ abstract class DatabaseTestBase {
                 FsrsStateEntity(
                     cardId = cardId,
                     gameType = GameType.CHORD_FUNCTION.name,
-                    dueDate = dueDate
+                    dueDate = dueDate,
+                    stability = stability,
+                    difficulty = difficulty,
+                    interval = interval,
+                    reviewCount = reviewCount,
+                    lastReview = lastReview,
+                    phase = phase,
+                    lapses = lapses
+                )
+            )
+        }
+
+        return card
+    }
+
+    /**
+     * Create a test ProgressionCardEntity with optional FSRS state.
+     */
+    protected suspend fun createProgressionCard(
+        progression: String = "I_IV_V_I",
+        octave: Int = 4,
+        playbackMode: String = "ARPEGGIATED",
+        unlocked: Boolean = true,
+        deprecated: Boolean = false,
+        withFsrsState: Boolean = true,
+        dueDate: Long = System.currentTimeMillis(),
+        stability: Double = 2.5,
+        difficulty: Double = 2.5,
+        interval: Int = 0,
+        reviewCount: Int = 0,
+        lastReview: Long? = null,
+        phase: Int = 0,
+        lapses: Int = 0
+    ): ProgressionCardEntity {
+        val cardId = "${progression}_${octave}_${playbackMode}"
+        val card = ProgressionCardEntity(
+            id = cardId,
+            progression = progression,
+            octave = octave,
+            playbackMode = playbackMode,
+            unlocked = unlocked,
+            deprecated = deprecated
+        )
+        progressionCardDao.insert(card)
+
+        if (withFsrsState) {
+            fsrsStateDao.insert(
+                FsrsStateEntity(
+                    cardId = cardId,
+                    gameType = GameType.CHORD_PROGRESSION.name,
+                    dueDate = dueDate,
+                    stability = stability,
+                    difficulty = difficulty,
+                    interval = interval,
+                    reviewCount = reviewCount,
+                    lastReview = lastReview,
+                    phase = phase,
+                    lapses = lapses
                 )
             )
         }
