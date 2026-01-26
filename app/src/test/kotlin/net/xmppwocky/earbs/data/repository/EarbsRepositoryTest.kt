@@ -9,6 +9,8 @@ import net.xmppwocky.earbs.data.entity.GameType
 import net.xmppwocky.earbs.data.entity.ProgressionCardEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -322,5 +324,82 @@ class EarbsRepositoryTest : DatabaseTestBase() {
         fsrsStateDao.insert(FsrsStateEntity("I_V_I_MAJOR_4_ARPEGGIATED", GameType.CHORD_PROGRESSION.name, dueDate = now - HOUR_MS))
 
         assertEquals(1, repository.getProgressionDueCount())
+    }
+
+    // ========== getCardWithFsrs Game Type Tests ==========
+
+    @Test
+    fun `getCardWithFsrs returns chord type card for CHORD_TYPE game`() = runTest {
+        val now = System.currentTimeMillis()
+
+        // Create chord type card with FSRS state
+        cardDao.insert(CardEntity("MAJOR_4_ARPEGGIATED", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        fsrsStateDao.insert(FsrsStateEntity("MAJOR_4_ARPEGGIATED", GameType.CHORD_TYPE.name, dueDate = now))
+
+        val result = repository.getCardWithFsrs("MAJOR_4_ARPEGGIATED", GameType.CHORD_TYPE)
+
+        assertNotNull(result)
+        assertEquals("MAJOR_4_ARPEGGIATED", result!!.id)
+        assertEquals("Major", result.displayName)
+        assertEquals(4, result.octave)
+        assertEquals("ARPEGGIATED", result.playbackMode)
+        assertTrue(result.unlocked)
+    }
+
+    @Test
+    fun `getCardWithFsrs returns function card for CHORD_FUNCTION game`() = runTest {
+        val now = System.currentTimeMillis()
+
+        // Create function card with FSRS state
+        functionCardDao.insert(FunctionCardEntity("V_MAJOR_4_ARPEGGIATED", "V", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        fsrsStateDao.insert(FsrsStateEntity("V_MAJOR_4_ARPEGGIATED", GameType.CHORD_FUNCTION.name, dueDate = now))
+
+        val result = repository.getCardWithFsrs("V_MAJOR_4_ARPEGGIATED", GameType.CHORD_FUNCTION)
+
+        assertNotNull(result)
+        assertEquals("V_MAJOR_4_ARPEGGIATED", result!!.id)
+        assertEquals("V (major)", result.displayName)
+        assertEquals(4, result.octave)
+        assertEquals("ARPEGGIATED", result.playbackMode)
+        assertTrue(result.unlocked)
+    }
+
+    @Test
+    fun `getCardWithFsrs returns progression card for CHORD_PROGRESSION game`() = runTest {
+        val now = System.currentTimeMillis()
+
+        // Create progression card with FSRS state
+        progressionCardDao.insert(ProgressionCardEntity("I_IV_V_I_MAJOR_4_ARPEGGIATED", "I_IV_V_I_MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        fsrsStateDao.insert(FsrsStateEntity("I_IV_V_I_MAJOR_4_ARPEGGIATED", GameType.CHORD_PROGRESSION.name, dueDate = now))
+
+        val result = repository.getCardWithFsrs("I_IV_V_I_MAJOR_4_ARPEGGIATED", GameType.CHORD_PROGRESSION)
+
+        assertNotNull(result)
+        assertEquals("I_IV_V_I_MAJOR_4_ARPEGGIATED", result!!.id)
+        assertEquals("I-IV-V-I (major)", result.displayName)
+        assertEquals(4, result.octave)
+        assertEquals("ARPEGGIATED", result.playbackMode)
+        assertTrue(result.unlocked)
+    }
+
+    @Test
+    fun `getCardWithFsrs returns null when card not found`() = runTest {
+        val result = repository.getCardWithFsrs("NONEXISTENT_CARD", GameType.CHORD_TYPE)
+
+        assertNull(result)
+    }
+
+    @Test
+    fun `getCardWithFsrs returns null when querying wrong game type`() = runTest {
+        val now = System.currentTimeMillis()
+
+        // Create chord type card
+        cardDao.insert(CardEntity("MAJOR_4_ARPEGGIATED", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        fsrsStateDao.insert(FsrsStateEntity("MAJOR_4_ARPEGGIATED", GameType.CHORD_TYPE.name, dueDate = now))
+
+        // Query with wrong game type should return null
+        val result = repository.getCardWithFsrs("MAJOR_4_ARPEGGIATED", GameType.CHORD_FUNCTION)
+
+        assertNull(result)
     }
 }

@@ -26,7 +26,7 @@ import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
 import kotlinx.coroutines.launch
 import net.xmppwocky.earbs.data.db.CardSessionAccuracy
-import net.xmppwocky.earbs.data.db.CardWithFsrs
+import net.xmppwocky.earbs.data.db.GenericCardWithFsrs
 import net.xmppwocky.earbs.data.entity.GameType
 import net.xmppwocky.earbs.data.repository.EarbsRepository
 import net.xmppwocky.earbs.fsrs.CardPhase
@@ -48,7 +48,7 @@ fun CardDetailsScreen(
 ) {
     BackHandler { onBackClicked() }
 
-    var card by remember { mutableStateOf<CardWithFsrs?>(null) }
+    var card by remember { mutableStateOf<GenericCardWithFsrs?>(null) }
     var sessionAccuracy by remember { mutableStateOf<List<CardSessionAccuracy>>(emptyList()) }
     var lifetimeStats by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var isLoading by remember { mutableStateOf(true) }
@@ -58,8 +58,8 @@ fun CardDetailsScreen(
 
     // Load data
     LaunchedEffect(cardId) {
-        Log.d(TAG, "Loading card details for $cardId")
-        card = repository.getCardWithFsrs(cardId)
+        Log.d(TAG, "Loading card details for $cardId (gameType=${gameType.name})")
+        card = repository.getCardWithFsrs(cardId, gameType)
         sessionAccuracy = repository.getCardSessionAccuracy(cardId)
         lifetimeStats = repository.getCardLifetimeStats(cardId)
         isLoading = false
@@ -81,7 +81,7 @@ fun CardDetailsScreen(
                             Log.i(TAG, "Resetting FSRS state for card $cardId")
                             repository.resetFsrsState(cardId, gameType)
                             // Reload card data
-                            card = repository.getCardWithFsrs(cardId)
+                            card = repository.getCardWithFsrs(cardId, gameType)
                         }
                         showResetDialog = false
                     }
@@ -156,7 +156,7 @@ fun CardDetailsScreen(
                         coroutineScope.launch {
                             onUnlockToggled(cardId, unlocked)
                             // Reload card data after toggle
-                            card = repository.getCardWithFsrs(cardId)
+                            card = repository.getCardWithFsrs(cardId, gameType)
                         }
                     }
                 } else null
@@ -222,7 +222,7 @@ fun CardDetailsScreen(
 
 @Composable
 internal fun CardHeader(
-    card: CardWithFsrs,
+    card: GenericCardWithFsrs,
     onUnlockToggled: ((Boolean) -> Unit)? = null
 ) {
     Card(
@@ -243,7 +243,7 @@ internal fun CardHeader(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "${card.chordType} @ Octave ${card.octave}",
+                    text = "${card.displayName} @ Octave ${card.octave}",
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp,
                     color = if (card.unlocked)
@@ -406,7 +406,7 @@ internal fun LastSessionSection(lastSession: CardSessionAccuracy) {
 }
 
 @Composable
-internal fun FsrsParametersSection(card: CardWithFsrs) {
+internal fun FsrsParametersSection(card: GenericCardWithFsrs) {
     val dateFormat = remember { SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()) }
     val dueDate = dateFormat.format(Date(card.dueDate))
     val lastReviewDate = card.lastReview?.let { dateFormat.format(Date(it)) } ?: "Never"

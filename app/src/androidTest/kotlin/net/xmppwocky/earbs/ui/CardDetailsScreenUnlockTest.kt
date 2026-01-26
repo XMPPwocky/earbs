@@ -16,7 +16,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import net.xmppwocky.earbs.ComposeTestBase
-import net.xmppwocky.earbs.data.db.CardWithFsrs
+import net.xmppwocky.earbs.data.db.GenericCardWithFsrs
 import net.xmppwocky.earbs.fsrs.CardPhase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -31,7 +31,7 @@ class CardDetailsScreenUnlockTest : ComposeTestBase() {
 
     private fun createUnlockedCard(
         id: String = "MAJOR_4_ARPEGGIATED",
-        chordType: String = "MAJOR",
+        displayName: String = "Major",
         octave: Int = 4,
         playbackMode: String = "ARPEGGIATED",
         stability: Double = 4.52,
@@ -42,10 +42,10 @@ class CardDetailsScreenUnlockTest : ComposeTestBase() {
         lastReview: Long? = System.currentTimeMillis() - DAY_MS,
         phase: Int = CardPhase.Review.value,
         lapses: Int = 2
-    ): CardWithFsrs {
-        return CardWithFsrs(
+    ): GenericCardWithFsrs {
+        return GenericCardWithFsrs(
             id = id,
-            chordType = chordType,
+            displayName = displayName,
             octave = octave,
             playbackMode = playbackMode,
             unlocked = true,
@@ -62,13 +62,13 @@ class CardDetailsScreenUnlockTest : ComposeTestBase() {
 
     private fun createLockedCard(
         id: String = "MAJOR_4_ARPEGGIATED",
-        chordType: String = "MAJOR",
+        displayName: String = "Major",
         octave: Int = 4,
         playbackMode: String = "ARPEGGIATED"
-    ): CardWithFsrs {
-        return CardWithFsrs(
+    ): GenericCardWithFsrs {
+        return GenericCardWithFsrs(
             id = id,
-            chordType = chordType,
+            displayName = displayName,
             octave = octave,
             playbackMode = playbackMode,
             unlocked = false,
@@ -171,13 +171,13 @@ class CardDetailsScreenUnlockTest : ComposeTestBase() {
 
     @Test
     fun cardHeader_displaysCardName() {
-        val card = createUnlockedCard(chordType = "MINOR", octave = 5)
+        val card = createUnlockedCard(displayName = "Minor", octave = 5)
 
         composeTestRule.setContent {
             CardHeader(card = card)
         }
 
-        composeTestRule.onNodeWithText("MINOR @ Octave 5").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Minor @ Octave 5").assertIsDisplayed()
     }
 
     @Test
@@ -282,7 +282,7 @@ class CardDetailsScreenUnlockTest : ComposeTestBase() {
         }
 
         // The card should be displayed (background color verification is limited in Compose tests)
-        composeTestRule.onNodeWithText("MAJOR @ Octave 4").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Major @ Octave 4").assertIsDisplayed()
     }
 
     @Test
@@ -294,7 +294,7 @@ class CardDetailsScreenUnlockTest : ComposeTestBase() {
         }
 
         // The card should be displayed
-        composeTestRule.onNodeWithText("MAJOR @ Octave 4").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Major @ Octave 4").assertIsDisplayed()
     }
 
     // ========== Lifetime Stats Section Tests ==========

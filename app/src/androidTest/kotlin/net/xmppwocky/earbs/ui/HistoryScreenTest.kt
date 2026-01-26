@@ -80,8 +80,9 @@ class HistoryScreenTest : ComposeTestBase() {
     fun displaysSessionsTab() {
         composeTestRule.setContent {
             HistoryScreen(
+                gameType = GameType.CHORD_TYPE,
                 sessions = emptyList(),
-                cards = emptyList(),
+                chordTypeCards = emptyList(),
                 cardStats = emptyList(),
                 onBackClicked = {}
             )
@@ -94,8 +95,9 @@ class HistoryScreenTest : ComposeTestBase() {
     fun displaysCardsTab() {
         composeTestRule.setContent {
             HistoryScreen(
+                gameType = GameType.CHORD_TYPE,
                 sessions = emptyList(),
-                cards = emptyList(),
+                chordTypeCards = emptyList(),
                 cardStats = emptyList(),
                 onBackClicked = {}
             )
@@ -108,8 +110,9 @@ class HistoryScreenTest : ComposeTestBase() {
     fun displaysStatsTab() {
         composeTestRule.setContent {
             HistoryScreen(
+                gameType = GameType.CHORD_TYPE,
                 sessions = emptyList(),
-                cards = emptyList(),
+                chordTypeCards = emptyList(),
                 cardStats = emptyList(),
                 onBackClicked = {}
             )
@@ -124,8 +127,9 @@ class HistoryScreenTest : ComposeTestBase() {
     fun sessionsTab_showsEmptyMessage_whenNoSessions() {
         composeTestRule.setContent {
             HistoryScreen(
+                gameType = GameType.CHORD_TYPE,
                 sessions = emptyList(),
-                cards = emptyList(),
+                chordTypeCards = emptyList(),
                 cardStats = emptyList(),
                 onBackClicked = {}
             )
@@ -140,8 +144,9 @@ class HistoryScreenTest : ComposeTestBase() {
 
         composeTestRule.setContent {
             HistoryScreen(
+                gameType = GameType.CHORD_TYPE,
                 sessions = listOf(session),
-                cards = emptyList(),
+                chordTypeCards = emptyList(),
                 cardStats = emptyList(),
                 onBackClicked = {}
             )
@@ -156,8 +161,9 @@ class HistoryScreenTest : ComposeTestBase() {
 
         composeTestRule.setContent {
             HistoryScreen(
+                gameType = GameType.CHORD_TYPE,
                 sessions = listOf(session),
-                cards = emptyList(),
+                chordTypeCards = emptyList(),
                 cardStats = emptyList(),
                 onBackClicked = {}
             )
@@ -172,8 +178,9 @@ class HistoryScreenTest : ComposeTestBase() {
 
         composeTestRule.setContent {
             HistoryScreen(
+                gameType = GameType.CHORD_TYPE,
                 sessions = listOf(session),
-                cards = emptyList(),
+                chordTypeCards = emptyList(),
                 cardStats = emptyList(),
                 onBackClicked = {}
             )
@@ -188,8 +195,9 @@ class HistoryScreenTest : ComposeTestBase() {
 
         composeTestRule.setContent {
             HistoryScreen(
+                gameType = GameType.CHORD_TYPE,
                 sessions = listOf(session),
-                cards = emptyList(),
+                chordTypeCards = emptyList(),
                 cardStats = emptyList(),
                 onBackClicked = {}
             )
@@ -204,8 +212,9 @@ class HistoryScreenTest : ComposeTestBase() {
 
         composeTestRule.setContent {
             HistoryScreen(
+                gameType = GameType.CHORD_TYPE,
                 sessions = listOf(session),
-                cards = emptyList(),
+                chordTypeCards = emptyList(),
                 cardStats = emptyList(),
                 onBackClicked = {}
             )
@@ -220,8 +229,9 @@ class HistoryScreenTest : ComposeTestBase() {
     fun cardsTab_showsEmptyMessage_whenNoCards() {
         composeTestRule.setContent {
             HistoryScreen(
+                gameType = GameType.CHORD_TYPE,
                 sessions = emptyList(),
-                cards = emptyList(),
+                chordTypeCards = emptyList(),
                 cardStats = emptyList(),
                 onBackClicked = {}
             )
@@ -238,8 +248,9 @@ class HistoryScreenTest : ComposeTestBase() {
 
         composeTestRule.setContent {
             HistoryScreen(
+                gameType = GameType.CHORD_TYPE,
                 sessions = emptyList(),
-                cards = listOf(card),
+                chordTypeCards = listOf(card),
                 cardStats = emptyList(),
                 onBackClicked = {}
             )
@@ -257,8 +268,9 @@ class HistoryScreenTest : ComposeTestBase() {
 
         composeTestRule.setContent {
             HistoryScreen(
+                gameType = GameType.CHORD_TYPE,
                 sessions = emptyList(),
-                cards = listOf(card),
+                chordTypeCards = listOf(card),
                 cardStats = emptyList(),
                 onBackClicked = {}
             )
@@ -277,8 +289,9 @@ class HistoryScreenTest : ComposeTestBase() {
 
         composeTestRule.setContent {
             HistoryScreen(
+                gameType = GameType.CHORD_TYPE,
                 sessions = emptyList(),
-                cards = listOf(card),
+                chordTypeCards = listOf(card),
                 cardStats = emptyList(),
                 onBackClicked = {}
             )
@@ -296,8 +309,9 @@ class HistoryScreenTest : ComposeTestBase() {
 
         composeTestRule.setContent {
             HistoryScreen(
+                gameType = GameType.CHORD_TYPE,
                 sessions = emptyList(),
-                cards = listOf(card),
+                chordTypeCards = listOf(card),
                 cardStats = emptyList(),
                 onBackClicked = {}
             )
@@ -314,8 +328,9 @@ class HistoryScreenTest : ComposeTestBase() {
     fun statsTab_showsEmptyMessage_whenNoStats() {
         composeTestRule.setContent {
             HistoryScreen(
+                gameType = GameType.CHORD_TYPE,
                 sessions = emptyList(),
-                cards = emptyList(),
+                chordTypeCards = emptyList(),
                 cardStats = emptyList(),
                 onBackClicked = {}
             )
@@ -335,8 +350,9 @@ class HistoryScreenTest : ComposeTestBase() {
 
         composeTestRule.setContent {
             HistoryScreen(
+                gameType = GameType.CHORD_TYPE,
                 sessions = emptyList(),
-                cards = emptyList(),
+                chordTypeCards = emptyList(),
                 cardStats = stats,
                 onBackClicked = {}
             )
@@ -357,8 +373,9 @@ class HistoryScreenTest : ComposeTestBase() {
 
         composeTestRule.setContent {
             HistoryScreen(
+                gameType = GameType.CHORD_TYPE,
                 sessions = emptyList(),
-                cards = emptyList(),
+                chordTypeCards = emptyList(),
                 cardStats = stats,
                 onBackClicked = {}
             )
@@ -377,8 +394,9 @@ class HistoryScreenTest : ComposeTestBase() {
         var clicked = false
         composeTestRule.setContent {
             HistoryScreen(
+                gameType = GameType.CHORD_TYPE,
                 sessions = emptyList(),
-                cards = emptyList(),
+                chordTypeCards = emptyList(),
                 cardStats = emptyList(),
                 onBackClicked = { clicked = true }
             )
@@ -397,8 +415,9 @@ class HistoryScreenTest : ComposeTestBase() {
 
         composeTestRule.setContent {
             HistoryScreen(
+                gameType = GameType.CHORD_TYPE,
                 sessions = emptyList(),
-                cards = listOf(card),
+                chordTypeCards = listOf(card),
                 cardStats = emptyList(),
                 onBackClicked = {},
                 onCardClicked = { cardId -> clickedCardId = cardId }

@@ -11,6 +11,7 @@ import net.xmppwocky.earbs.data.db.SessionCardStats
 import net.xmppwocky.earbs.data.db.CardStatsView
 import net.xmppwocky.earbs.data.db.ConfusionEntry
 import net.xmppwocky.earbs.data.db.CardWithFsrs
+import net.xmppwocky.earbs.data.db.GenericCardWithFsrs
 import net.xmppwocky.earbs.data.db.FsrsStateDao
 import net.xmppwocky.earbs.data.db.FunctionCardDao
 import net.xmppwocky.earbs.data.db.HistoryDao
@@ -913,10 +914,16 @@ class EarbsRepository(
     }
 
     /**
-     * Get card by ID with FSRS state.
+     * Get card by ID with FSRS state for a specific game type.
+     * Returns a GenericCardWithFsrs that can represent any card type.
      */
-    suspend fun getCardWithFsrs(cardId: String): CardWithFsrs? {
-        return cardDao.getByIdWithFsrs(cardId)
+    suspend fun getCardWithFsrs(cardId: String, gameType: GameType): GenericCardWithFsrs? {
+        Log.d(TAG, "Getting card with FSRS: cardId=$cardId, gameType=${gameType.name}")
+        return when (gameType) {
+            GameType.CHORD_TYPE -> cardDao.getByIdWithFsrs(cardId)?.toGeneric()
+            GameType.CHORD_FUNCTION -> functionCardDao.getByIdWithFsrs(cardId)?.toGeneric()
+            GameType.CHORD_PROGRESSION -> progressionCardDao.getByIdWithFsrs(cardId)?.toGeneric()
+        }
     }
 
     /**
@@ -982,5 +989,82 @@ private fun ProgressionCardWithFsrs.toProgressionCard(): ProgressionCard {
         progression = ProgressionType.valueOf(progression),
         octave = octave,
         playbackMode = PlaybackMode.valueOf(playbackMode)
+    )
+}
+
+/**
+ * Convert CardWithFsrs to GenericCardWithFsrs.
+ */
+private fun CardWithFsrs.toGeneric(): GenericCardWithFsrs {
+    // Format chord type nicely: "MAJOR" -> "Major"
+    val displayName = chordType.lowercase().replaceFirstChar { it.uppercase() }
+    return GenericCardWithFsrs(
+        id = id,
+        displayName = displayName,
+        octave = octave,
+        playbackMode = playbackMode,
+        unlocked = unlocked,
+        stability = stability,
+        difficulty = difficulty,
+        interval = interval,
+        dueDate = dueDate,
+        reviewCount = reviewCount,
+        lastReview = lastReview,
+        phase = phase,
+        lapses = lapses
+    )
+}
+
+/**
+ * Convert FunctionCardWithFsrs to GenericCardWithFsrs.
+ */
+private fun FunctionCardWithFsrs.toGeneric(): GenericCardWithFsrs {
+    // Format function with key quality: "V" + "MAJOR" -> "V (major)"
+    val qualityLower = keyQuality.lowercase()
+    val displayName = "$function ($qualityLower)"
+    return GenericCardWithFsrs(
+        id = id,
+        displayName = displayName,
+        octave = octave,
+        playbackMode = playbackMode,
+        unlocked = unlocked,
+        stability = stability,
+        difficulty = difficulty,
+        interval = interval,
+        dueDate = dueDate,
+        reviewCount = reviewCount,
+        lastReview = lastReview,
+        phase = phase,
+        lapses = lapses
+    )
+}
+
+/**
+ * Convert ProgressionCardWithFsrs to GenericCardWithFsrs.
+ */
+private fun ProgressionCardWithFsrs.toGeneric(): GenericCardWithFsrs {
+    // Parse progression and format: "I_IV_V_I_MAJOR" -> "I-IV-V-I (major)"
+    val parts = progression.split("_")
+    // Last part is the key quality (MAJOR/MINOR)
+    val qualityPart = parts.lastOrNull { it == "MAJOR" || it == "MINOR" }
+    val qualityLower = qualityPart?.lowercase() ?: ""
+    // Everything before quality is the progression
+    val progressionParts = parts.takeWhile { it != "MAJOR" && it != "MINOR" }
+    val progressionStr = progressionParts.joinToString("-")
+    val displayName = if (qualityLower.isNotEmpty()) "$progressionStr ($qualityLower)" else progressionStr
+    return GenericCardWithFsrs(
+        id = id,
+        displayName = displayName,
+        octave = octave,
+        playbackMode = playbackMode,
+        unlocked = unlocked,
+        stability = stability,
+        difficulty = difficulty,
+        interval = interval,
+        dueDate = dueDate,
+        reviewCount = reviewCount,
+        lastReview = lastReview,
+        phase = phase,
+        lapses = lapses
     )
 }

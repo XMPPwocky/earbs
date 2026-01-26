@@ -5,7 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import net.xmppwocky.earbs.ComposeTestBase
 import net.xmppwocky.earbs.data.db.CardSessionAccuracy
-import net.xmppwocky.earbs.data.db.CardWithFsrs
+import net.xmppwocky.earbs.data.db.GenericCardWithFsrs
 import net.xmppwocky.earbs.fsrs.CardPhase
 import org.junit.Test
 
@@ -20,7 +20,7 @@ class CardDetailsScreenTest : ComposeTestBase() {
 
     private fun createCardWithFsrs(
         id: String = "MAJOR_4_ARPEGGIATED",
-        chordType: String = "MAJOR",
+        displayName: String = "Major",
         octave: Int = 4,
         playbackMode: String = "ARPEGGIATED",
         stability: Double = 4.52,
@@ -31,10 +31,10 @@ class CardDetailsScreenTest : ComposeTestBase() {
         lastReview: Long? = System.currentTimeMillis() - DAY_MS,
         phase: Int = CardPhase.Review.value,
         lapses: Int = 2
-    ): CardWithFsrs {
-        return CardWithFsrs(
+    ): GenericCardWithFsrs {
+        return GenericCardWithFsrs(
             id = id,
-            chordType = chordType,
+            displayName = displayName,
             octave = octave,
             playbackMode = playbackMode,
             unlocked = true,
@@ -67,13 +67,13 @@ class CardDetailsScreenTest : ComposeTestBase() {
 
     @Test
     fun cardHeader_displaysCardName() {
-        val card = createCardWithFsrs(chordType = "MINOR", octave = 5)
+        val card = createCardWithFsrs(displayName = "Minor", octave = 5)
 
         composeTestRule.setContent {
             CardHeader(card)
         }
 
-        composeTestRule.onNodeWithText("MINOR @ Octave 5").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Minor @ Octave 5").assertIsDisplayed()
     }
 
     @Test

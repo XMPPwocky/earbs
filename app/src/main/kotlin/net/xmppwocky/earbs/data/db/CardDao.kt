@@ -26,6 +26,26 @@ data class CardWithFsrs(
     val lapses: Int
 )
 
+/**
+ * Generic card with FSRS state that can represent any game type.
+ * Used by CardDetailsScreen to display cards regardless of game type.
+ */
+data class GenericCardWithFsrs(
+    val id: String,
+    val displayName: String,  // "Major", "V (major)", "I-IV-V-I (major)", etc.
+    val octave: Int,
+    val playbackMode: String,
+    val unlocked: Boolean,
+    val stability: Double,
+    val difficulty: Double,
+    val interval: Int,
+    val dueDate: Long,
+    val reviewCount: Int,
+    val lastReview: Long?,
+    val phase: Int,
+    val lapses: Int
+)
+
 @Dao
 interface CardDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
