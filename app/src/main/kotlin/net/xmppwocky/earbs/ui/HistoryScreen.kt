@@ -28,11 +28,14 @@ import net.xmppwocky.earbs.data.db.CardStatsView
 import net.xmppwocky.earbs.data.db.CardWithFsrs
 import net.xmppwocky.earbs.data.db.ConfusionEntry
 import net.xmppwocky.earbs.data.db.FunctionCardWithFsrs
+import net.xmppwocky.earbs.data.db.ProgressionCardWithFsrs
 import net.xmppwocky.earbs.data.db.SessionOverview
+import net.xmppwocky.earbs.data.entity.GameType
 import net.xmppwocky.earbs.data.entity.TrialEntity
 import net.xmppwocky.earbs.model.ChordFunction
 import net.xmppwocky.earbs.model.computeFunctionMasteryDistribution
 import net.xmppwocky.earbs.model.computeMasteryDistribution
+import net.xmppwocky.earbs.model.computeProgressionMasteryDistribution
 import net.xmppwocky.earbs.ui.components.ConfusionMatrix
 import net.xmppwocky.earbs.ui.components.ConfusionMatrixData
 import net.xmppwocky.earbs.ui.components.FilterChipRow
@@ -55,9 +58,11 @@ enum class HistoryTab {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
+    gameType: GameType,
     sessions: List<SessionOverview>,
-    cards: List<CardWithFsrs>,
+    chordTypeCards: List<CardWithFsrs> = emptyList(),
     functionCards: List<FunctionCardWithFsrs> = emptyList(),
+    progressionCards: List<ProgressionCardWithFsrs> = emptyList(),
     cardStats: List<CardStatsView>,
     onBackClicked: () -> Unit,
     onLoadTrials: (suspend (Long) -> List<TrialEntity>)? = null,
@@ -71,12 +76,22 @@ fun HistoryScreen(
 
     var selectedTab by remember { mutableStateOf(HistoryTab.SESSIONS) }
 
-    Log.d(TAG, "HistoryScreen composing: ${sessions.size} sessions, ${cards.size} cards")
+    val gameTypeDisplayName = when (gameType) {
+        GameType.CHORD_TYPE -> "Chord Type"
+        GameType.CHORD_FUNCTION -> "Function"
+        GameType.CHORD_PROGRESSION -> "Progression"
+    }
+    val cardCount = when (gameType) {
+        GameType.CHORD_TYPE -> chordTypeCards.size
+        GameType.CHORD_FUNCTION -> functionCards.size
+        GameType.CHORD_PROGRESSION -> progressionCards.size
+    }
+    Log.d(TAG, "HistoryScreen composing: ${sessions.size} sessions, $cardCount cards (gameType=${gameType.name})")
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("History") },
+                title = { Text("$gameTypeDisplayName History") },
                 navigationIcon = {
                     IconButton(onClick = onBackClicked) {
                         Icon(
@@ -114,11 +129,21 @@ fun HistoryScreen(
 
             when (selectedTab) {
                 HistoryTab.SESSIONS -> SessionsTab(sessions, onLoadTrials)
-                HistoryTab.CARDS -> CardsTab(cards, onResetFsrs, onCardClicked, onCardUnlockToggled)
-                HistoryTab.STATS -> StatsTab(
-                    cardStats = cardStats,
-                    chordTypeCards = cards,
+                HistoryTab.CARDS -> CardsTab(
+                    gameType = gameType,
+                    chordTypeCards = chordTypeCards,
                     functionCards = functionCards,
+                    progressionCards = progressionCards,
+                    onResetFsrs = onResetFsrs,
+                    onCardClicked = onCardClicked,
+                    onCardUnlockToggled = onCardUnlockToggled
+                )
+                HistoryTab.STATS -> StatsTab(
+                    gameType = gameType,
+                    cardStats = cardStats,
+                    chordTypeCards = chordTypeCards,
+                    functionCards = functionCards,
+                    progressionCards = progressionCards,
                     onLoadChordConfusion = onLoadChordConfusion,
                     onLoadFunctionConfusion = onLoadFunctionConfusion
                 )
@@ -348,14 +373,77 @@ private fun TrialRow(trial: TrialEntity) {
     }
 }
 
+/**
+ * Generic card item for display in the Cards tab.
+ * Abstracts over the different card types.
+ */
+private data class CardDisplayItem(
+    val id: String,
+    val displayName: String,
+    val unlocked: Boolean,
+    val dueDate: Long,
+    val stability: Double,
+    val groupKey: String
+)
+
 @Composable
 private fun CardsTab(
-    cards: List<CardWithFsrs>,
+    gameType: GameType,
+    chordTypeCards: List<CardWithFsrs>,
+    functionCards: List<FunctionCardWithFsrs>,
+    progressionCards: List<ProgressionCardWithFsrs>,
     onResetFsrs: (suspend (String) -> Unit)? = null,
     onCardClicked: ((String) -> Unit)? = null,
     onCardUnlockToggled: (suspend (String, Boolean) -> Unit)? = null
 ) {
-    if (cards.isEmpty()) {
+    // Convert cards to generic display items based on game type
+    val cardItems = remember(gameType, chordTypeCards, functionCards, progressionCards) {
+        when (gameType) {
+            GameType.CHORD_TYPE -> chordTypeCards.map { card ->
+                val chordType = ChordType.valueOf(card.chordType)
+                val isTriad = chordType in ChordType.TRIADS
+                val category = if (isTriad) "Triads" else "7ths"
+                val mode = card.playbackMode.lowercase().replaceFirstChar { it.uppercase() }
+                CardDisplayItem(
+                    id = card.id,
+                    displayName = card.chordType,
+                    unlocked = card.unlocked,
+                    dueDate = card.dueDate,
+                    stability = card.stability,
+                    groupKey = "$category @ Octave ${card.octave}, $mode"
+                )
+            }
+            GameType.CHORD_FUNCTION -> functionCards.map { card ->
+                val mode = card.playbackMode.lowercase().replaceFirstChar { it.uppercase() }
+                val keyQualityDisplay = card.keyQuality.lowercase().replaceFirstChar { it.uppercase() }
+                CardDisplayItem(
+                    id = card.id,
+                    displayName = "${card.function} ($keyQualityDisplay)",
+                    unlocked = card.unlocked,
+                    dueDate = card.dueDate,
+                    stability = card.stability,
+                    groupKey = "$keyQualityDisplay @ Octave ${card.octave}, $mode"
+                )
+            }
+            GameType.CHORD_PROGRESSION -> progressionCards.map { card ->
+                val mode = card.playbackMode.lowercase().replaceFirstChar { it.uppercase() }
+                // Determine key quality from progression name (ends with _MAJOR or _MINOR equivalent)
+                val keyQuality = if (card.progression.contains("MAJOR", ignoreCase = true) ||
+                    card.progression in listOf("I_IV_V_I", "I_V_vi_IV", "I_vi_IV_V", "ii_V_I", "I_IV_vi_V", "vi_IV_I_V", "I_V_IV_I", "IV_I_V_vi")
+                ) "Major" else "Minor"
+                CardDisplayItem(
+                    id = card.id,
+                    displayName = card.progression.replace("_", "-"),
+                    unlocked = card.unlocked,
+                    dueDate = card.dueDate,
+                    stability = card.stability,
+                    groupKey = "$keyQuality @ Octave ${card.octave}, $mode"
+                )
+            }
+        }
+    }
+
+    if (cardItems.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
@@ -370,19 +458,25 @@ private fun CardsTab(
 
     val coroutineScope = rememberCoroutineScope()
 
-    // Group cards by unlock group
-    val groupedCards = remember(cards) {
-        cards.groupBy { card ->
-            // Determine group based on chord type category, octave, and playback mode
-            val chordType = ChordType.valueOf(card.chordType)
-            val isTriad = chordType in ChordType.TRIADS
-            val category = if (isTriad) "Triads" else "7ths"
-            val mode = card.playbackMode.lowercase().replaceFirstChar { it.uppercase() }
-            Triple(category, card.octave, mode)
-        }.toSortedMap(compareBy(
-            { if (it.first == "Triads") 0 else 1 },  // Triads first
-            { if (it.third == "Arpeggiated") 0 else 1 },  // Arpeggiated first within each category
-            { it.second }  // Then by octave
+    // Group cards by their group key
+    val groupedCards = remember(cardItems) {
+        cardItems.groupBy { it.groupKey }.toSortedMap(compareBy(
+            // Sort groups: for chord type, triads before 7ths; for others, major before minor
+            { group ->
+                when {
+                    group.contains("Triads") -> 0
+                    group.contains("7ths") -> 1
+                    group.contains("Major") -> 0
+                    group.contains("Minor") -> 1
+                    else -> 2
+                }
+            },
+            // Arpeggiated before Block
+            { if (it.contains("Arpeggiated")) 0 else 1 },
+            // Then by octave (extract octave number)
+            { group ->
+                Regex("Octave (\\d)").find(group)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            }
         ))
     }
 
@@ -391,12 +485,9 @@ private fun CardsTab(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        groupedCards.forEach { (groupKey, groupCards) ->
-            val (category, octave, mode) = groupKey
-            val groupName = "$category @ Octave $octave, $mode"
-
+        groupedCards.forEach { (groupName, groupCards) ->
             // Group header
-            item(key = "header_${category}_${octave}_$mode") {
+            item(key = "header_$groupName") {
                 Text(
                     text = groupName,
                     style = MaterialTheme.typography.titleSmall,
@@ -407,16 +498,13 @@ private fun CardsTab(
             }
 
             // Cards in this group
-            items(groupCards, key = { it.id }) { card ->
-                UnlockableCardRow(
-                    card = card,
+            items(groupCards, key = { it.id }) { cardItem ->
+                GenericCardRow(
+                    cardItem = cardItem,
                     onUnlockToggled = if (onCardUnlockToggled != null) {
-                        { unlocked -> coroutineScope.launch { onCardUnlockToggled(card.id, unlocked) } }
+                        { unlocked -> coroutineScope.launch { onCardUnlockToggled(cardItem.id, unlocked) } }
                     } else null,
-                    onCardClicked = onCardClicked,
-                    onResetFsrs = if (onResetFsrs != null) {
-                        { coroutineScope.launch { onResetFsrs(card.id) } }
-                    } else null
+                    onCardClicked = onCardClicked
                 )
             }
         }
@@ -424,17 +512,15 @@ private fun CardsTab(
 }
 
 /**
- * A card row with unlock checkbox for the unlock management screen.
- * Locked cards are grayed out and show minimal info.
+ * Generic card row that works with any card type.
  */
 @Composable
-private fun UnlockableCardRow(
-    card: CardWithFsrs,
+private fun GenericCardRow(
+    cardItem: CardDisplayItem,
     onUnlockToggled: ((Boolean) -> Unit)? = null,
-    onCardClicked: ((String) -> Unit)? = null,
-    onResetFsrs: (() -> Unit)? = null
+    onCardClicked: ((String) -> Unit)? = null
 ) {
-    val isLocked = !card.unlocked
+    val isLocked = !cardItem.unlocked
     val alpha = if (isLocked) 0.5f else 1f
 
     Card(
@@ -443,7 +529,7 @@ private fun UnlockableCardRow(
             .alpha(alpha)
             .then(
                 if (onCardClicked != null) {
-                    Modifier.clickable { onCardClicked(card.id) }
+                    Modifier.clickable { onCardClicked(cardItem.id) }
                 } else {
                     Modifier
                 }
@@ -458,7 +544,7 @@ private fun UnlockableCardRow(
             // Unlock checkbox
             if (onUnlockToggled != null) {
                 Checkbox(
-                    checked = card.unlocked,
+                    checked = cardItem.unlocked,
                     onCheckedChange = { onUnlockToggled(it) },
                     modifier = Modifier.padding(end = 8.dp)
                 )
@@ -467,19 +553,19 @@ private fun UnlockableCardRow(
             // Card info
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = card.chordType,
+                    text = cardItem.displayName,
                     fontWeight = FontWeight.Medium,
                     fontSize = 16.sp
                 )
 
-                if (card.unlocked) {
+                if (cardItem.unlocked) {
                     // Show FSRS info for unlocked cards
                     val now = System.currentTimeMillis()
-                    val isDue = card.dueDate <= now
+                    val isDue = cardItem.dueDate <= now
                     val dueText = if (isDue) {
                         "Due now"
                     } else {
-                        val daysUntilDue = ((card.dueDate - now) / (24 * 60 * 60 * 1000)).toInt()
+                        val daysUntilDue = ((cardItem.dueDate - now) / (24 * 60 * 60 * 1000)).toInt()
                         when {
                             daysUntilDue == 0 -> "Due today"
                             daysUntilDue == 1 -> "Due tomorrow"
@@ -496,7 +582,7 @@ private fun UnlockableCardRow(
                             color = if (isDue) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "Stability: ${String.format("%.1f", card.stability)}",
+                            text = "Stability: ${String.format("%.1f", cardItem.stability)}",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -512,9 +598,9 @@ private fun UnlockableCardRow(
             }
 
             // Due badge for unlocked cards
-            if (card.unlocked) {
+            if (cardItem.unlocked) {
                 val now = System.currentTimeMillis()
-                val isDue = card.dueDate <= now
+                val isDue = cardItem.dueDate <= now
                 if (isDue) {
                     Surface(
                         color = MaterialTheme.colorScheme.primaryContainer,
@@ -535,154 +621,12 @@ private fun UnlockableCardRow(
 }
 
 @Composable
-private fun CardWithFsrsRow(
-    card: CardWithFsrs,
-    onResetFsrs: (() -> Unit)? = null,
-    onCardClicked: ((String) -> Unit)? = null
-) {
-    val dateFormat = remember { SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()) }
-    val dueDate = dateFormat.format(Date(card.dueDate))
-    val now = System.currentTimeMillis()
-    val isDue = card.dueDate <= now
-
-    var showMenu by remember { mutableStateOf(false) }
-    var showConfirmDialog by remember { mutableStateOf(false) }
-
-    // Confirmation dialog
-    if (showConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showConfirmDialog = false },
-            title = { Text("Reset FSRS State?") },
-            text = {
-                Text("This will reset scheduling for ${card.chordType} @ Oct ${card.octave} to initial values. Review history will be preserved.")
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        Log.i(TAG, "Resetting FSRS state for card ${card.id}")
-                        onResetFsrs?.invoke()
-                        showConfirmDialog = false
-                    }
-                ) {
-                    Text("Reset")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showConfirmDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(
-                if (onCardClicked != null) {
-                    Modifier.clickable { onCardClicked(card.id) }
-                } else {
-                    Modifier
-                }
-            )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "${card.chordType} @ Oct ${card.octave}",
-                    fontWeight = FontWeight.Medium
-                )
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    if (isDue) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = MaterialTheme.shapes.small
-                        ) {
-                            Text(
-                                text = "DUE",
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                    }
-
-                    if (onResetFsrs != null) {
-                        Box {
-                            IconButton(onClick = { showMenu = true }) {
-                                Icon(
-                                    imageVector = Icons.Filled.MoreVert,
-                                    contentDescription = "More options"
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = showMenu,
-                                onDismissRequest = { showMenu = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("Reset FSRS State") },
-                                    onClick = {
-                                        showMenu = false
-                                        showConfirmDialog = true
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text(
-                        text = "Reviews: ${card.reviewCount}",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "Interval: ${card.interval}d",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = "Due: $dueDate",
-                        fontSize = 12.sp,
-                        color = if (isDue) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "Stability: ${String.format("%.1f", card.stability)}",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun StatsTab(
+    gameType: GameType,
     cardStats: List<CardStatsView>,
     chordTypeCards: List<CardWithFsrs> = emptyList(),
     functionCards: List<FunctionCardWithFsrs> = emptyList(),
+    progressionCards: List<ProgressionCardWithFsrs> = emptyList(),
     onLoadChordConfusion: (suspend (Int?) -> List<ConfusionEntry>)? = null,
     onLoadFunctionConfusion: (suspend (String) -> List<ConfusionEntry>)? = null
 ) {
@@ -690,21 +634,21 @@ private fun StatsTab(
     var octaveFilter by remember { mutableStateOf<Int?>(null) }
     var keyQualityFilter by remember { mutableStateOf("MAJOR") }
 
-    // Confusion matrix data
+    // Confusion matrix data (only for chord type and function games)
     var chordConfusion by remember { mutableStateOf<ConfusionMatrixData?>(null) }
     var functionConfusion by remember { mutableStateOf<ConfusionMatrixData?>(null) }
 
-    // Load chord confusion data when filter changes
-    LaunchedEffect(octaveFilter, onLoadChordConfusion) {
-        if (onLoadChordConfusion != null) {
+    // Load chord confusion data when filter changes (only for CHORD_TYPE game)
+    LaunchedEffect(octaveFilter, onLoadChordConfusion, gameType) {
+        if (gameType == GameType.CHORD_TYPE && onLoadChordConfusion != null) {
             val entries = onLoadChordConfusion(octaveFilter)
             chordConfusion = buildConfusionMatrix(entries, ChordType.entries.map { it.name })
         }
     }
 
-    // Load function confusion data when filter changes
-    LaunchedEffect(keyQualityFilter, onLoadFunctionConfusion) {
-        if (onLoadFunctionConfusion != null) {
+    // Load function confusion data when filter changes (only for CHORD_FUNCTION game)
+    LaunchedEffect(keyQualityFilter, onLoadFunctionConfusion, gameType) {
+        if (gameType == GameType.CHORD_FUNCTION && onLoadFunctionConfusion != null) {
             val entries = onLoadFunctionConfusion(keyQualityFilter)
             val functions = if (keyQualityFilter == "MAJOR")
                 ChordFunction.MAJOR_FUNCTIONS else ChordFunction.MINOR_FUNCTIONS
@@ -712,7 +656,14 @@ private fun StatsTab(
         }
     }
 
-    if (cardStats.isEmpty() && chordConfusion?.isEmpty() != false && functionConfusion?.isEmpty() != false) {
+    // Check if there's any data to show
+    val hasConfusionData = when (gameType) {
+        GameType.CHORD_TYPE -> chordConfusion?.isEmpty() != true
+        GameType.CHORD_FUNCTION -> functionConfusion?.isEmpty() != true
+        GameType.CHORD_PROGRESSION -> false // No confusion matrix for progressions yet
+    }
+
+    if (cardStats.isEmpty() && !hasConfusionData) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
@@ -729,12 +680,19 @@ private fun StatsTab(
     val totalCorrect = cardStats.sumOf { it.correctTrials }
     val overallAccuracy = if (totalTrials > 0) (totalCorrect.toFloat() / totalTrials * 100).toInt() else 0
 
-    // Compute mastery distributions
-    val chordDist = remember(chordTypeCards) {
-        computeMasteryDistribution(chordTypeCards)
+    // Compute mastery distribution for the selected game type only
+    val masteryDist = remember(gameType, chordTypeCards, functionCards, progressionCards) {
+        when (gameType) {
+            GameType.CHORD_TYPE -> computeMasteryDistribution(chordTypeCards)
+            GameType.CHORD_FUNCTION -> computeFunctionMasteryDistribution(functionCards)
+            GameType.CHORD_PROGRESSION -> computeProgressionMasteryDistribution(progressionCards)
+        }
     }
-    val funcDist = remember(functionCards) {
-        computeFunctionMasteryDistribution(functionCards)
+
+    val gameTypeDisplayName = when (gameType) {
+        GameType.CHORD_TYPE -> "Chord Type"
+        GameType.CHORD_FUNCTION -> "Function"
+        GameType.CHORD_PROGRESSION -> "Progression"
     }
 
     LazyColumn(
@@ -743,7 +701,7 @@ private fun StatsTab(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // Mastery progress section
-        if (chordDist.total > 0 || funcDist.total > 0) {
+        if (masteryDist.total > 0) {
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -754,23 +712,10 @@ private fun StatsTab(
                             modifier = Modifier.padding(bottom = 12.dp)
                         )
 
-                        if (chordDist.total > 0) {
-                            MasteryProgressBar(
-                                distribution = chordDist,
-                                title = "Chord Type (${chordDist.total} cards)"
-                            )
-                        }
-
-                        if (chordDist.total > 0 && funcDist.total > 0) {
-                            Spacer(modifier = Modifier.height(16.dp))
-                        }
-
-                        if (funcDist.total > 0) {
-                            MasteryProgressBar(
-                                distribution = funcDist,
-                                title = "Chord Function (${funcDist.total} cards)"
-                            )
-                        }
+                        MasteryProgressBar(
+                            distribution = masteryDist,
+                            title = "$gameTypeDisplayName (${masteryDist.total} cards)"
+                        )
                     }
                 }
             }
@@ -808,13 +753,13 @@ private fun StatsTab(
             }
         }
 
-        // Chord type confusion matrix
-        if (onLoadChordConfusion != null) {
+        // Chord type confusion matrix (only for CHORD_TYPE game)
+        if (gameType == GameType.CHORD_TYPE && onLoadChordConfusion != null) {
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "Chord Type Confusion",
+                            text = "Confusion Matrix",
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
@@ -844,13 +789,13 @@ private fun StatsTab(
             }
         }
 
-        // Function confusion matrix
-        if (onLoadFunctionConfusion != null) {
+        // Function confusion matrix (only for CHORD_FUNCTION game)
+        if (gameType == GameType.CHORD_FUNCTION && onLoadFunctionConfusion != null) {
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "Function Confusion",
+                            text = "Confusion Matrix",
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
@@ -877,6 +822,8 @@ private fun StatsTab(
                 }
             }
         }
+
+        // Note: CHORD_PROGRESSION doesn't have a confusion matrix yet
 
         // Per-card stats header
         if (cardStats.isNotEmpty()) {
