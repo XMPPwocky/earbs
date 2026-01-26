@@ -30,11 +30,15 @@ sealed class GameTypeConfig<C : GameCard, A : GameAnswer> {
     abstract val description: String
 
     /**
-     * Get the list of possible answers for this session.
-     * For chord type game: distinct chord types in the session
-     * For function game: all functions for the current key quality
+     * Get the list of possible answers for the current card.
+     * For chord type game: distinct chord types in the session (card ignored)
+     * For function game: all functions for the current card's key quality
+     * For progression game: distinct progressions in the session (card ignored)
+     *
+     * @param card The current card being reviewed
+     * @param session The review session (for session-based strategies)
      */
-    abstract fun getAnswerOptions(session: GenericReviewSession<C>): List<A>
+    abstract fun getAnswerOptions(card: C, session: GenericReviewSession<C>): List<A>
 
     /**
      * Check if the given answer is correct for the card.
@@ -75,7 +79,8 @@ sealed class GameTypeConfig<C : GameCard, A : GameAnswer> {
         override val description: String = "Identify chord quality (Major, Minor, etc.)"
         override val unlockGroupCount: Int = Deck.UNLOCK_ORDER.size
 
-        override fun getAnswerOptions(session: GenericReviewSession<Card>): List<GameAnswer.ChordTypeAnswer> {
+        override fun getAnswerOptions(card: Card, session: GenericReviewSession<Card>): List<GameAnswer.ChordTypeAnswer> {
+            // Session-based: show distinct chord types in session (card ignored)
             return session.cards
                 .map { it.chordType }
                 .distinct()
@@ -113,10 +118,9 @@ sealed class GameTypeConfig<C : GameCard, A : GameAnswer> {
         override val description: String = "Identify chord function (ii, IV, V, etc.)"
         override val unlockGroupCount: Int = FunctionDeck.UNLOCK_ORDER.size
 
-        override fun getAnswerOptions(session: GenericReviewSession<FunctionCard>): List<GameAnswer.FunctionAnswer> {
-            // For function game, show all functions for the key quality (not just those in session)
-            val keyQuality = session.cards.firstOrNull()?.keyQuality ?: return emptyList()
-            return ChordFunction.forKeyQuality(keyQuality)
+        override fun getAnswerOptions(card: FunctionCard, session: GenericReviewSession<FunctionCard>): List<GameAnswer.FunctionAnswer> {
+            // Card-based: show all functions for current card's key quality
+            return ChordFunction.forKeyQuality(card.keyQuality)
                 .map { GameAnswer.FunctionAnswer(it) }
         }
 
@@ -151,8 +155,8 @@ sealed class GameTypeConfig<C : GameCard, A : GameAnswer> {
         override val description: String = "Identify chord progression (I-IV-V-I, etc.)"
         override val unlockGroupCount: Int = ProgressionDeck.UNLOCK_ORDER.size
 
-        override fun getAnswerOptions(session: GenericReviewSession<ProgressionCard>): List<GameAnswer.ProgressionAnswer> {
-            // Show only progressions in the current session (like chord type game)
+        override fun getAnswerOptions(card: ProgressionCard, session: GenericReviewSession<ProgressionCard>): List<GameAnswer.ProgressionAnswer> {
+            // Session-based: show distinct progressions in session (card ignored)
             return session.cards
                 .map { it.progression }
                 .distinct()

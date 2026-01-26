@@ -161,13 +161,15 @@ class FunctionReviewSessionTest {
 
     @Test
     fun `GameTypeConfig getAnswerOptions returns 6 functions for major key`() {
-        val answers = GameTypeConfig.FunctionGame.getAnswerOptions(session)
+        val card = testCards[0]  // MAJOR key card
+        val answers = GameTypeConfig.FunctionGame.getAnswerOptions(card, session)
         assertEquals(6, answers.size)
     }
 
     @Test
     fun `GameTypeConfig getAnswerOptions returns correct major key functions`() {
-        val answers = GameTypeConfig.FunctionGame.getAnswerOptions(session)
+        val card = testCards[0]  // MAJOR key card
+        val answers = GameTypeConfig.FunctionGame.getAnswerOptions(card, session)
         val functions = answers.map { it.function }
 
         assertTrue(functions.contains(ChordFunction.ii))
@@ -180,12 +182,11 @@ class FunctionReviewSessionTest {
 
     @Test
     fun `GameTypeConfig getAnswerOptions returns correct minor key functions`() {
-        val minorCards = listOf(
-            FunctionCard(ChordFunction.iv, KeyQuality.MINOR, 4, PlaybackMode.ARPEGGIATED)
-        )
+        val minorCard = FunctionCard(ChordFunction.iv, KeyQuality.MINOR, 4, PlaybackMode.ARPEGGIATED)
+        val minorCards = listOf(minorCard)
         val minorSession = GenericReviewSession(minorCards, "function")
 
-        val answers = GameTypeConfig.FunctionGame.getAnswerOptions(minorSession)
+        val answers = GameTypeConfig.FunctionGame.getAnswerOptions(minorCard, minorSession)
         assertEquals(6, answers.size)
         val functions = answers.map { it.function }
 
@@ -198,9 +199,21 @@ class FunctionReviewSessionTest {
     }
 
     @Test
-    fun `GameTypeConfig getAnswerOptions returns empty for empty session`() {
-        val emptySession = GenericReviewSession<FunctionCard>(emptyList(), "function")
-        assertTrue(GameTypeConfig.FunctionGame.getAnswerOptions(emptySession).isEmpty())
+    fun `GameTypeConfig getAnswerOptions uses current card key quality not first card`() {
+        // Create mixed session: MAJOR card first, MINOR card second
+        val majorCard = FunctionCard(ChordFunction.IV, KeyQuality.MAJOR, 4, PlaybackMode.ARPEGGIATED)
+        val minorCard = FunctionCard(ChordFunction.iv, KeyQuality.MINOR, 4, PlaybackMode.ARPEGGIATED)
+        val mixedSession = GenericReviewSession(listOf(majorCard, minorCard), "function")
+
+        // When asking for answer options for the MINOR card, should get MINOR functions
+        val answers = GameTypeConfig.FunctionGame.getAnswerOptions(minorCard, mixedSession)
+        val functions = answers.map { it.function }
+
+        // Should contain MINOR key functions (iv, v, etc.) not MAJOR (IV, V, etc.)
+        assertTrue(functions.contains(ChordFunction.iv))
+        assertTrue(functions.contains(ChordFunction.v))
+        assertFalse(functions.contains(ChordFunction.IV))
+        assertFalse(functions.contains(ChordFunction.V))
     }
 
     // ========== Empty session tests ==========

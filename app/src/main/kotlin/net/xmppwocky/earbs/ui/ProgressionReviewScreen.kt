@@ -37,7 +37,9 @@ typealias ProgressionReviewState = GenericReviewScreenState<ProgressionCard, Gam
  * Extension to get all progressions for the session (for answer buttons).
  */
 fun ProgressionReviewState.getAllProgressions(): List<ProgressionType> =
-    GameTypeConfig.ProgressionGame.getAnswerOptions(session).map { it.progression }
+    currentCard?.let { card ->
+        GameTypeConfig.ProgressionGame.getAnswerOptions(card, session).map { it.progression }
+    } ?: emptyList()
 
 /**
  * Progression review screen - thin wrapper around GenericReviewScreen.

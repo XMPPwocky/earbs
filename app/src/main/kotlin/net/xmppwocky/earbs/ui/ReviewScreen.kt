@@ -46,7 +46,9 @@ data class SessionResult(
  * Extension to get chord types from session for answer buttons.
  */
 fun ChordTypeReviewState.getChordTypes(): List<ChordType> =
-    GameTypeConfig.ChordTypeGame.getAnswerOptions(session).map { it.chordType }
+    currentCard?.let { card ->
+        GameTypeConfig.ChordTypeGame.getAnswerOptions(card, session).map { it.chordType }
+    } ?: emptyList()
 
 /**
  * Chord type review screen - thin wrapper around GenericReviewScreen.
@@ -261,7 +263,9 @@ data class ReviewScreenState(
     val playbackMode get() = currentCard?.playbackMode ?: net.xmppwocky.earbs.audio.PlaybackMode.ARPEGGIATED
 
     /** Get chord types in this session (for answer buttons). */
-    fun getChordTypes(): List<ChordType> = GameTypeConfig.ChordTypeGame.getAnswerOptions(session).map { it.chordType }
+    fun getChordTypes(): List<ChordType> = currentCard?.let { card ->
+        GameTypeConfig.ChordTypeGame.getAnswerOptions(card, session).map { it.chordType }
+    } ?: emptyList()
 }
 
 /**

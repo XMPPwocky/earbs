@@ -38,7 +38,9 @@ typealias FunctionReviewState = GenericReviewScreenState<FunctionCard, GameAnswe
  * Extension to get all functions for the current key quality (for answer buttons).
  */
 fun FunctionReviewState.getAllFunctionsForKey(): List<ChordFunction> =
-    GameTypeConfig.FunctionGame.getAnswerOptions(session).map { it.function }
+    currentCard?.let { card ->
+        GameTypeConfig.FunctionGame.getAnswerOptions(card, session).map { it.function }
+    } ?: emptyList()
 
 /**
  * Extension to get the key quality from the session.
@@ -317,7 +319,9 @@ data class FunctionReviewScreenState(
 
     /** Get all functions for the current key quality (for answer buttons). */
     fun getAllFunctionsForKey(): List<ChordFunction> =
-        GameTypeConfig.FunctionGame.getAnswerOptions(session).map { it.function }
+        currentCard?.let { card ->
+            GameTypeConfig.FunctionGame.getAnswerOptions(card, session).map { it.function }
+        } ?: emptyList()
 }
 
 /**
