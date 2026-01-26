@@ -84,17 +84,17 @@ fun HomeScreen(
             Tab(
                 selected = selectedGameMode == GameType.CHORD_TYPE,
                 onClick = { onGameModeChanged(GameType.CHORD_TYPE) },
-                text = { Text("Types") }
+                text = { Text("Types ($chordTypeDueCount)") }
             )
             Tab(
                 selected = selectedGameMode == GameType.CHORD_FUNCTION,
                 onClick = { onGameModeChanged(GameType.CHORD_FUNCTION) },
-                text = { Text("Functions") }
+                text = { Text("Functions ($functionDueCount)") }
             )
             Tab(
                 selected = selectedGameMode == GameType.CHORD_PROGRESSION,
                 onClick = { onGameModeChanged(GameType.CHORD_PROGRESSION) },
-                text = { Text("Progressions") }
+                text = { Text("Progressions ($progressionDueCount)") }
             )
         }
 

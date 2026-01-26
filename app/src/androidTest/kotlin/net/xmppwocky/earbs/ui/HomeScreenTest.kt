@@ -172,7 +172,7 @@ class HomeScreenTest : ComposeTestBase() {
     // ========== Game Mode Tab Tests ==========
 
     @Test
-    fun gameModeToggle_displaysChordTypeTab() {
+    fun gameModeToggle_displaysTypesTab() {
         composeTestRule.setContent {
             HomeScreen(
                 selectedGameMode = GameType.CHORD_TYPE,
@@ -180,11 +180,11 @@ class HomeScreenTest : ComposeTestBase() {
             )
         }
 
-        composeTestRule.onNodeWithText("Chord Type (0)").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Types (0)").assertIsDisplayed()
     }
 
     @Test
-    fun gameModeToggle_displaysFunctionTab() {
+    fun gameModeToggle_displaysFunctionsTab() {
         composeTestRule.setContent {
             HomeScreen(
                 selectedGameMode = GameType.CHORD_TYPE,
@@ -192,7 +192,19 @@ class HomeScreenTest : ComposeTestBase() {
             )
         }
 
-        composeTestRule.onNodeWithText("Function (0)").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Functions (0)").assertIsDisplayed()
+    }
+
+    @Test
+    fun gameModeToggle_displaysProgressionsTab() {
+        composeTestRule.setContent {
+            HomeScreen(
+                selectedGameMode = GameType.CHORD_TYPE,
+                onStartReviewClicked = {}
+            )
+        }
+
+        composeTestRule.onNodeWithText("Progressions (0)").assertIsDisplayed()
     }
 
     @Test
@@ -206,7 +218,7 @@ class HomeScreenTest : ComposeTestBase() {
             )
         }
 
-        composeTestRule.onNodeWithText("Function (0)").performClick()
+        composeTestRule.onNodeWithText("Functions (0)").performClick()
 
         assertEquals(GameType.CHORD_FUNCTION, selectedMode)
     }
@@ -222,9 +234,25 @@ class HomeScreenTest : ComposeTestBase() {
             )
         }
 
-        composeTestRule.onNodeWithText("Chord Type (0)").performClick()
+        composeTestRule.onNodeWithText("Types (0)").performClick()
 
         assertEquals(GameType.CHORD_TYPE, selectedMode)
+    }
+
+    @Test
+    fun gameModeToggle_switchesToProgression() {
+        var selectedMode = GameType.CHORD_TYPE
+        composeTestRule.setContent {
+            HomeScreen(
+                selectedGameMode = selectedMode,
+                onGameModeChanged = { selectedMode = it },
+                onStartReviewClicked = {}
+            )
+        }
+
+        composeTestRule.onNodeWithText("Progressions (0)").performClick()
+
+        assertEquals(GameType.CHORD_PROGRESSION, selectedMode)
     }
 
     @Test
@@ -266,28 +294,82 @@ class HomeScreenTest : ComposeTestBase() {
         composeTestRule.onNodeWithText("Identify chord function (IV, V, vi, etc.)").assertIsDisplayed()
     }
 
+    // ========== Progression Mode Tests ==========
+
+    @Test
+    fun displaysProgressionStats_whenProgressionModeSelected() {
+        composeTestRule.setContent {
+            HomeScreen(
+                selectedGameMode = GameType.CHORD_PROGRESSION,
+                progressionDueCount = 8,
+                progressionUnlockedCount = 12,
+                onStartReviewClicked = {}
+            )
+        }
+
+        composeTestRule.onNodeWithText("8 cards due").assertIsDisplayed()
+        composeTestRule.onNodeWithText("12 / 96 cards unlocked").assertIsDisplayed()
+    }
+
+    @Test
+    fun displaysProgressionInfo_whenProgressionModeSelected() {
+        composeTestRule.setContent {
+            HomeScreen(
+                selectedGameMode = GameType.CHORD_PROGRESSION,
+                onStartReviewClicked = {}
+            )
+        }
+
+        composeTestRule.onNodeWithText("Identify chord progressions (I-IV-V-I, etc.)").assertIsDisplayed()
+    }
+
+    @Test
+    fun displaysUnlockCardsMessage_whenNoProgressionCardsUnlocked() {
+        composeTestRule.setContent {
+            HomeScreen(
+                selectedGameMode = GameType.CHORD_PROGRESSION,
+                progressionDueCount = 0,
+                progressionUnlockedCount = 0,
+                onStartReviewClicked = {}
+            )
+        }
+
+        composeTestRule.onNodeWithText("Unlock cards in History > Cards").assertIsDisplayed()
+    }
+
     // ========== Tab Due Count Tests ==========
 
     @Test
-    fun tabTitle_showsChordTypeDueCount() {
+    fun tabTitle_showsTypesDueCount() {
         composeTestRule.setContent {
             HomeScreen(
                 chordTypeDueCount = 5,
                 onStartReviewClicked = {}
             )
         }
-        composeTestRule.onNodeWithText("Chord Type (5)").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Types (5)").assertIsDisplayed()
     }
 
     @Test
-    fun tabTitle_showsFunctionDueCount() {
+    fun tabTitle_showsFunctionsDueCount() {
         composeTestRule.setContent {
             HomeScreen(
                 functionDueCount = 3,
                 onStartReviewClicked = {}
             )
         }
-        composeTestRule.onNodeWithText("Function (3)").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Functions (3)").assertIsDisplayed()
+    }
+
+    @Test
+    fun tabTitle_showsProgressionsDueCount() {
+        composeTestRule.setContent {
+            HomeScreen(
+                progressionDueCount = 7,
+                onStartReviewClicked = {}
+            )
+        }
+        composeTestRule.onNodeWithText("Progressions (7)").assertIsDisplayed()
     }
 
     @Test
@@ -296,11 +378,13 @@ class HomeScreenTest : ComposeTestBase() {
             HomeScreen(
                 chordTypeDueCount = 0,
                 functionDueCount = 0,
+                progressionDueCount = 0,
                 onStartReviewClicked = {}
             )
         }
-        composeTestRule.onNodeWithText("Chord Type (0)").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Function (0)").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Types (0)").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Functions (0)").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Progressions (0)").assertIsDisplayed()
     }
 
     @Test
@@ -309,10 +393,12 @@ class HomeScreenTest : ComposeTestBase() {
             HomeScreen(
                 chordTypeDueCount = 12,
                 functionDueCount = 7,
+                progressionDueCount = 4,
                 onStartReviewClicked = {}
             )
         }
-        composeTestRule.onNodeWithText("Chord Type (12)").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Function (7)").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Types (12)").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Functions (7)").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Progressions (4)").assertIsDisplayed()
     }
 }
