@@ -67,3 +67,51 @@ Total: 48 cards (8 types × 3 octaves × 2 modes)
 - Block (simultaneous) or arpeggiated playback modes (per-card property)
 - Root note randomized within octave (prevents memorizing absolute pitches)
 - Reference: A4 = 440Hz, frequency = `440 * 2^(semitones_from_A4 / 12)`
+
+## Testing
+
+### Unit Tests (Robolectric)
+
+Location: `app/src/test/kotlin/`
+
+Fast JVM-based tests (~50x faster than instrumented). Uses Robolectric for Android framework APIs and in-memory Room database.
+
+Run all unit tests:
+```bash
+./gradlew :app:testDebugUnitTest
+```
+
+Run specific test class:
+```bash
+./gradlew :app:testDebugUnitTest --tests "*CardDaoTest*"
+```
+
+Run with `--rerun` to force re-execution of cached tests.
+
+### Instrumented Tests (Android Emulator)
+
+Location: `app/src/androidTest/kotlin/`
+
+UI tests using Compose Testing and tests requiring real Android environment. Requires emulator or device.
+
+Run all instrumented tests:
+```bash
+./gradlew :app:connectedDebugAndroidTest
+```
+
+Check emulator status: `adb devices`
+
+### Test Categories
+
+| Category | Location | Examples |
+|----------|----------|----------|
+| DAO tests | `data/db/` | CardDaoTest, FunctionCardDaoTest, TrialDaoTest |
+| Repository tests | `data/repository/` | EarbsRepositoryTest, CardSelectionTest |
+| Model tests | `model/` | DeckTest, ReviewSessionTest, ProgressionTypeTest |
+| Audio tests | `audio/` | AudioEngineTest, ChordBuilderTest |
+| UI tests (instrumented) | `ui/` | ReviewScreenTest, HistoryScreenTest |
+
+### Test Base Classes
+
+- `DatabaseTestBase` - In-memory Room database with all DAOs, helper methods for creating test cards
+- `ComposeTestBase` - Compose UI test setup with test rule
