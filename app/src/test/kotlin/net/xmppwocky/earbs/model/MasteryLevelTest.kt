@@ -159,7 +159,8 @@ class MasteryLevelTest {
         id: String,
         unlocked: Boolean,
         stability: Double,
-        phase: Int
+        phase: Int,
+        deprecated: Boolean = false
     ): CardWithFsrs {
         return CardWithFsrs(
             id = id,
@@ -167,6 +168,7 @@ class MasteryLevelTest {
             octave = 4,
             playbackMode = "ARPEGGIATED",
             unlocked = unlocked,
+            deprecated = deprecated,
             stability = stability,
             difficulty = 2.5,
             interval = 1,

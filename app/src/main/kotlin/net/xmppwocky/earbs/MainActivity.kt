@@ -477,10 +477,15 @@ private fun EarbsApp(
             val sessions by repository.getSessionOverviewsByGameType(historyGameType).collectAsState(initial = emptyList())
             val cardStats by repository.getCardStatsByGameType(historyGameType).collectAsState(initial = emptyList())
 
-            // Load cards based on game type
+            // Load cards based on game type (active cards)
             val chordTypeCards by repository.getAllCardsForUnlockScreen().collectAsState(initial = emptyList())
             val functionCards by repository.getAllFunctionCardsForUnlockScreen().collectAsState(initial = emptyList())
             val progressionCards by repository.getAllProgressionCardsForUnlockScreen().collectAsState(initial = emptyList())
+
+            // Load deprecated (archived) cards
+            val deprecatedChordTypeCards by repository.getDeprecatedChordTypeCardsFlow().collectAsState(initial = emptyList())
+            val deprecatedFunctionCards by repository.getDeprecatedFunctionCardsFlow().collectAsState(initial = emptyList())
+            val deprecatedProgressionCards by repository.getDeprecatedProgressionCardsFlow().collectAsState(initial = emptyList())
 
             HistoryScreen(
                 gameType = historyGameType,
@@ -488,6 +493,9 @@ private fun EarbsApp(
                 chordTypeCards = chordTypeCards,
                 functionCards = functionCards,
                 progressionCards = progressionCards,
+                deprecatedChordTypeCards = deprecatedChordTypeCards,
+                deprecatedFunctionCards = deprecatedFunctionCards,
+                deprecatedProgressionCards = deprecatedProgressionCards,
                 cardStats = cardStats,
                 onBackClicked = {
                     coroutineScope.launch {

@@ -17,5 +17,6 @@ data class CardEntity(
     val chordType: String,                  // MAJOR, MINOR, SUS2, SUS4, DOM7, MAJ7, MIN7, DIM7
     val octave: Int,                        // 3, 4, or 5
     val playbackMode: String,               // ARPEGGIATED or BLOCK
-    val unlocked: Boolean = true
+    val unlocked: Boolean = true,
+    val deprecated: Boolean = false         // App-level deprecation (cards excluded from reviews)
 )

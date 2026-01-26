@@ -41,7 +41,8 @@ class HistoryScreenTest : ComposeTestBase() {
         dueDate: Long = System.currentTimeMillis(),
         reviewCount: Int = 5,
         interval: Int = 3,
-        stability: Double = 4.5
+        stability: Double = 4.5,
+        deprecated: Boolean = false
     ): CardWithFsrs {
         return CardWithFsrs(
             id = id,
@@ -49,6 +50,7 @@ class HistoryScreenTest : ComposeTestBase() {
             octave = octave,
             playbackMode = playbackMode,
             unlocked = true,
+            deprecated = deprecated,
             stability = stability,
             difficulty = 2.5,
             interval = interval,

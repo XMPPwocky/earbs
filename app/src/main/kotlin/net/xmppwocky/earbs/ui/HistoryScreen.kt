@@ -63,6 +63,9 @@ fun HistoryScreen(
     chordTypeCards: List<CardWithFsrs> = emptyList(),
     functionCards: List<FunctionCardWithFsrs> = emptyList(),
     progressionCards: List<ProgressionCardWithFsrs> = emptyList(),
+    deprecatedChordTypeCards: List<CardWithFsrs> = emptyList(),
+    deprecatedFunctionCards: List<FunctionCardWithFsrs> = emptyList(),
+    deprecatedProgressionCards: List<ProgressionCardWithFsrs> = emptyList(),
     cardStats: List<CardStatsView>,
     onBackClicked: () -> Unit,
     onLoadTrials: (suspend (Long) -> List<TrialEntity>)? = null,
@@ -134,6 +137,9 @@ fun HistoryScreen(
                     chordTypeCards = chordTypeCards,
                     functionCards = functionCards,
                     progressionCards = progressionCards,
+                    deprecatedChordTypeCards = deprecatedChordTypeCards,
+                    deprecatedFunctionCards = deprecatedFunctionCards,
+                    deprecatedProgressionCards = deprecatedProgressionCards,
                     onResetFsrs = onResetFsrs,
                     onCardClicked = onCardClicked,
                     onCardUnlockToggled = onCardUnlockToggled
@@ -381,6 +387,7 @@ private data class CardDisplayItem(
     val id: String,
     val displayName: String,
     val unlocked: Boolean,
+    val deprecated: Boolean,
     val dueDate: Long,
     val stability: Double,
     val groupKey: String
@@ -392,6 +399,9 @@ private fun CardsTab(
     chordTypeCards: List<CardWithFsrs>,
     functionCards: List<FunctionCardWithFsrs>,
     progressionCards: List<ProgressionCardWithFsrs>,
+    deprecatedChordTypeCards: List<CardWithFsrs> = emptyList(),
+    deprecatedFunctionCards: List<FunctionCardWithFsrs> = emptyList(),
+    deprecatedProgressionCards: List<ProgressionCardWithFsrs> = emptyList(),
     onResetFsrs: (suspend (String) -> Unit)? = null,
     onCardClicked: ((String) -> Unit)? = null,
     onCardUnlockToggled: (suspend (String, Boolean) -> Unit)? = null
@@ -408,6 +418,7 @@ private fun CardsTab(
                     id = card.id,
                     displayName = card.chordType,
                     unlocked = card.unlocked,
+                    deprecated = card.deprecated,
                     dueDate = card.dueDate,
                     stability = card.stability,
                     groupKey = "$category @ Octave ${card.octave}, $mode"
@@ -420,6 +431,7 @@ private fun CardsTab(
                     id = card.id,
                     displayName = "${card.function} ($keyQualityDisplay)",
                     unlocked = card.unlocked,
+                    deprecated = card.deprecated,
                     dueDate = card.dueDate,
                     stability = card.stability,
                     groupKey = "$keyQualityDisplay @ Octave ${card.octave}, $mode"
@@ -435,6 +447,7 @@ private fun CardsTab(
                     id = card.id,
                     displayName = card.progression.replace("_", "-"),
                     unlocked = card.unlocked,
+                    deprecated = card.deprecated,
                     dueDate = card.dueDate,
                     stability = card.stability,
                     groupKey = "$keyQuality @ Octave ${card.octave}, $mode"
@@ -443,7 +456,56 @@ private fun CardsTab(
         }
     }
 
-    if (cardItems.isEmpty()) {
+    // Convert deprecated cards to display items
+    val deprecatedItems = remember(gameType, deprecatedChordTypeCards, deprecatedFunctionCards, deprecatedProgressionCards) {
+        when (gameType) {
+            GameType.CHORD_TYPE -> deprecatedChordTypeCards.map { card ->
+                val chordType = ChordType.valueOf(card.chordType)
+                val isTriad = chordType in ChordType.TRIADS
+                val category = if (isTriad) "Triads" else "7ths"
+                val mode = card.playbackMode.lowercase().replaceFirstChar { it.uppercase() }
+                CardDisplayItem(
+                    id = card.id,
+                    displayName = card.chordType,
+                    unlocked = card.unlocked,
+                    deprecated = card.deprecated,
+                    dueDate = card.dueDate,
+                    stability = card.stability,
+                    groupKey = "Archived: $category @ Octave ${card.octave}, $mode"
+                )
+            }
+            GameType.CHORD_FUNCTION -> deprecatedFunctionCards.map { card ->
+                val mode = card.playbackMode.lowercase().replaceFirstChar { it.uppercase() }
+                val keyQualityDisplay = card.keyQuality.lowercase().replaceFirstChar { it.uppercase() }
+                CardDisplayItem(
+                    id = card.id,
+                    displayName = "${card.function} ($keyQualityDisplay)",
+                    unlocked = card.unlocked,
+                    deprecated = card.deprecated,
+                    dueDate = card.dueDate,
+                    stability = card.stability,
+                    groupKey = "Archived: $keyQualityDisplay @ Octave ${card.octave}, $mode"
+                )
+            }
+            GameType.CHORD_PROGRESSION -> deprecatedProgressionCards.map { card ->
+                val mode = card.playbackMode.lowercase().replaceFirstChar { it.uppercase() }
+                val keyQuality = if (card.progression.contains("MAJOR", ignoreCase = true) ||
+                    card.progression in listOf("I_IV_V_I", "I_V_vi_IV", "I_vi_IV_V", "ii_V_I", "I_IV_vi_V", "vi_IV_I_V", "I_V_IV_I", "IV_I_V_vi")
+                ) "Major" else "Minor"
+                CardDisplayItem(
+                    id = card.id,
+                    displayName = card.progression.replace("_", "-"),
+                    unlocked = card.unlocked,
+                    deprecated = card.deprecated,
+                    dueDate = card.dueDate,
+                    stability = card.stability,
+                    groupKey = "Archived: $keyQuality @ Octave ${card.octave}, $mode"
+                )
+            }
+        }
+    }
+
+    if (cardItems.isEmpty() && deprecatedItems.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
@@ -480,11 +542,17 @@ private fun CardsTab(
         ))
     }
 
+    // Group deprecated cards
+    val groupedDeprecatedCards = remember(deprecatedItems) {
+        deprecatedItems.groupBy { it.groupKey }.toSortedMap()
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        // Active cards
         groupedCards.forEach { (groupName, groupCards) ->
             // Group header
             item(key = "header_$groupName") {
@@ -508,6 +576,54 @@ private fun CardsTab(
                 )
             }
         }
+
+        // Archived (deprecated) cards section
+        if (deprecatedItems.isNotEmpty()) {
+            item(key = "archived_section_header") {
+                Column {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "ARCHIVED CARDS",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                    )
+                    Text(
+                        text = "These cards are no longer included in reviews but their history is preserved.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+            }
+
+            groupedDeprecatedCards.forEach { (groupName, groupCards) ->
+                // Group header (remove "Archived: " prefix for cleaner display)
+                val displayGroupName = groupName.removePrefix("Archived: ")
+                item(key = "header_deprecated_$groupName") {
+                    Text(
+                        text = displayGroupName,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                    )
+                }
+
+                // Deprecated cards in this group (no unlock toggle, just view history)
+                items(groupCards, key = { "deprecated_${it.id}" }) { cardItem ->
+                    GenericCardRow(
+                        cardItem = cardItem,
+                        onUnlockToggled = null,  // Can't toggle unlock for deprecated cards
+                        onCardClicked = onCardClicked,
+                        isArchived = true
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -518,10 +634,11 @@ private fun CardsTab(
 private fun GenericCardRow(
     cardItem: CardDisplayItem,
     onUnlockToggled: ((Boolean) -> Unit)? = null,
-    onCardClicked: ((String) -> Unit)? = null
+    onCardClicked: ((String) -> Unit)? = null,
+    isArchived: Boolean = false
 ) {
     val isLocked = !cardItem.unlocked
-    val alpha = if (isLocked) 0.5f else 1f
+    val alpha = if (isLocked || isArchived) 0.6f else 1f
 
     Card(
         modifier = Modifier
@@ -558,61 +675,88 @@ private fun GenericCardRow(
                     fontSize = 16.sp
                 )
 
-                if (cardItem.unlocked) {
-                    // Show FSRS info for unlocked cards
-                    val now = System.currentTimeMillis()
-                    val isDue = cardItem.dueDate <= now
-                    val dueText = if (isDue) {
-                        "Due now"
-                    } else {
-                        val daysUntilDue = ((cardItem.dueDate - now) / (24 * 60 * 60 * 1000)).toInt()
-                        when {
-                            daysUntilDue == 0 -> "Due today"
-                            daysUntilDue == 1 -> "Due tomorrow"
-                            else -> "Due in ${daysUntilDue}d"
-                        }
-                    }
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            text = dueText,
-                            fontSize = 12.sp,
-                            color = if (isDue) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                when {
+                    isArchived -> {
+                        // Show archived card info (just stability, no due date)
                         Text(
                             text = "Stability: ${String.format("%.1f", cardItem.stability)}",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                } else {
-                    // Minimal info for locked cards
-                    Text(
-                        text = "(locked)",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    cardItem.unlocked -> {
+                        // Show FSRS info for unlocked cards
+                        val now = System.currentTimeMillis()
+                        val isDue = cardItem.dueDate <= now
+                        val dueText = if (isDue) {
+                            "Due now"
+                        } else {
+                            val daysUntilDue = ((cardItem.dueDate - now) / (24 * 60 * 60 * 1000)).toInt()
+                            when {
+                                daysUntilDue == 0 -> "Due today"
+                                daysUntilDue == 1 -> "Due tomorrow"
+                                else -> "Due in ${daysUntilDue}d"
+                            }
+                        }
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = dueText,
+                                fontSize = 12.sp,
+                                color = if (isDue) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "Stability: ${String.format("%.1f", cardItem.stability)}",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    else -> {
+                        // Minimal info for locked cards
+                        Text(
+                            text = "(locked)",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
-            // Due badge for unlocked cards
-            if (cardItem.unlocked) {
-                val now = System.currentTimeMillis()
-                val isDue = cardItem.dueDate <= now
-                if (isDue) {
+            // Badge: ARCHIVED, DUE, or nothing
+            when {
+                isArchived -> {
                     Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
+                        color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = MaterialTheme.shapes.small
                     ) {
                         Text(
-                            text = "DUE",
+                            text = "ARCHIVED",
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                }
+                cardItem.unlocked -> {
+                    val now = System.currentTimeMillis()
+                    val isDue = cardItem.dueDate <= now
+                    if (isDue) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Text(
+                                text = "DUE",
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
                     }
                 }
             }

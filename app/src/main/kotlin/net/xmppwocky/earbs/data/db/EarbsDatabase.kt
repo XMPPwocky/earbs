@@ -25,7 +25,7 @@ private const val TAG = "EarbsDatabase"
         ReviewSessionEntity::class,
         TrialEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class EarbsDatabase : RoomDatabase() {
@@ -505,6 +505,31 @@ abstract class EarbsDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration from version 8 to 9:
+         * - Add deprecated column to all card tables for app-level card deprecation
+         * - Deprecated cards are excluded from reviews but historical data is preserved
+         */
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                Log.i(TAG, "Migrating database from version 8 to 9: adding card deprecation support")
+
+                // Add deprecated column to cards table (default false = not deprecated)
+                db.execSQL("ALTER TABLE cards ADD COLUMN deprecated INTEGER NOT NULL DEFAULT 0")
+                Log.i(TAG, "Added deprecated column to cards table")
+
+                // Add deprecated column to function_cards table
+                db.execSQL("ALTER TABLE function_cards ADD COLUMN deprecated INTEGER NOT NULL DEFAULT 0")
+                Log.i(TAG, "Added deprecated column to function_cards table")
+
+                // Add deprecated column to progression_cards table
+                db.execSQL("ALTER TABLE progression_cards ADD COLUMN deprecated INTEGER NOT NULL DEFAULT 0")
+                Log.i(TAG, "Added deprecated column to progression_cards table")
+
+                Log.i(TAG, "Migration 8->9 complete: added card deprecation support")
+            }
+        }
+
         fun getDatabase(context: Context): EarbsDatabase {
             return INSTANCE ?: synchronized(this) {
                 Log.i(TAG, "Creating database instance")
@@ -513,7 +538,7 @@ abstract class EarbsDatabase : RoomDatabase() {
                     EarbsDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

@@ -16,6 +16,7 @@ data class CardWithFsrs(
     val octave: Int,
     val playbackMode: String,
     val unlocked: Boolean,
+    val deprecated: Boolean,
     val stability: Double,
     val difficulty: Double,
     val interval: Int,
@@ -36,6 +37,7 @@ data class GenericCardWithFsrs(
     val octave: Int,
     val playbackMode: String,
     val unlocked: Boolean,
+    val deprecated: Boolean,
     val stability: Double,
     val difficulty: Double,
     val interval: Int,
@@ -57,53 +59,53 @@ interface CardDao {
     @Query("SELECT * FROM cards WHERE id = :id")
     suspend fun getById(id: String): CardEntity?
 
-    @Query("SELECT * FROM cards WHERE unlocked = 1")
+    @Query("SELECT * FROM cards WHERE unlocked = 1 AND deprecated = 0")
     suspend fun getAllUnlocked(): List<CardEntity>
 
-    @Query("SELECT * FROM cards WHERE unlocked = 1")
+    @Query("SELECT * FROM cards WHERE unlocked = 1 AND deprecated = 0")
     fun getAllUnlockedFlow(): Flow<List<CardEntity>>
 
     @Query("SELECT COUNT(*) FROM cards")
     suspend fun count(): Int
 
-    @Query("SELECT COUNT(*) FROM cards WHERE unlocked = 1")
+    @Query("SELECT COUNT(*) FROM cards WHERE unlocked = 1 AND deprecated = 0")
     suspend fun countUnlocked(): Int
 
-    @Query("SELECT COUNT(*) FROM cards WHERE unlocked = 1")
+    @Query("SELECT COUNT(*) FROM cards WHERE unlocked = 1 AND deprecated = 0")
     fun countUnlockedFlow(): Flow<Int>
 
     // ========== Queries with FSRS state (JOIN with fsrs_state) ==========
 
     /**
-     * Get all unlocked cards with their FSRS state, ordered by due date.
+     * Get all unlocked, non-deprecated cards with their FSRS state, ordered by due date.
      */
     @Query("""
-        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked,
+        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked, c.deprecated,
                f.stability, f.difficulty, f.interval, f.dueDate,
                f.reviewCount, f.lastReview, f.phase, f.lapses
         FROM cards c
         INNER JOIN fsrs_state f ON c.id = f.cardId
-        WHERE c.unlocked = 1
+        WHERE c.unlocked = 1 AND c.deprecated = 0
         ORDER BY f.dueDate ASC
     """)
     suspend fun getAllUnlockedWithFsrs(): List<CardWithFsrs>
 
     @Query("""
-        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked,
+        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked, c.deprecated,
                f.stability, f.difficulty, f.interval, f.dueDate,
                f.reviewCount, f.lastReview, f.phase, f.lapses
         FROM cards c
         INNER JOIN fsrs_state f ON c.id = f.cardId
-        WHERE c.unlocked = 1
+        WHERE c.unlocked = 1 AND c.deprecated = 0
         ORDER BY f.dueDate ASC
     """)
     fun getAllUnlockedWithFsrsFlow(): Flow<List<CardWithFsrs>>
 
     /**
-     * Get card with its FSRS state.
+     * Get card with its FSRS state (includes deprecated cards for history display).
      */
     @Query("""
-        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked,
+        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked, c.deprecated,
                f.stability, f.difficulty, f.interval, f.dueDate,
                f.reviewCount, f.lastReview, f.phase, f.lapses
         FROM cards c
@@ -114,14 +116,15 @@ interface CardDao {
 
     /**
      * Get all due cards (dueDate <= now) ordered by due date.
+     * Excludes deprecated cards.
      */
     @Query("""
-        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked,
+        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked, c.deprecated,
                f.stability, f.difficulty, f.interval, f.dueDate,
                f.reviewCount, f.lastReview, f.phase, f.lapses
         FROM cards c
         INNER JOIN fsrs_state f ON c.id = f.cardId
-        WHERE c.unlocked = 1 AND f.dueDate <= :now
+        WHERE c.unlocked = 1 AND c.deprecated = 0 AND f.dueDate <= :now
         ORDER BY f.dueDate ASC
     """)
     suspend fun getDueCards(now: Long): List<CardWithFsrs>
@@ -129,14 +132,15 @@ interface CardDao {
     /**
      * Get non-due cards for a specific (octave, playbackMode) group with limit.
      * Used to pad sessions preferring same-group cards.
+     * Excludes deprecated cards.
      */
     @Query("""
-        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked,
+        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked, c.deprecated,
                f.stability, f.difficulty, f.interval, f.dueDate,
                f.reviewCount, f.lastReview, f.phase, f.lapses
         FROM cards c
         INNER JOIN fsrs_state f ON c.id = f.cardId
-        WHERE c.unlocked = 1 AND c.octave = :octave AND c.playbackMode = :mode AND f.dueDate > :now
+        WHERE c.unlocked = 1 AND c.deprecated = 0 AND c.octave = :octave AND c.playbackMode = :mode AND f.dueDate > :now
         ORDER BY f.dueDate ASC
         LIMIT :limit
     """)
@@ -145,54 +149,56 @@ interface CardDao {
     /**
      * Get non-due cards (reviewing early) to pad session.
      * Ordered by due date so cards closest to being due are selected first.
+     * Excludes deprecated cards.
      */
     @Query("""
-        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked,
+        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked, c.deprecated,
                f.stability, f.difficulty, f.interval, f.dueDate,
                f.reviewCount, f.lastReview, f.phase, f.lapses
         FROM cards c
         INNER JOIN fsrs_state f ON c.id = f.cardId
-        WHERE c.unlocked = 1 AND f.dueDate > :now
+        WHERE c.unlocked = 1 AND c.deprecated = 0 AND f.dueDate > :now
         ORDER BY f.dueDate ASC
         LIMIT :limit
     """)
     suspend fun getNonDueCards(now: Long, limit: Int): List<CardWithFsrs>
 
     /**
-     * Count of due cards.
+     * Count of due cards (excludes deprecated).
      */
     @Query("""
         SELECT COUNT(*) FROM cards c
         INNER JOIN fsrs_state f ON c.id = f.cardId
-        WHERE c.unlocked = 1 AND f.dueDate <= :now
+        WHERE c.unlocked = 1 AND c.deprecated = 0 AND f.dueDate <= :now
     """)
     suspend fun countDue(now: Long): Int
 
     @Query("""
         SELECT COUNT(*) FROM cards c
         INNER JOIN fsrs_state f ON c.id = f.cardId
-        WHERE c.unlocked = 1 AND f.dueDate <= :now
+        WHERE c.unlocked = 1 AND c.deprecated = 0 AND f.dueDate <= :now
     """)
     fun countDueFlow(now: Long): Flow<Int>
 
     // ========== Unlock screen methods ==========
 
     /**
-     * Get all cards (locked and unlocked) ordered by chordType, octave, playbackMode.
+     * Get all non-deprecated cards (locked and unlocked) ordered by chordType, octave, playbackMode.
      * Used for the unlock management screen.
      */
     @Query("""
         SELECT * FROM cards
+        WHERE deprecated = 0
         ORDER BY octave ASC, playbackMode ASC, chordType ASC
     """)
     suspend fun getAllCardsOrdered(): List<CardEntity>
 
     /**
-     * Get all cards with their FSRS state (or null if no FSRS state exists).
+     * Get all non-deprecated cards with their FSRS state (or null if no FSRS state exists).
      * Used for the unlock management screen to show FSRS info for unlocked cards.
      */
     @Query("""
-        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked,
+        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked, c.deprecated,
                COALESCE(f.stability, 2.5) as stability,
                COALESCE(f.difficulty, 2.5) as difficulty,
                COALESCE(f.interval, 0) as interval,
@@ -203,15 +209,16 @@ interface CardDao {
                COALESCE(f.lapses, 0) as lapses
         FROM cards c
         LEFT JOIN fsrs_state f ON c.id = f.cardId
+        WHERE c.deprecated = 0
         ORDER BY octave ASC, playbackMode ASC, chordType ASC
     """)
     suspend fun getAllCardsWithFsrsOrdered(): List<CardWithFsrs>
 
     /**
-     * Get all cards with their FSRS state as a Flow.
+     * Get all non-deprecated cards with their FSRS state as a Flow.
      */
     @Query("""
-        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked,
+        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked, c.deprecated,
                COALESCE(f.stability, 2.5) as stability,
                COALESCE(f.difficulty, 2.5) as difficulty,
                COALESCE(f.interval, 0) as interval,
@@ -222,6 +229,7 @@ interface CardDao {
                COALESCE(f.lapses, 0) as lapses
         FROM cards c
         LEFT JOIN fsrs_state f ON c.id = f.cardId
+        WHERE c.deprecated = 0
         ORDER BY octave ASC, playbackMode ASC, chordType ASC
     """)
     fun getAllCardsWithFsrsOrderedFlow(): Flow<List<CardWithFsrs>>
@@ -237,4 +245,59 @@ interface CardDao {
      */
     @Query("UPDATE cards SET unlocked = :unlocked WHERE id = :id")
     suspend fun setUnlocked(id: String, unlocked: Boolean)
+
+    /**
+     * Set the deprecated status for a card.
+     */
+    @Query("UPDATE cards SET deprecated = :deprecated WHERE id = :id")
+    suspend fun setDeprecated(id: String, deprecated: Boolean)
+
+    // ========== Deprecated cards (for history/archive) ==========
+
+    /**
+     * Get all deprecated cards with their FSRS state.
+     * Used for the "Archived Cards" section in history screen.
+     */
+    @Query("""
+        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked, c.deprecated,
+               COALESCE(f.stability, 2.5) as stability,
+               COALESCE(f.difficulty, 2.5) as difficulty,
+               COALESCE(f.interval, 0) as interval,
+               COALESCE(f.dueDate, 0) as dueDate,
+               COALESCE(f.reviewCount, 0) as reviewCount,
+               f.lastReview as lastReview,
+               COALESCE(f.phase, 0) as phase,
+               COALESCE(f.lapses, 0) as lapses
+        FROM cards c
+        LEFT JOIN fsrs_state f ON c.id = f.cardId
+        WHERE c.deprecated = 1
+        ORDER BY c.chordType ASC, c.octave ASC, c.playbackMode ASC
+    """)
+    suspend fun getDeprecatedCardsWithFsrs(): List<CardWithFsrs>
+
+    /**
+     * Get all deprecated cards with their FSRS state as a Flow.
+     */
+    @Query("""
+        SELECT c.id, c.chordType, c.octave, c.playbackMode, c.unlocked, c.deprecated,
+               COALESCE(f.stability, 2.5) as stability,
+               COALESCE(f.difficulty, 2.5) as difficulty,
+               COALESCE(f.interval, 0) as interval,
+               COALESCE(f.dueDate, 0) as dueDate,
+               COALESCE(f.reviewCount, 0) as reviewCount,
+               f.lastReview as lastReview,
+               COALESCE(f.phase, 0) as phase,
+               COALESCE(f.lapses, 0) as lapses
+        FROM cards c
+        LEFT JOIN fsrs_state f ON c.id = f.cardId
+        WHERE c.deprecated = 1
+        ORDER BY c.chordType ASC, c.octave ASC, c.playbackMode ASC
+    """)
+    fun getDeprecatedCardsWithFsrsFlow(): Flow<List<CardWithFsrs>>
+
+    /**
+     * Count of deprecated cards.
+     */
+    @Query("SELECT COUNT(*) FROM cards WHERE deprecated = 1")
+    suspend fun countDeprecated(): Int
 }

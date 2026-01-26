@@ -27,7 +27,8 @@ class HistoryScreenUnlockTest : ComposeTestBase() {
         dueDate: Long = System.currentTimeMillis() + DAY_MS,
         stability: Double = 4.5,
         reviewCount: Int = 5,
-        interval: Int = 3
+        interval: Int = 3,
+        deprecated: Boolean = false
     ): CardWithFsrs {
         return CardWithFsrs(
             id = id,
@@ -35,6 +36,7 @@ class HistoryScreenUnlockTest : ComposeTestBase() {
             octave = octave,
             playbackMode = playbackMode,
             unlocked = unlocked,
+            deprecated = deprecated,
             stability = stability,
             difficulty = 2.5,
             interval = interval,
@@ -58,6 +60,7 @@ class HistoryScreenUnlockTest : ComposeTestBase() {
             octave = octave,
             playbackMode = playbackMode,
             unlocked = false,
+            deprecated = false,
             stability = 0.0,
             difficulty = 0.0,
             interval = 0,

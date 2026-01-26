@@ -41,7 +41,8 @@ class CardDetailsScreenUnlockTest : ComposeTestBase() {
         reviewCount: Int = 15,
         lastReview: Long? = System.currentTimeMillis() - DAY_MS,
         phase: Int = CardPhase.Review.value,
-        lapses: Int = 2
+        lapses: Int = 2,
+        deprecated: Boolean = false
     ): GenericCardWithFsrs {
         return GenericCardWithFsrs(
             id = id,
@@ -49,6 +50,7 @@ class CardDetailsScreenUnlockTest : ComposeTestBase() {
             octave = octave,
             playbackMode = playbackMode,
             unlocked = true,
+            deprecated = deprecated,
             stability = stability,
             difficulty = difficulty,
             interval = interval,
@@ -72,6 +74,7 @@ class CardDetailsScreenUnlockTest : ComposeTestBase() {
             octave = octave,
             playbackMode = playbackMode,
             unlocked = false,
+            deprecated = false,
             stability = 0.0,
             difficulty = 0.0,
             interval = 0,

@@ -30,7 +30,8 @@ class CardDetailsScreenTest : ComposeTestBase() {
         reviewCount: Int = 15,
         lastReview: Long? = System.currentTimeMillis() - DAY_MS,
         phase: Int = CardPhase.Review.value,
-        lapses: Int = 2
+        lapses: Int = 2,
+        deprecated: Boolean = false
     ): GenericCardWithFsrs {
         return GenericCardWithFsrs(
             id = id,
@@ -38,6 +39,7 @@ class CardDetailsScreenTest : ComposeTestBase() {
             octave = octave,
             playbackMode = playbackMode,
             unlocked = true,
+            deprecated = deprecated,
             stability = stability,
             difficulty = difficulty,
             interval = interval,

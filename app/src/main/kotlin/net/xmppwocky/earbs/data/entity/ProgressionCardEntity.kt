@@ -20,5 +20,6 @@ data class ProgressionCardEntity(
     val progression: String,                // I_IV_I, I_V_vi_IV, etc.
     val octave: Int,                        // 3, 4, or 5
     val playbackMode: String,               // ARPEGGIATED or BLOCK
-    val unlocked: Boolean = true
+    val unlocked: Boolean = true,
+    val deprecated: Boolean = false         // App-level deprecation (cards excluded from reviews)
 )

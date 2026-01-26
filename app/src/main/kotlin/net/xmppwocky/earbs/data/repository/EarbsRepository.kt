@@ -3,6 +3,7 @@ package net.xmppwocky.earbs.data.repository
 import android.content.SharedPreferences
 import android.util.Log
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import net.xmppwocky.earbs.audio.ChordType
 import net.xmppwocky.earbs.audio.PlaybackMode
 import net.xmppwocky.earbs.data.db.CardDao
@@ -174,6 +175,67 @@ class EarbsRepository(
             GameType.CHORD_FUNCTION -> functionCardDao.setUnlocked(cardId, unlocked)
             GameType.CHORD_PROGRESSION -> progressionCardDao.setUnlocked(cardId, unlocked)
         }
+    }
+
+    /**
+     * Set card deprecated status for any game type.
+     * Deprecated cards are excluded from reviews but historical data is preserved.
+     */
+    suspend fun setCardDeprecated(gameType: GameType, cardId: String, deprecated: Boolean) {
+        Log.i(TAG, "Setting ${gameType.name} card $cardId deprecated=$deprecated")
+        when (gameType) {
+            GameType.CHORD_TYPE -> cardDao.setDeprecated(cardId, deprecated)
+            GameType.CHORD_FUNCTION -> functionCardDao.setDeprecated(cardId, deprecated)
+            GameType.CHORD_PROGRESSION -> progressionCardDao.setDeprecated(cardId, deprecated)
+        }
+    }
+
+    /**
+     * Get deprecated cards for a game type.
+     * Used for the "Archived Cards" section in history screen.
+     */
+    fun getDeprecatedCardsFlow(gameType: GameType): Flow<List<CardWithFsrs>> {
+        return when (gameType) {
+            GameType.CHORD_TYPE -> cardDao.getDeprecatedCardsWithFsrsFlow()
+            GameType.CHORD_FUNCTION -> functionCardDao.getDeprecatedCardsWithFsrsFlow().map { list ->
+                list.map { it.toCardWithFsrs() }
+            }
+            GameType.CHORD_PROGRESSION -> progressionCardDao.getDeprecatedCardsWithFsrsFlow().map { list ->
+                list.map { it.toCardWithFsrs() }
+            }
+        }
+    }
+
+    /**
+     * Get deprecated cards count for a game type.
+     */
+    suspend fun getDeprecatedCount(gameType: GameType): Int {
+        return when (gameType) {
+            GameType.CHORD_TYPE -> cardDao.countDeprecated()
+            GameType.CHORD_FUNCTION -> functionCardDao.countDeprecated()
+            GameType.CHORD_PROGRESSION -> progressionCardDao.countDeprecated()
+        }
+    }
+
+    /**
+     * Get deprecated chord type cards.
+     */
+    fun getDeprecatedChordTypeCardsFlow(): Flow<List<CardWithFsrs>> {
+        return cardDao.getDeprecatedCardsWithFsrsFlow()
+    }
+
+    /**
+     * Get deprecated function cards.
+     */
+    fun getDeprecatedFunctionCardsFlow(): Flow<List<FunctionCardWithFsrs>> {
+        return functionCardDao.getDeprecatedCardsWithFsrsFlow()
+    }
+
+    /**
+     * Get deprecated progression cards.
+     */
+    fun getDeprecatedProgressionCardsFlow(): Flow<List<ProgressionCardWithFsrs>> {
+        return progressionCardDao.getDeprecatedCardsWithFsrsFlow()
     }
 
     // ========== Generic Card Selection Algorithm ==========
@@ -1004,6 +1066,7 @@ private fun CardWithFsrs.toGeneric(): GenericCardWithFsrs {
         octave = octave,
         playbackMode = playbackMode,
         unlocked = unlocked,
+        deprecated = deprecated,
         stability = stability,
         difficulty = difficulty,
         interval = interval,
@@ -1028,6 +1091,53 @@ private fun FunctionCardWithFsrs.toGeneric(): GenericCardWithFsrs {
         octave = octave,
         playbackMode = playbackMode,
         unlocked = unlocked,
+        deprecated = deprecated,
+        stability = stability,
+        difficulty = difficulty,
+        interval = interval,
+        dueDate = dueDate,
+        reviewCount = reviewCount,
+        lastReview = lastReview,
+        phase = phase,
+        lapses = lapses
+    )
+}
+
+/**
+ * Convert FunctionCardWithFsrs to CardWithFsrs for unified display.
+ * Used when displaying deprecated cards across game types.
+ */
+private fun FunctionCardWithFsrs.toCardWithFsrs(): CardWithFsrs {
+    return CardWithFsrs(
+        id = id,
+        chordType = "$function ($keyQuality)",  // Use function + key as "chordType" for display
+        octave = octave,
+        playbackMode = playbackMode,
+        unlocked = unlocked,
+        deprecated = deprecated,
+        stability = stability,
+        difficulty = difficulty,
+        interval = interval,
+        dueDate = dueDate,
+        reviewCount = reviewCount,
+        lastReview = lastReview,
+        phase = phase,
+        lapses = lapses
+    )
+}
+
+/**
+ * Convert ProgressionCardWithFsrs to CardWithFsrs for unified display.
+ * Used when displaying deprecated cards across game types.
+ */
+private fun ProgressionCardWithFsrs.toCardWithFsrs(): CardWithFsrs {
+    return CardWithFsrs(
+        id = id,
+        chordType = progression,  // Use progression as "chordType" for display
+        octave = octave,
+        playbackMode = playbackMode,
+        unlocked = unlocked,
+        deprecated = deprecated,
         stability = stability,
         difficulty = difficulty,
         interval = interval,
@@ -1058,6 +1168,7 @@ private fun ProgressionCardWithFsrs.toGeneric(): GenericCardWithFsrs {
         octave = octave,
         playbackMode = playbackMode,
         unlocked = unlocked,
+        deprecated = deprecated,
         stability = stability,
         difficulty = difficulty,
         interval = interval,
