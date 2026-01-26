@@ -263,6 +263,7 @@ private fun EarbsApp(
     var sessionResult by remember { mutableStateOf<SessionResult?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var selectedCardId by remember { mutableStateOf<String?>(null) }
+    var historyGameType by remember { mutableStateOf(GameType.CHORD_TYPE) }
     val coroutineScope = rememberCoroutineScope()
 
     // Initialize on first composition
@@ -353,7 +354,8 @@ private fun EarbsApp(
                         }
                     }
                 },
-                onHistoryClicked = {
+                onHistoryClicked = { gameType ->
+                    historyGameType = gameType
                     currentScreen = Screen.HISTORY
                 },
                 onSettingsClicked = {
@@ -471,16 +473,21 @@ private fun EarbsApp(
         }
 
         Screen.HISTORY -> {
-            val sessions by repository.getSessionOverviews().collectAsState(initial = emptyList())
-            // Use the new flow that includes all cards (locked and unlocked)
-            val cards by repository.getAllCardsForUnlockScreen().collectAsState(initial = emptyList())
+            // Load game-specific data based on historyGameType
+            val sessions by repository.getSessionOverviewsByGameType(historyGameType).collectAsState(initial = emptyList())
+            val cardStats by repository.getCardStatsByGameType(historyGameType).collectAsState(initial = emptyList())
+
+            // Load cards based on game type
+            val chordTypeCards by repository.getAllCardsForUnlockScreen().collectAsState(initial = emptyList())
             val functionCards by repository.getAllFunctionCardsForUnlockScreen().collectAsState(initial = emptyList())
-            val cardStats by repository.getCardStats().collectAsState(initial = emptyList())
+            val progressionCards by repository.getAllProgressionCardsForUnlockScreen().collectAsState(initial = emptyList())
 
             HistoryScreen(
+                gameType = historyGameType,
                 sessions = sessions,
-                cards = cards,
+                chordTypeCards = chordTypeCards,
                 functionCards = functionCards,
+                progressionCards = progressionCards,
                 cardStats = cardStats,
                 onBackClicked = {
                     coroutineScope.launch {
@@ -504,7 +511,7 @@ private fun EarbsApp(
                     repository.getFunctionConfusionData(keyQuality)
                 },
                 onResetFsrs = { cardId ->
-                    repository.resetFsrsState(cardId, GameType.CHORD_TYPE)
+                    repository.resetFsrsState(cardId, historyGameType)
                 },
                 onCardClicked = { cardId ->
                     Log.i(TAG, "Card clicked: $cardId")
@@ -512,8 +519,8 @@ private fun EarbsApp(
                     currentScreen = Screen.CARD_DETAILS
                 },
                 onCardUnlockToggled = { cardId, unlocked ->
-                    Log.i(TAG, "Card unlock toggled: $cardId -> $unlocked")
-                    repository.setCardUnlocked(cardId, unlocked)
+                    Log.i(TAG, "Card unlock toggled: $cardId -> $unlocked (gameType=${historyGameType.name})")
+                    repository.setCardUnlocked(historyGameType, cardId, unlocked)
                 }
             )
         }
@@ -522,14 +529,14 @@ private fun EarbsApp(
             selectedCardId?.let { cardId ->
                 CardDetailsScreen(
                     cardId = cardId,
-                    gameType = GameType.CHORD_TYPE,
+                    gameType = historyGameType,
                     repository = repository,
                     onBackClicked = {
                         currentScreen = Screen.HISTORY
                     },
                     onUnlockToggled = { id, unlocked ->
-                        Log.i(TAG, "Card unlock toggled from details: $id -> $unlocked")
-                        repository.setCardUnlocked(id, unlocked)
+                        Log.i(TAG, "Card unlock toggled from details: $id -> $unlocked (gameType=${historyGameType.name})")
+                        repository.setCardUnlocked(historyGameType, id, unlocked)
                     }
                 )
             } ?: run {
