@@ -2,6 +2,7 @@ package net.xmppwocky.earbs.model
 
 import net.xmppwocky.earbs.data.db.CardWithFsrs
 import net.xmppwocky.earbs.data.db.FunctionCardWithFsrs
+import net.xmppwocky.earbs.data.db.ProgressionCardWithFsrs
 
 /**
  * Mastery levels based on FSRS stability thresholds.
@@ -87,6 +88,29 @@ fun computeMasteryDistribution(cards: List<CardWithFsrs>): MasteryDistribution {
  * Only counts unlocked cards.
  */
 fun computeFunctionMasteryDistribution(cards: List<FunctionCardWithFsrs>): MasteryDistribution {
+    var learning = 0
+    var familiar = 0
+    var confident = 0
+    var mastered = 0
+
+    for (card in cards) {
+        if (!card.unlocked) continue
+        when (MasteryLevel.fromFsrsState(card.stability, card.phase)) {
+            MasteryLevel.LEARNING -> learning++
+            MasteryLevel.FAMILIAR -> familiar++
+            MasteryLevel.CONFIDENT -> confident++
+            MasteryLevel.MASTERED -> mastered++
+        }
+    }
+
+    return MasteryDistribution(learning, familiar, confident, mastered)
+}
+
+/**
+ * Compute mastery distribution for progression cards.
+ * Only counts unlocked cards.
+ */
+fun computeProgressionMasteryDistribution(cards: List<ProgressionCardWithFsrs>): MasteryDistribution {
     var learning = 0
     var familiar = 0
     var confident = 0
