@@ -802,8 +802,8 @@ private fun StatsTab(
 
     // Check if there's any data to show
     val hasConfusionData = when (gameType) {
-        GameType.CHORD_TYPE -> chordConfusion?.isEmpty() != true
-        GameType.CHORD_FUNCTION -> functionConfusion?.isEmpty() != true
+        GameType.CHORD_TYPE -> chordConfusion?.isNotEmpty() == true
+        GameType.CHORD_FUNCTION -> functionConfusion?.isNotEmpty() == true
         GameType.CHORD_PROGRESSION -> false // No confusion matrix for progressions yet
     }
 

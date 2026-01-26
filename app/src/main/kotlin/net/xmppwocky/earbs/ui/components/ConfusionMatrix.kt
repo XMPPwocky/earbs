@@ -33,6 +33,7 @@ data class ConfusionMatrixData(
     fun rowTotal(row: Int): Int = counts[row].sum()
     fun total(): Int = counts.sumOf { it.sum() }
     fun isEmpty(): Boolean = total() == 0
+    fun isNotEmpty(): Boolean = total() > 0
 
     /**
      * Get percentage for a cell (row-normalized).
