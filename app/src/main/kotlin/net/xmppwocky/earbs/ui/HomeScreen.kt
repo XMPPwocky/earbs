@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.sp
 import net.xmppwocky.earbs.data.entity.GameType
 import net.xmppwocky.earbs.model.Deck
 import net.xmppwocky.earbs.model.FunctionDeck
+import net.xmppwocky.earbs.model.ProgressionDeck
 
 @Composable
 fun HomeScreen(
@@ -24,15 +25,30 @@ fun HomeScreen(
     // Function game stats
     functionDueCount: Int = 0,
     functionUnlockedCount: Int = 0,
+    // Progression game stats
+    progressionDueCount: Int = 0,
+    progressionUnlockedCount: Int = 0,
     // Actions
     onStartReviewClicked: () -> Unit,
     onHistoryClicked: () -> Unit = {},
     onSettingsClicked: () -> Unit = {}
 ) {
     // Current game stats based on selected mode
-    val dueCount = if (selectedGameMode == GameType.CHORD_TYPE) chordTypeDueCount else functionDueCount
-    val unlockedCount = if (selectedGameMode == GameType.CHORD_TYPE) chordTypeUnlockedCount else functionUnlockedCount
-    val totalCards = if (selectedGameMode == GameType.CHORD_TYPE) Deck.TOTAL_CARDS else FunctionDeck.TOTAL_CARDS
+    val dueCount = when (selectedGameMode) {
+        GameType.CHORD_TYPE -> chordTypeDueCount
+        GameType.CHORD_FUNCTION -> functionDueCount
+        GameType.CHORD_PROGRESSION -> progressionDueCount
+    }
+    val unlockedCount = when (selectedGameMode) {
+        GameType.CHORD_TYPE -> chordTypeUnlockedCount
+        GameType.CHORD_FUNCTION -> functionUnlockedCount
+        GameType.CHORD_PROGRESSION -> progressionUnlockedCount
+    }
+    val totalCards = when (selectedGameMode) {
+        GameType.CHORD_TYPE -> Deck.TOTAL_CARDS
+        GameType.CHORD_FUNCTION -> FunctionDeck.TOTAL_CARDS
+        GameType.CHORD_PROGRESSION -> ProgressionDeck.TOTAL_CARDS
+    }
 
     Column(
         modifier = Modifier
@@ -58,18 +74,27 @@ fun HomeScreen(
 
         // Game mode tabs
         TabRow(
-            selectedTabIndex = if (selectedGameMode == GameType.CHORD_TYPE) 0 else 1,
+            selectedTabIndex = when (selectedGameMode) {
+                GameType.CHORD_TYPE -> 0
+                GameType.CHORD_FUNCTION -> 1
+                GameType.CHORD_PROGRESSION -> 2
+            },
             modifier = Modifier.fillMaxWidth()
         ) {
             Tab(
                 selected = selectedGameMode == GameType.CHORD_TYPE,
                 onClick = { onGameModeChanged(GameType.CHORD_TYPE) },
-                text = { Text("Chord Type ($chordTypeDueCount)") }
+                text = { Text("Types") }
             )
             Tab(
                 selected = selectedGameMode == GameType.CHORD_FUNCTION,
                 onClick = { onGameModeChanged(GameType.CHORD_FUNCTION) },
-                text = { Text("Function ($functionDueCount)") }
+                text = { Text("Functions") }
+            )
+            Tab(
+                selected = selectedGameMode == GameType.CHORD_PROGRESSION,
+                onClick = { onGameModeChanged(GameType.CHORD_PROGRESSION) },
+                text = { Text("Progressions") }
             )
         }
 
@@ -168,10 +193,10 @@ fun HomeScreen(
 
         // Info text
         Text(
-            text = if (selectedGameMode == GameType.CHORD_TYPE) {
-                "Identify chord quality (Major, Minor, etc.)"
-            } else {
-                "Identify chord function (IV, V, vi, etc.)"
+            text = when (selectedGameMode) {
+                GameType.CHORD_TYPE -> "Identify chord quality (Major, Minor, etc.)"
+                GameType.CHORD_FUNCTION -> "Identify chord function (IV, V, vi, etc.)"
+                GameType.CHORD_PROGRESSION -> "Identify chord progressions (I-IV-V-I, etc.)"
             },
             fontSize = 14.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

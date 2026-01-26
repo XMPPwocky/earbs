@@ -312,6 +312,8 @@ private fun EarbsApp(
                 chordTypeUnlockedCount = chordTypeUnlockedCount,
                 functionDueCount = functionDueCount,
                 functionUnlockedCount = functionUnlockedCount,
+                progressionDueCount = progressionDueCount,
+                progressionUnlockedCount = progressionUnlockedCount,
                 onStartReviewClicked = {
                     coroutineScope.launch {
                         when (selectedGameMode) {
