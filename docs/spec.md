@@ -6,7 +6,7 @@ Build an Android app (Kotlin, Jetpack Compose) for ear training focused on chord
 
 ## Game Modes
 
-The app has two training games:
+The app has three training games:
 
 ### Chord Type Game (Game 1)
 The original game mode. The user hears a chord and identifies its type (major, minor, sus2, etc.).
@@ -15,9 +15,15 @@ The original game mode. The user hears a chord and identifies its type (major, m
 
 ### Chord Function Game (Game 2)
 A second game mode focused on recognizing chord functions within a key. The user hears a tonic chord followed by a target chord and identifies the roman numeral function.
-- **72 total cards** (12 functions × 3 octaves × 2 playback modes)
+- **72 total cards** (6 functions × 2 key qualities × 3 octaves × 2 playback modes)
 - User answers the chord function (roman numeral)
 - Audio plays tonic chord first to establish key, then target chord
+
+### Progression Game (Game 3)
+A game mode focused on recognizing common chord progressions. The user hears a sequence of chords and identifies the progression pattern.
+- **96 total cards** (16 progressions × 3 octaves × 2 playback modes)
+- User answers the progression pattern only (e.g., "I - IV - I")
+- Key quality is randomized at playback and hidden from the user
 
 ## Core Concepts
 
@@ -85,7 +91,7 @@ This keeps sessions focused on one octave and playback mode when possible, impro
 
 ### Card Unlock System
 
-All 48 chord type cards (and 72 function cards) are pre-created in the database. Users can unlock or lock any card at any time through the History > Cards tab.
+All cards (48 chord type, 72 function, 96 progression) are pre-created in the database. Users can unlock or lock any card at any time through the History > Cards tab.
 
 **Key features:**
 - **Per-card toggle**: Each card has an individual lock/unlock toggle
@@ -98,6 +104,7 @@ All 48 chord type cards (and 72 function cards) are pre-created in the database.
 **Starting deck (unlocked by default):**
 - Major, Minor, Sus2, Sus4 @ octave 4, arpeggiated (Chord Type game)
 - IV, V, vi @ major key, octave 4, arpeggiated (Chord Function game)
+- I-IV-I, I-V-I @ octave 4, arpeggiated (Progression game)
 
 **Card groups (12 groups for Chord Type):**
 
@@ -122,7 +129,7 @@ Only unlocked cards appear in review sessions. Locked cards are shown in the Car
 
 **Card model:** `(function, key_quality, octave, playback_mode)`
 
-**Functions (12 total):**
+**Functions (6 base functions × 2 key qualities = 12 total):**
 - **Major key (6):** ii, iii, IV, V, vi, vii°
 - **Minor key (6):** ii°, III, iv, v, VI, VII
 
@@ -136,16 +143,77 @@ Note: The tonic (I/i) is not included as it's always played as the reference cho
 The key's root note is randomized within the octave to prevent memorizing absolute pitches.
 
 **Unlock order (24 groups of 3 cards each):**
-Cards unlock in groups of 3 functions. Major key functions are unlocked first, followed by minor key functions. Within each key quality, octave 4 arpeggiated comes first, then block, then other octaves.
+Cards unlock in groups of 3 functions. Major key functions are unlocked first, followed by minor key functions. Within each key quality, primary functions (most common: IV, V, vi) unlock before secondary functions (ii, iii, vii°). Octave 4 arpeggiated comes first, then block, then other octaves.
 
 | # | Functions | Key | Octave | Mode |
 |---|-----------|-----|--------|------|
-| 1 | ii, iii, IV | Major | 4 | Arpeggiated | **Starting deck** |
-| 2 | V, vi, vii° | Major | 4 | Arpeggiated |
-| 3 | ii, iii, IV | Major | 4 | Block |
-| 4 | V, vi, vii° | Major | 4 | Block |
+| 1 | IV, V, vi | Major | 4 | Arpeggiated | **Starting deck** |
+| 2 | ii, iii, vii° | Major | 4 | Arpeggiated |
+| 3 | IV, V, vi | Major | 4 | Block |
+| 4 | ii, iii, vii° | Major | 4 | Block |
 | ... | (continues for octaves 3, 5) | | | |
-| 13-24 | (minor key functions follow same pattern) | | | |
+| 13-24 | (minor key functions follow same pattern: iv, v, VI then ii°, III, VII) | | | |
+
+### Progression Game Details
+
+**Card model:** `(progression, octave, playback_mode)`
+
+Key quality is randomized at playback and hidden from the user. The user answers the progression pattern only.
+
+**Progressions (16 total - 8 patterns × 2 key qualities):**
+
+**Major key (8):**
+| Pattern | Progression |
+|---------|-------------|
+| 3-chord resolving | I - IV - I |
+| 3-chord resolving | I - V - I |
+| 4-chord resolving | I - IV - V - I |
+| 4-chord resolving | I - ii - V - I |
+| 5-chord resolving | I - vi - ii - V - I |
+| 5-chord resolving | I - vi - IV - V - I |
+| Loop | I - V - vi - IV |
+| Loop | I - vi - IV - V |
+
+**Minor key (8):**
+| Pattern | Progression |
+|---------|-------------|
+| 3-chord resolving | i - iv - i |
+| 3-chord resolving | i - v - i |
+| 4-chord resolving | i - iv - v - i |
+| 4-chord resolving | i - ii° - v - i |
+| 5-chord resolving | i - VI - ii° - v - i |
+| 5-chord resolving | i - VI - iv - v - i |
+| Loop | i - v - VI - iv |
+| Loop | i - VI - iv - v |
+
+**Audio playback:**
+- Plays sequence of chords (not just one or two)
+- Each chord: 400ms duration
+- Pause between chords: 200ms
+- Root note randomized within octave
+- Key quality (major/minor) randomized at playback
+
+**Starting deck (unlocked by default):**
+- I - IV - I @ octave 4, arpeggiated
+- I - V - I @ octave 4, arpeggiated (2 cards)
+
+**Unlock order (48 groups of 2 cards each):**
+Cards unlock in groups of 2 progressions. Order is organized by:
+1. Progression complexity (3-chord → 4-chord → 5-chord → loops)
+2. Key quality (major before minor)
+3. Octave (4 → 3 → 5)
+4. Playback mode (arpeggiated → block)
+
+| Groups | Progressions | Key | Octave | Mode |
+|--------|--------------|-----|--------|------|
+| 0-5 | 3-chord (I-IV-I, I-V-I) | Major | 4,3,5 | Arp/Block |
+| 6-11 | 3-chord (i-iv-i, i-v-i) | Minor | 4,3,5 | Arp/Block |
+| 12-17 | 4-chord resolving | Major | 4,3,5 | Arp/Block |
+| 18-23 | 4-chord resolving | Minor | 4,3,5 | Arp/Block |
+| 24-29 | 5-chord | Major | 4,3,5 | Arp/Block |
+| 30-35 | 5-chord | Minor | 4,3,5 | Arp/Block |
+| 36-41 | Loops | Major | 4,3,5 | Arp/Block |
+| 42-47 | Loops | Minor | 4,3,5 | Arp/Block |
 
 ### Audio Synthesis
 
@@ -181,8 +249,9 @@ The root note should be randomized within the octave (any of the 12 semitones) s
 ### UX Flow
 
 **Home screen:**
-- **Game mode tabs**: Switch between Chord Type and Chord Function games
+- **Game mode tabs**: Switch between Chord Type, Chord Function, and Progression games
   - Tab titles show due counts (e.g., "Chord Type (5)")
+  - Due counts only include unlocked cards (not locked cards)
   - Each game has separate unlock status
 - "Start Review" / "Practice Early" button (label depends on whether cards are due)
 - Shows deck overview (cards unlocked, how many due)
@@ -191,11 +260,11 @@ The root note should be randomized within the octave (any of the 12 semitones) s
 
 **Review screen:**
 - Progress indicator (e.g., "Trial 5 / 20")
-- Current card info (octave, and key quality for Chord Function game)
+- Current card info (octave; key quality shown for Chord Function game; key quality hidden for Progression game)
 - Playback mode indicator (shows Block or Arpeggiated, based on current card)
-- "Play" / "Replay" button (plays current chord using the card's playback mode)
+- "Play" / "Replay" button (plays current chord/progression using the card's playback mode)
 - Can replay as many times as desired (same root note on replay)
-- Answer buttons for each chord type/function in the session's cards
+- Answer buttons for each chord type/function/progression in the session's cards
 - After tapping answer: brief feedback (correct/incorrect with actual answer if wrong), FSRS update
 
 **Auto-advance behavior:**
@@ -221,19 +290,26 @@ The root note should be randomized within the octave (any of the 12 semitones) s
 - "Done" button returns to home screen
 
 **History screen (3 tabs):**
+
+The History screen shows data for the **currently selected game type**. The screen title reflects the game: "Chord Type History", "Function History", or "Progression History".
+
 - **Sessions tab:** List of past sessions with accuracy, expandable to show individual trials (including wrong answers given)
 - **Cards tab:** All cards (locked and unlocked) for managing card unlocks
-  - Cards grouped by type category (Triads/7ths), octave, and playback mode
+  - Shows only cards from the currently selected game type
+  - Cards grouped by type category (Triads/7ths for Chord Type, Key Quality for Function/Progression), octave, and playback mode
   - Each card has a checkbox to toggle lock/unlock status
   - Locked cards appear grayed out with minimal info
   - Unlocked cards show due date and stability
   - Tap a card row (not checkbox) to open Card Details screen
 - **Stats tab:**
+  - Shows only the selected game's mastery progress and statistics
   - Overall accuracy and per-card lifetime accuracy
-  - **Confusion matrices**: Visual heatmap showing which chord types are confused with each other
-    - Rows = actual chord type, Columns = user's answer
-    - Filter by octave and key quality (for Chord Function game)
+  - **Confusion matrices** (Chord Type and Function games only):
+    - Visual heatmap showing which chord types/functions are confused with each other
+    - Rows = actual chord type/function, Columns = user's answer
+    - Filter by octave (Chord Type) or key quality (Function)
     - Color intensity indicates frequency of confusion
+    - Note: Confusion matrix not shown for Progression game
 
 **Card Details screen** (accessed from Cards tab):
 - Card header with lock/unlock toggle switch
