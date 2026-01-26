@@ -115,18 +115,30 @@ class EarbsRepository(
 
     /**
      * Get due count for a game type.
+     * Only counts unlocked cards that are due.
      */
     suspend fun getDueCount(gameType: GameType): Int {
-        val count = fsrsStateDao.countDueByGameType(gameType.name, System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        val count = when (gameType) {
+            GameType.CHORD_TYPE -> cardDao.countDue(now)
+            GameType.CHORD_FUNCTION -> functionCardDao.countDue(now)
+            GameType.CHORD_PROGRESSION -> progressionCardDao.countDue(now)
+        }
         Log.d(TAG, "${gameType.name} due count: $count")
         return count
     }
 
     /**
      * Get due count flow for a game type.
+     * Only counts unlocked cards that are due.
      */
     fun getDueCountFlow(gameType: GameType): Flow<Int> {
-        return fsrsStateDao.countDueByGameTypeFlow(gameType.name, System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        return when (gameType) {
+            GameType.CHORD_TYPE -> cardDao.countDueFlow(now)
+            GameType.CHORD_FUNCTION -> functionCardDao.countDueFlow(now)
+            GameType.CHORD_PROGRESSION -> progressionCardDao.countDueFlow(now)
+        }
     }
 
     /**

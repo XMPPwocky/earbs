@@ -6,6 +6,7 @@ import net.xmppwocky.earbs.data.entity.CardEntity
 import net.xmppwocky.earbs.data.entity.FsrsStateEntity
 import net.xmppwocky.earbs.data.entity.FunctionCardEntity
 import net.xmppwocky.earbs.data.entity.GameType
+import net.xmppwocky.earbs.data.entity.ProgressionCardEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -260,5 +261,66 @@ class EarbsRepositoryTest : DatabaseTestBase() {
         assertEquals(2, repository.getUnlockedCount())
         // Total cards = 3
         assertEquals(3, cardDao.count())
+    }
+
+    // ========== Due Count Excludes Locked Cards ==========
+
+    @Test
+    fun `getDueCount excludes locked cards`() = runTest {
+        val now = System.currentTimeMillis()
+
+        // Locked card with past due date - should NOT count
+        cardDao.insert(CardEntity("MAJOR_4_ARPEGGIATED", "MAJOR", 4, "ARPEGGIATED", unlocked = false))
+        fsrsStateDao.insert(FsrsStateEntity("MAJOR_4_ARPEGGIATED", GameType.CHORD_TYPE.name, dueDate = now - HOUR_MS))
+
+        // Unlocked card with past due date - should count
+        cardDao.insert(CardEntity("MINOR_4_ARPEGGIATED", "MINOR", 4, "ARPEGGIATED", unlocked = true))
+        fsrsStateDao.insert(FsrsStateEntity("MINOR_4_ARPEGGIATED", GameType.CHORD_TYPE.name, dueDate = now - HOUR_MS))
+
+        assertEquals(1, repository.getDueCount())
+    }
+
+    @Test
+    fun `getDueCount returns zero when all due cards are locked`() = runTest {
+        val now = System.currentTimeMillis()
+
+        // All cards locked with past due dates
+        cardDao.insert(CardEntity("MAJOR_4_ARPEGGIATED", "MAJOR", 4, "ARPEGGIATED", unlocked = false))
+        fsrsStateDao.insert(FsrsStateEntity("MAJOR_4_ARPEGGIATED", GameType.CHORD_TYPE.name, dueDate = now - HOUR_MS))
+
+        cardDao.insert(CardEntity("MINOR_4_ARPEGGIATED", "MINOR", 4, "ARPEGGIATED", unlocked = false))
+        fsrsStateDao.insert(FsrsStateEntity("MINOR_4_ARPEGGIATED", GameType.CHORD_TYPE.name, dueDate = now - HOUR_MS))
+
+        assertEquals(0, repository.getDueCount())
+    }
+
+    @Test
+    fun `getFunctionDueCount excludes locked cards`() = runTest {
+        val now = System.currentTimeMillis()
+
+        // Locked function card with past due date - should NOT count
+        functionCardDao.insert(FunctionCardEntity("IV_MAJOR_4_ARPEGGIATED", "IV", "MAJOR", 4, "ARPEGGIATED", unlocked = false))
+        fsrsStateDao.insert(FsrsStateEntity("IV_MAJOR_4_ARPEGGIATED", GameType.CHORD_FUNCTION.name, dueDate = now - HOUR_MS))
+
+        // Unlocked function card with past due date - should count
+        functionCardDao.insert(FunctionCardEntity("V_MAJOR_4_ARPEGGIATED", "V", "MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        fsrsStateDao.insert(FsrsStateEntity("V_MAJOR_4_ARPEGGIATED", GameType.CHORD_FUNCTION.name, dueDate = now - HOUR_MS))
+
+        assertEquals(1, repository.getFunctionDueCount())
+    }
+
+    @Test
+    fun `getProgressionDueCount excludes locked cards`() = runTest {
+        val now = System.currentTimeMillis()
+
+        // Locked progression card with past due date - should NOT count
+        progressionCardDao.insert(ProgressionCardEntity("I_IV_I_MAJOR_4_ARPEGGIATED", "I_IV_I_MAJOR", 4, "ARPEGGIATED", unlocked = false))
+        fsrsStateDao.insert(FsrsStateEntity("I_IV_I_MAJOR_4_ARPEGGIATED", GameType.CHORD_PROGRESSION.name, dueDate = now - HOUR_MS))
+
+        // Unlocked progression card with past due date - should count
+        progressionCardDao.insert(ProgressionCardEntity("I_V_I_MAJOR_4_ARPEGGIATED", "I_V_I_MAJOR", 4, "ARPEGGIATED", unlocked = true))
+        fsrsStateDao.insert(FsrsStateEntity("I_V_I_MAJOR_4_ARPEGGIATED", GameType.CHORD_PROGRESSION.name, dueDate = now - HOUR_MS))
+
+        assertEquals(1, repository.getProgressionDueCount())
     }
 }
