@@ -127,6 +127,7 @@ fun <C : GameCard, A : GameAnswer> GenericReviewScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.statusBars)
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
