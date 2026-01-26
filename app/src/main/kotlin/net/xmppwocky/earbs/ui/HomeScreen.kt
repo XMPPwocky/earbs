@@ -30,7 +30,7 @@ fun HomeScreen(
     progressionUnlockedCount: Int = 0,
     // Actions
     onStartReviewClicked: () -> Unit,
-    onHistoryClicked: () -> Unit = {},
+    onHistoryClicked: (GameType) -> Unit = {},
     onSettingsClicked: () -> Unit = {}
 ) {
     // Current game stats based on selected mode
@@ -163,7 +163,7 @@ fun HomeScreen(
 
         // History button
         OutlinedButton(
-            onClick = onHistoryClicked,
+            onClick = { onHistoryClicked(selectedGameMode) },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp)
