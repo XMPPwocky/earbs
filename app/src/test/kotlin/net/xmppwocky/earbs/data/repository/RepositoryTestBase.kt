@@ -17,6 +17,7 @@ abstract class RepositoryTestBase : DatabaseTestBase() {
             functionCardDao = functionCardDao,
             progressionCardDao = progressionCardDao,
             intervalCardDao = intervalCardDao,
+            scaleCardDao = scaleCardDao,
             fsrsStateDao = fsrsStateDao,
             reviewSessionDao = reviewSessionDao,
             trialDao = trialDao,

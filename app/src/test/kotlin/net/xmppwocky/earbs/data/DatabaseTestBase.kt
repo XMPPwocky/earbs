@@ -12,6 +12,7 @@ import net.xmppwocky.earbs.data.db.HistoryDao
 import net.xmppwocky.earbs.data.db.IntervalCardDao
 import net.xmppwocky.earbs.data.db.ProgressionCardDao
 import net.xmppwocky.earbs.data.db.ReviewSessionDao
+import net.xmppwocky.earbs.data.db.ScaleCardDao
 import net.xmppwocky.earbs.data.db.TrialDao
 import net.xmppwocky.earbs.data.entity.CardEntity
 import net.xmppwocky.earbs.data.entity.FsrsStateEntity
@@ -20,6 +21,7 @@ import net.xmppwocky.earbs.data.entity.GameType
 import net.xmppwocky.earbs.data.entity.IntervalCardEntity
 import net.xmppwocky.earbs.data.entity.ProgressionCardEntity
 import net.xmppwocky.earbs.data.entity.ReviewSessionEntity
+import net.xmppwocky.earbs.data.entity.ScaleCardEntity
 import org.junit.After
 import org.junit.Before
 import org.junit.runner.RunWith
@@ -38,6 +40,7 @@ abstract class DatabaseTestBase {
     protected lateinit var functionCardDao: FunctionCardDao
     protected lateinit var progressionCardDao: ProgressionCardDao
     protected lateinit var intervalCardDao: IntervalCardDao
+    protected lateinit var scaleCardDao: ScaleCardDao
     protected lateinit var fsrsStateDao: FsrsStateDao
     protected lateinit var reviewSessionDao: ReviewSessionDao
     protected lateinit var trialDao: TrialDao
@@ -55,6 +58,7 @@ abstract class DatabaseTestBase {
         functionCardDao = db.functionCardDao()
         progressionCardDao = db.progressionCardDao()
         intervalCardDao = db.intervalCardDao()
+        scaleCardDao = db.scaleCardDao()
         fsrsStateDao = db.fsrsStateDao()
         reviewSessionDao = db.reviewSessionDao()
         trialDao = db.trialDao()
@@ -257,6 +261,56 @@ abstract class DatabaseTestBase {
                 FsrsStateEntity(
                     cardId = cardId,
                     gameType = GameType.INTERVAL.name,
+                    dueDate = dueDate,
+                    stability = stability,
+                    difficulty = difficulty,
+                    interval = interval,
+                    reviewCount = reviewCount,
+                    lastReview = lastReview,
+                    phase = phase,
+                    lapses = lapses
+                )
+            )
+        }
+
+        return card
+    }
+
+    /**
+     * Create a test ScaleCardEntity with optional FSRS state.
+     */
+    protected suspend fun createScaleCard(
+        scaleType: String = "MAJOR",
+        octave: Int = 4,
+        direction: String = "ASCENDING",
+        unlocked: Boolean = true,
+        deprecated: Boolean = false,
+        withFsrsState: Boolean = true,
+        dueDate: Long = System.currentTimeMillis(),
+        stability: Double = 2.5,
+        difficulty: Double = 2.5,
+        interval: Int = 0,
+        reviewCount: Int = 0,
+        lastReview: Long? = null,
+        phase: Int = 0,
+        lapses: Int = 0
+    ): ScaleCardEntity {
+        val cardId = "${scaleType}_${octave}_${direction}"
+        val card = ScaleCardEntity(
+            id = cardId,
+            scale = scaleType,
+            octave = octave,
+            direction = direction,
+            unlocked = unlocked,
+            deprecated = deprecated
+        )
+        scaleCardDao.insert(card)
+
+        if (withFsrsState) {
+            fsrsStateDao.insert(
+                FsrsStateEntity(
+                    cardId = cardId,
+                    gameType = GameType.SCALE.name,
                     dueDate = dueDate,
                     stability = stability,
                     difficulty = difficulty,

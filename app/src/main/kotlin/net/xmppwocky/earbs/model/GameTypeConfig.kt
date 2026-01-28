@@ -2,6 +2,7 @@ package net.xmppwocky.earbs.model
 
 import net.xmppwocky.earbs.audio.ChordType
 import net.xmppwocky.earbs.audio.IntervalType
+import net.xmppwocky.earbs.audio.ScaleType
 import net.xmppwocky.earbs.data.entity.GameType
 
 /**
@@ -221,6 +222,45 @@ sealed class GameTypeConfig<C : GameCard, A : GameAnswer> {
         }
     }
 
+    /**
+     * Configuration for the Scale recognition game.
+     * User hears a scale and identifies its type.
+     */
+    data object ScaleGame : GameTypeConfig<ScaleCard, GameAnswer.ScaleAnswer>() {
+        override val gameType: GameType = GameType.SCALE
+        override val totalCards: Int = ScaleDeck.TOTAL_CARDS
+        override val cardsPerUnlock: Int = ScaleDeck.CARDS_PER_GROUP
+        override val maxUnlockLevel: Int = ScaleDeck.MAX_UNLOCK_LEVEL
+        override val displayName: String = "Scales"
+        override val description: String = "Identify scale (Major, Minor, Dorian, etc.)"
+        override val unlockGroupCount: Int = ScaleDeck.UNLOCK_ORDER.size
+
+        override fun getAnswerOptions(card: ScaleCard, session: GenericReviewSession<ScaleCard>): List<GameAnswer.ScaleAnswer> {
+            // Session-based: show distinct scales in session
+            return session.cards
+                .map { it.scale }
+                .distinct()
+                .sortedBy { it.ordinal }
+                .map { GameAnswer.ScaleAnswer(it) }
+        }
+
+        override fun isCorrectAnswer(card: ScaleCard, answer: GameAnswer.ScaleAnswer): Boolean {
+            return card.scale == answer.scale
+        }
+
+        override fun getCorrectAnswer(card: ScaleCard): GameAnswer.ScaleAnswer {
+            return GameAnswer.ScaleAnswer(card.scale)
+        }
+
+        override fun getUnlockGroupIndex(card: ScaleCard): Int {
+            return ScaleDeck.getGroupIndex(card)
+        }
+
+        override fun getUnlockGroupName(groupIndex: Int): String {
+            return ScaleDeck.getGroupName(groupIndex)
+        }
+    }
+
     companion object {
         /**
          * Get the config for a given game type.
@@ -230,6 +270,7 @@ sealed class GameTypeConfig<C : GameCard, A : GameAnswer> {
             GameType.CHORD_FUNCTION -> FunctionGame
             GameType.CHORD_PROGRESSION -> ProgressionGame
             GameType.INTERVAL -> IntervalGame
+            GameType.SCALE -> ScaleGame
         }
     }
 }

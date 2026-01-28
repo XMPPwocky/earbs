@@ -6,6 +6,7 @@ import net.xmppwocky.earbs.model.GameAnswer
 import net.xmppwocky.earbs.model.GameCard
 import net.xmppwocky.earbs.model.IntervalCard
 import net.xmppwocky.earbs.model.ProgressionCard
+import net.xmppwocky.earbs.model.ScaleCard
 
 /**
  * Strategy interface for game-specific audio playback.
@@ -238,6 +239,68 @@ object ProgressionStrategy : AudioPlaybackStrategy<ProgressionCard, GameAnswer.P
             pauseMs = PAUSE_MS,
             progressionName = answer.progression.displayName,
             keyQuality = answer.progression.keyQuality.name,
+            rootSemitones = rootSemitones
+        )
+    }
+}
+
+/**
+ * Strategy for scale recognition game.
+ * Plays a sequence of notes forming a scale.
+ */
+object ScaleStrategy : AudioPlaybackStrategy<ScaleCard, GameAnswer.ScaleAnswer> {
+    private const val NOTE_DURATION_MS = 300
+
+    /**
+     * Play audio for a scale card.
+     *
+     * @param card The scale card to play
+     * @param rootSemitones The root note in semitones from A4
+     * @param durationMs Duration for each note
+     */
+    override suspend fun playCard(
+        card: ScaleCard,
+        rootSemitones: Int,
+        durationMs: Int
+    ) {
+        val frequencies = ScaleBuilder.buildScale(
+            scaleType = card.scale,
+            rootSemitones = rootSemitones,
+            direction = card.direction
+        )
+        AudioEngine.playScale(
+            frequencies = frequencies,
+            noteDurationMs = durationMs,
+            scaleName = card.scale.displayName,
+            direction = card.direction.displayName,
+            rootSemitones = rootSemitones
+        )
+    }
+
+    /**
+     * Play audio for a specific scale answer (for learning mode).
+     *
+     * @param answer The scale answer to play
+     * @param card The current card context (for direction)
+     * @param rootSemitones The root note in semitones from A4
+     * @param durationMs Duration for each note
+     */
+    override suspend fun playAnswer(
+        answer: GameAnswer.ScaleAnswer,
+        card: ScaleCard,
+        rootSemitones: Int,
+        durationMs: Int
+    ) {
+        val frequencies = ScaleBuilder.buildScale(
+            scaleType = answer.scale,
+            rootSemitones = rootSemitones,
+            direction = card.direction  // Use card's direction for learning mode
+        )
+        AudioEngine.playScale(
+            frequencies = frequencies,
+            noteDurationMs = durationMs,
+            scaleName = answer.scale.displayName,
+            direction = card.direction.displayName,
             rootSemitones = rootSemitones
         )
     }

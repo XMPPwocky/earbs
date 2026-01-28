@@ -30,6 +30,9 @@ import net.xmppwocky.earbs.audio.IntervalBuilder
 import net.xmppwocky.earbs.audio.IntervalStrategy
 import net.xmppwocky.earbs.audio.IntervalType
 import net.xmppwocky.earbs.audio.ProgressionStrategy
+import net.xmppwocky.earbs.audio.ScaleBuilder
+import net.xmppwocky.earbs.audio.ScaleStrategy
+import net.xmppwocky.earbs.audio.ScaleType
 import net.xmppwocky.earbs.data.backup.DatabaseBackupManager
 import net.xmppwocky.earbs.data.db.EarbsDatabase
 import net.xmppwocky.earbs.data.entity.GameType
@@ -42,6 +45,7 @@ import net.xmppwocky.earbs.model.GenericReviewSession
 import net.xmppwocky.earbs.model.IntervalCard
 import net.xmppwocky.earbs.model.ProgressionCard
 import net.xmppwocky.earbs.model.ProgressionType
+import net.xmppwocky.earbs.model.ScaleCard
 import net.xmppwocky.earbs.ui.AnswerResult
 import net.xmppwocky.earbs.ui.CardDetailsScreen
 import net.xmppwocky.earbs.ui.DEFAULT_AUTO_ADVANCE_DELAY
@@ -56,6 +60,8 @@ import net.xmppwocky.earbs.ui.IntervalReviewScreen
 import net.xmppwocky.earbs.ui.IntervalReviewState
 import net.xmppwocky.earbs.ui.ProgressionReviewScreen
 import net.xmppwocky.earbs.ui.ProgressionReviewState
+import net.xmppwocky.earbs.ui.ScaleReviewScreen
+import net.xmppwocky.earbs.ui.ScaleReviewState
 import net.xmppwocky.earbs.ui.HomeScreen
 import net.xmppwocky.earbs.ui.PREF_KEY_AUTO_ADVANCE_DELAY
 import net.xmppwocky.earbs.ui.PREF_KEY_LEARN_FROM_MISTAKES
@@ -79,6 +85,7 @@ enum class Screen {
     FUNCTION_REVIEW,
     PROGRESSION_REVIEW,
     INTERVAL_REVIEW,
+    SCALE_REVIEW,
     RESULTS,
     HISTORY,
     CARD_DETAILS,
@@ -132,6 +139,7 @@ class MainActivity : ComponentActivity() {
             functionCardDao = database.functionCardDao(),
             progressionCardDao = database.progressionCardDao(),
             intervalCardDao = database.intervalCardDao(),
+            scaleCardDao = database.scaleCardDao(),
             fsrsStateDao = database.fsrsStateDao(),
             reviewSessionDao = database.reviewSessionDao(),
             trialDao = database.trialDao(),
@@ -220,6 +228,7 @@ class MainActivity : ComponentActivity() {
             functionCardDao = database.functionCardDao(),
             progressionCardDao = database.progressionCardDao(),
             intervalCardDao = database.intervalCardDao(),
+            scaleCardDao = database.scaleCardDao(),
             fsrsStateDao = database.fsrsStateDao(),
             reviewSessionDao = database.reviewSessionDao(),
             trialDao = database.trialDao(),
@@ -272,6 +281,11 @@ private fun EarbsApp(
     var intervalDueCount by remember { mutableIntStateOf(0) }
     var intervalUnlockedCount by remember { mutableIntStateOf(0) }
 
+    // Scale game state
+    var scaleSession by remember { mutableStateOf<GenericReviewSession<ScaleCard>?>(null) }
+    var scaleDueCount by remember { mutableIntStateOf(0) }
+    var scaleUnlockedCount by remember { mutableIntStateOf(0) }
+
     // Shared state
     var dbSessionId by remember { mutableStateOf<Long?>(null) }
     var sessionResult by remember { mutableStateOf<SessionResult?>(null) }
@@ -304,12 +318,18 @@ private fun EarbsApp(
         intervalDueCount = repository.getIntervalDueCount()
         intervalUnlockedCount = repository.getIntervalUnlockedCount()
 
+        // Initialize scale game (verify FSRS state exists for all cards)
+        repository.initializeScaleStartingDeck()
+        scaleDueCount = repository.getScaleDueCount()
+        scaleUnlockedCount = repository.getScaleUnlockedCount()
+
         isLoading = false
         Log.i(TAG, "Initialization complete")
         Log.i(TAG, "  Chord type: $chordTypeDueCount due, $chordTypeUnlockedCount unlocked")
         Log.i(TAG, "  Function: $functionDueCount due, $functionUnlockedCount unlocked")
         Log.i(TAG, "  Progression: $progressionDueCount due, $progressionUnlockedCount unlocked")
         Log.i(TAG, "  Interval: $intervalDueCount due, $intervalUnlockedCount unlocked")
+        Log.i(TAG, "  Scale: $scaleDueCount due, $scaleUnlockedCount unlocked")
     }
 
     Log.d(TAG, "EarbsApp composing, screen: $currentScreen, gameMode: $selectedGameMode")
@@ -337,6 +357,8 @@ private fun EarbsApp(
                 progressionUnlockedCount = progressionUnlockedCount,
                 intervalDueCount = intervalDueCount,
                 intervalUnlockedCount = intervalUnlockedCount,
+                scaleDueCount = scaleDueCount,
+                scaleUnlockedCount = scaleUnlockedCount,
                 onStartReviewClicked = {
                     coroutineScope.launch {
                         when (selectedGameMode) {
@@ -383,6 +405,17 @@ private fun EarbsApp(
                                 intervalSession = GenericReviewSession(cards, "interval")
                                 dbSessionId = repository.startSession(GameType.INTERVAL)
                                 currentScreen = Screen.INTERVAL_REVIEW
+                            }
+                            GameType.SCALE -> {
+                                Log.i(TAG, "Starting scale review session")
+                                val cards = repository.selectScaleCardsForReview()
+                                if (cards.isEmpty()) {
+                                    Log.w(TAG, "No scale cards available for session")
+                                    return@launch
+                                }
+                                scaleSession = GenericReviewSession(cards, "scale")
+                                dbSessionId = repository.startSession(GameType.SCALE)
+                                currentScreen = Screen.SCALE_REVIEW
                             }
                         }
                     }
@@ -513,6 +546,35 @@ private fun EarbsApp(
             }
         }
 
+        Screen.SCALE_REVIEW -> {
+            scaleSession?.let { activeSession ->
+                ScaleReviewSessionScreen(
+                    session = activeSession,
+                    sessionId = dbSessionId ?: 0L,
+                    repository = repository,
+                    prefs = prefs,
+                    onSessionComplete = { result ->
+                        coroutineScope.launch {
+                            Log.i(TAG, "Scale session complete: ${result.correctCount}/${result.totalTrials}")
+                            dbSessionId?.let { repository.completeSession(it) }
+                            scaleDueCount = repository.getScaleDueCount()
+                            sessionResult = result
+                            currentScreen = Screen.RESULTS
+                        }
+                    },
+                    onAbortSession = {
+                        Log.i(TAG, "Scale session aborted by user")
+                        scaleSession = null
+                        dbSessionId = null
+                        currentScreen = Screen.HOME
+                    }
+                )
+            } ?: run {
+                Log.w(TAG, "Scale review screen but no session, returning to home")
+                currentScreen = Screen.HOME
+            }
+        }
+
         Screen.RESULTS -> {
             sessionResult?.let { result ->
                 ResultsScreen(
@@ -524,6 +586,7 @@ private fun EarbsApp(
                         functionSession = null
                         progressionSession = null
                         intervalSession = null
+                        scaleSession = null
                         dbSessionId = null
                         sessionResult = null
                         currentScreen = Screen.HOME
@@ -1420,6 +1483,197 @@ private fun IntervalReviewSessionScreen(
 
                 // Auto-play next interval
                 playCurrentInterval()
+            }
+        },
+        onAbortSession = onAbortSession
+    )
+}
+
+/**
+ * Scale Review Session Screen - manages state and audio for scale game.
+ */
+@Composable
+private fun ScaleReviewSessionScreen(
+    session: GenericReviewSession<ScaleCard>,
+    sessionId: Long,
+    repository: EarbsRepository,
+    prefs: SharedPreferences,
+    onSessionComplete: (SessionResult) -> Unit,
+    onAbortSession: () -> Unit
+) {
+    val initialCard = session.getCurrentCard()
+    var reviewState by remember {
+        mutableStateOf(
+            ScaleReviewState(
+                session = session,
+                currentCard = initialCard,
+                currentRootSemitones = initialCard?.let { ScaleBuilder.randomRootInOctave(it.octave) }
+            )
+        )
+    }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Read settings from prefs
+    val autoAdvanceDelayMs = prefs.getInt(PREF_KEY_AUTO_ADVANCE_DELAY, DEFAULT_AUTO_ADVANCE_DELAY).toLong()
+    val learnFromMistakesEnabled = prefs.getBoolean(PREF_KEY_LEARN_FROM_MISTAKES, DEFAULT_LEARN_FROM_MISTAKES)
+    val playbackDuration = prefs.getInt(PREF_KEY_PLAYBACK_DURATION, DEFAULT_PLAYBACK_DURATION)
+
+    // Play arbitrary scale (for learning mode)
+    fun playScale(scaleType: ScaleType) {
+        val currentCard = reviewState.currentCard ?: return
+        val rootSemitones = reviewState.currentRootSemitones ?: return
+
+        Log.i(TAG, "Playing scale ${scaleType.displayName} for learning mode")
+        reviewState = reviewState.copy(isPlaying = true)
+
+        coroutineScope.launch {
+            try {
+                ScaleStrategy.playAnswer(
+                    answer = GameAnswer.ScaleAnswer(scaleType),
+                    card = currentCard,
+                    rootSemitones = rootSemitones,
+                    durationMs = playbackDuration
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Error playing scale", e)
+            } finally {
+                reviewState = reviewState.copy(isPlaying = false)
+            }
+        }
+    }
+
+    // Shared play function for both manual play and auto-play
+    fun playCurrentScale() {
+        val currentCard = reviewState.currentCard ?: return
+        val rootSemitones = reviewState.currentRootSemitones ?: return
+
+        Log.i(TAG, "Playing scale for trial ${session.currentTrial + 1}")
+        Log.i(TAG, "Playing scale ${currentCard.displayName}, root: $rootSemitones, direction: ${currentCard.direction}")
+
+        reviewState = reviewState.copy(
+            isPlaying = true,
+            lastAnswer = null
+        )
+
+        coroutineScope.launch {
+            try {
+                ScaleStrategy.playCard(
+                    card = currentCard,
+                    rootSemitones = rootSemitones,
+                    durationMs = playbackDuration
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Error playing scale", e)
+            } finally {
+                reviewState = reviewState.copy(
+                    isPlaying = false,
+                    hasPlayedThisTrial = true
+                )
+                Log.i(TAG, "Scale playback finished, ready for answer")
+            }
+        }
+    }
+
+    ScaleReviewScreen(
+        state = reviewState,
+        autoAdvanceDelayMs = autoAdvanceDelayMs,
+        onPlayClicked = {
+            Log.i(TAG, "Play button clicked for scale trial ${session.currentTrial + 1}")
+            playCurrentScale()
+        },
+        onAnswerClicked = { answeredScale ->
+            val currentCard = reviewState.currentCard ?: return@ScaleReviewScreen
+
+            Log.i(TAG, "Scale answer clicked: ${answeredScale.displayName}")
+
+            val isCorrect = answeredScale == currentCard.scale
+
+            val result = if (isCorrect) {
+                Log.i(TAG, "CORRECT! User answered ${answeredScale.displayName}")
+                GenericAnswerResult.Correct<GameAnswer.ScaleAnswer>()
+            } else {
+                Log.i(TAG, "WRONG! User answered ${answeredScale.displayName}, actual was ${currentCard.scale.displayName}")
+                GenericAnswerResult.Wrong(
+                    actualAnswer = GameAnswer.ScaleAnswer(currentCard.scale),
+                    selectedAnswer = GameAnswer.ScaleAnswer(answeredScale)
+                )
+            }
+
+            coroutineScope.launch {
+                repository.recordScaleTrialAndUpdateFsrs(sessionId, currentCard, isCorrect, answeredScale)
+            }
+
+            session.recordAnswer(isCorrect)
+
+            val enterLearningMode = learnFromMistakesEnabled && !isCorrect
+            reviewState = reviewState.copy(
+                lastAnswer = result,
+                showingFeedback = true,
+                inLearningMode = enterLearningMode
+            )
+
+            // Auto-play incorrect scale if entering learning mode
+            if (enterLearningMode) {
+                Log.i(TAG, "Entering learning mode - playing incorrect scale: ${answeredScale.displayName}")
+                playScale(answeredScale)
+            }
+        },
+        onTrialComplete = {
+            val nextCard = session.getCurrentCard()
+            val nextRootSemitones = nextCard?.let { ScaleBuilder.randomRootInOctave(it.octave) }
+            Log.i(TAG, "Scale trial complete, next card: ${nextCard?.displayName}, root: $nextRootSemitones")
+
+            reviewState = reviewState.copy(
+                currentCard = nextCard,
+                currentRootSemitones = nextRootSemitones,
+                lastAnswer = null,
+                hasPlayedThisTrial = false,
+                showingFeedback = false,
+                inLearningMode = false
+            )
+        },
+        onAutoPlay = {
+            Log.i(TAG, "Auto-playing next scale")
+            playCurrentScale()
+        },
+        onSessionComplete = {
+            onSessionComplete(SessionResult(
+                correctCount = session.correctCount,
+                totalTrials = session.totalTrials,
+                sessionId = sessionId,
+                gameType = GameType.SCALE.name
+            ))
+        },
+        onPlayScale = { scaleType ->
+            Log.i(TAG, "Learning mode: playing scale ${scaleType.displayName}")
+            playScale(scaleType)
+        },
+        onNextClicked = {
+            Log.i(TAG, "Learning mode: Next clicked")
+            if (session.isComplete()) {
+                Log.i(TAG, "Scale session complete after learning mode, navigating to results")
+                onSessionComplete(SessionResult(
+                    correctCount = session.correctCount,
+                    totalTrials = session.totalTrials,
+                    sessionId = sessionId,
+                    gameType = GameType.SCALE.name
+                ))
+            } else {
+                Log.i(TAG, "Advancing to next scale trial")
+                val nextCard = session.getCurrentCard()
+                val nextRootSemitones = nextCard?.let { ScaleBuilder.randomRootInOctave(it.octave) }
+
+                reviewState = reviewState.copy(
+                    currentCard = nextCard,
+                    currentRootSemitones = nextRootSemitones,
+                    lastAnswer = null,
+                    hasPlayedThisTrial = false,
+                    showingFeedback = false,
+                    inLearningMode = false
+                )
+
+                // Auto-play next scale
+                playCurrentScale()
             }
         },
         onAbortSession = onAbortSession

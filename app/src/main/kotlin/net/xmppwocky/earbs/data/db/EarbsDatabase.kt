@@ -13,6 +13,7 @@ import net.xmppwocky.earbs.data.entity.FsrsStateEntity
 import net.xmppwocky.earbs.data.entity.IntervalCardEntity
 import net.xmppwocky.earbs.data.entity.ProgressionCardEntity
 import net.xmppwocky.earbs.data.entity.ReviewSessionEntity
+import net.xmppwocky.earbs.data.entity.ScaleCardEntity
 import net.xmppwocky.earbs.data.entity.TrialEntity
 
 private const val TAG = "EarbsDatabase"
@@ -23,11 +24,12 @@ private const val TAG = "EarbsDatabase"
         FunctionCardEntity::class,
         ProgressionCardEntity::class,
         IntervalCardEntity::class,
+        ScaleCardEntity::class,
         FsrsStateEntity::class,
         ReviewSessionEntity::class,
         TrialEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 abstract class EarbsDatabase : RoomDatabase() {
@@ -35,6 +37,7 @@ abstract class EarbsDatabase : RoomDatabase() {
     abstract fun functionCardDao(): FunctionCardDao
     abstract fun progressionCardDao(): ProgressionCardDao
     abstract fun intervalCardDao(): IntervalCardDao
+    abstract fun scaleCardDao(): ScaleCardDao
     abstract fun fsrsStateDao(): FsrsStateDao
     abstract fun reviewSessionDao(): ReviewSessionDao
     abstract fun trialDao(): TrialDao
@@ -664,6 +667,84 @@ abstract class EarbsDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration from version 11 to 12:
+         * - Create scale_cards table for scale recognition game
+         * - Pre-create all 90 scale cards (10 scales × 3 octaves × 3 directions)
+         * - Create FSRS state for all scale cards
+         * - Add answeredScale column to trials table
+         */
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                Log.i(TAG, "Migrating database from version 11 to 12: adding scale recognition game")
+
+                // 1. Create scale_cards table
+                Log.i(TAG, "Creating scale_cards table")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS scale_cards (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        scale TEXT NOT NULL,
+                        octave INTEGER NOT NULL,
+                        direction TEXT NOT NULL,
+                        unlocked INTEGER NOT NULL DEFAULT 1,
+                        deprecated INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+
+                // 2. Add answeredScale column to trials table
+                Log.i(TAG, "Adding answeredScale column to trials table")
+                db.execSQL("ALTER TABLE trials ADD COLUMN answeredScale TEXT")
+
+                // 3. Pre-create all 90 scale cards
+                // Unlock order: MAJOR, NATURAL_MINOR, MAJOR_PENTATONIC, MINOR_PENTATONIC,
+                //               DORIAN, MIXOLYDIAN, HARMONIC_MINOR, MELODIC_MINOR, PHRYGIAN, LYDIAN
+                // Starting deck: MAJOR at octave 4, all 3 directions (unlocked)
+                Log.i(TAG, "Pre-creating scale cards")
+
+                val scales = listOf(
+                    "MAJOR", "NATURAL_MINOR", "HARMONIC_MINOR", "MELODIC_MINOR",
+                    "DORIAN", "MIXOLYDIAN", "PHRYGIAN", "LYDIAN",
+                    "MAJOR_PENTATONIC", "MINOR_PENTATONIC"
+                )
+                val octaves = listOf(3, 4, 5)
+                val directions = listOf("ASCENDING", "DESCENDING", "BOTH")
+
+                // Starting deck: MAJOR at octave 4
+                val startingIds = setOf(
+                    "MAJOR_4_ASCENDING",
+                    "MAJOR_4_DESCENDING",
+                    "MAJOR_4_BOTH"
+                )
+
+                for (scale in scales) {
+                    for (octave in octaves) {
+                        for (direction in directions) {
+                            val id = "${scale}_${octave}_$direction"
+                            val unlocked = if (startingIds.contains(id)) 1 else 0
+                            db.execSQL("""
+                                INSERT OR IGNORE INTO scale_cards (id, scale, octave, direction, unlocked, deprecated)
+                                VALUES ('$id', '$scale', $octave, '$direction', $unlocked, 0)
+                            """.trimIndent())
+                        }
+                    }
+                }
+
+                Log.i(TAG, "Inserted 90 scale cards")
+
+                // 4. Create FSRS state for all scale cards
+                val now = System.currentTimeMillis()
+                db.execSQL("""
+                    INSERT OR IGNORE INTO fsrs_state (cardId, gameType, stability, difficulty, `interval`, dueDate, reviewCount, lastReview, phase, lapses)
+                    SELECT id, 'SCALE', 2.5, 2.5, 0, $now, 0, NULL, 0, 0
+                    FROM scale_cards
+                    WHERE id NOT IN (SELECT cardId FROM fsrs_state WHERE gameType = 'SCALE')
+                """.trimIndent())
+
+                Log.i(TAG, "Created FSRS state for scale cards")
+                Log.i(TAG, "Migration 11->12 complete: added scale recognition game support")
+            }
+        }
+
         fun getDatabase(context: Context): EarbsDatabase {
             return INSTANCE ?: synchronized(this) {
                 Log.i(TAG, "Creating database instance")
@@ -672,7 +753,7 @@ abstract class EarbsDatabase : RoomDatabase() {
                     EarbsDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

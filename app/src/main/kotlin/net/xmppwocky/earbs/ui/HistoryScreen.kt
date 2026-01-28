@@ -84,12 +84,14 @@ fun HistoryScreen(
         GameType.CHORD_FUNCTION -> "Function"
         GameType.CHORD_PROGRESSION -> "Progression"
         GameType.INTERVAL -> "Interval"
+        GameType.SCALE -> "Scale"
     }
     val cardCount = when (gameType) {
         GameType.CHORD_TYPE -> chordTypeCards.size
         GameType.CHORD_FUNCTION -> functionCards.size
         GameType.CHORD_PROGRESSION -> progressionCards.size
         GameType.INTERVAL -> 0  // TODO: Add intervalCards parameter
+        GameType.SCALE -> 0  // TODO: Add scaleCards parameter
     }
     Log.d(TAG, "HistoryScreen composing: ${sessions.size} sessions, $cardCount cards (gameType=${gameType.name})")
 
@@ -456,6 +458,7 @@ private fun CardsTab(
                 )
             }
             GameType.INTERVAL -> emptyList()  // TODO: Add interval card display
+            GameType.SCALE -> emptyList()  // TODO: Add scale card display
         }
     }
 
@@ -506,6 +509,7 @@ private fun CardsTab(
                 )
             }
             GameType.INTERVAL -> emptyList()  // TODO: Add interval deprecated card display
+            GameType.SCALE -> emptyList()  // TODO: Add scale deprecated card display
         }
     }
 
@@ -810,6 +814,7 @@ private fun StatsTab(
         GameType.CHORD_FUNCTION -> functionConfusion?.isNotEmpty() == true
         GameType.CHORD_PROGRESSION -> false // No confusion matrix for progressions yet
         GameType.INTERVAL -> false  // TODO: Add interval confusion matrix
+        GameType.SCALE -> false  // TODO: Add scale confusion matrix
     }
 
     if (cardStats.isEmpty() && !hasConfusionData) {
@@ -836,6 +841,7 @@ private fun StatsTab(
             GameType.CHORD_FUNCTION -> computeFunctionMasteryDistribution(functionCards)
             GameType.CHORD_PROGRESSION -> computeProgressionMasteryDistribution(progressionCards)
             GameType.INTERVAL -> net.xmppwocky.earbs.model.MasteryDistribution(0, 0, 0, 0)  // TODO: Add interval mastery
+            GameType.SCALE -> net.xmppwocky.earbs.model.MasteryDistribution(0, 0, 0, 0)  // TODO: Add scale mastery
         }
     }
 
@@ -844,6 +850,7 @@ private fun StatsTab(
         GameType.CHORD_FUNCTION -> "Function"
         GameType.CHORD_PROGRESSION -> "Progression"
         GameType.INTERVAL -> "Interval"
+        GameType.SCALE -> "Scale"
     }
 
     LazyColumn(

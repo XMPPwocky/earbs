@@ -356,6 +356,59 @@ object AudioEngine {
         Log.i(TAG, "=============================")
     }
 
+    /**
+     * Play a scale: a sequence of notes played melodically.
+     * Used for the scale recognition game.
+     *
+     * @param frequencies List of frequencies in playback order
+     * @param noteDurationMs Duration of each note
+     * @param scaleName For logging purposes
+     * @param direction For logging purposes
+     * @param rootSemitones For logging purposes
+     */
+    suspend fun playScale(
+        frequencies: List<Float>,
+        noteDurationMs: Int = 300,
+        scaleName: String = "unknown",
+        direction: String = "unknown",
+        rootSemitones: Int = 0
+    ) = withContext(Dispatchers.IO) {
+        val timestamp = System.currentTimeMillis()
+
+        // Log synthesis details
+        Log.i(TAG, "=== SCALE SYNTHESIS ===")
+        Log.i(TAG, "Timestamp: $timestamp")
+        Log.i(TAG, "Scale: $scaleName")
+        Log.i(TAG, "Direction: $direction")
+        Log.i(TAG, "Root semitones from A4: $rootSemitones")
+        Log.i(TAG, "Note duration: ${noteDurationMs}ms")
+        Log.i(TAG, "Number of notes: ${frequencies.size}")
+        Log.i(TAG, "Frequencies: ${frequencies.map { "%.2f Hz".format(it) }}")
+
+        // Calculate sample distribution for smooth playback
+        val totalDurationMs = noteDurationMs * frequencies.size
+        val sampleDistribution = calculateArpeggioSampleDistribution(totalDurationMs, frequencies.size)
+        val totalSamples = sampleDistribution.sum()
+
+        Log.d(TAG, "Playing scale: ${frequencies.size} notes, " +
+                "samples per note: ${sampleDistribution.toList()}, total: $totalSamples")
+
+        // Pre-allocate the entire buffer
+        val allSamples = ShortArray(totalSamples)
+
+        // Generate each note directly into the buffer
+        var offset = 0
+        for (i in frequencies.indices) {
+            generateSquareWaveInto(allSamples, offset, sampleDistribution[i], frequencies[i])
+            offset += sampleDistribution[i]
+        }
+
+        playAudio(allSamples)
+
+        Log.i(TAG, "Scale playback complete at ${System.currentTimeMillis()}")
+        Log.i(TAG, "=======================")
+    }
+
     private fun playBlockChord(frequencies: List<Float>, durationMs: Int) {
         Log.d(TAG, "Playing block chord with ${frequencies.size} notes")
 

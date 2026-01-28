@@ -2,6 +2,7 @@ package net.xmppwocky.earbs.model
 
 import net.xmppwocky.earbs.audio.ChordType
 import net.xmppwocky.earbs.audio.IntervalType
+import net.xmppwocky.earbs.audio.ScaleType
 
 /**
  * Sealed interface for all game answer types.
@@ -41,5 +42,13 @@ sealed interface GameAnswer {
      */
     data class IntervalAnswer(val interval: IntervalType) : GameAnswer {
         override val displayName: String get() = interval.displayName
+    }
+
+    /**
+     * Answer for the scale recognition game.
+     * User identifies the scale (Major, Natural Minor, Dorian, etc.)
+     */
+    data class ScaleAnswer(val scale: ScaleType) : GameAnswer {
+        override val displayName: String get() = scale.displayName
     }
 }

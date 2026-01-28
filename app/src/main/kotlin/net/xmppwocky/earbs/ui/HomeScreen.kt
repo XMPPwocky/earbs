@@ -14,6 +14,7 @@ import net.xmppwocky.earbs.model.Deck
 import net.xmppwocky.earbs.model.FunctionDeck
 import net.xmppwocky.earbs.model.IntervalDeck
 import net.xmppwocky.earbs.model.ProgressionDeck
+import net.xmppwocky.earbs.model.ScaleDeck
 
 @Composable
 fun HomeScreen(
@@ -32,6 +33,9 @@ fun HomeScreen(
     // Interval game stats
     intervalDueCount: Int = 0,
     intervalUnlockedCount: Int = 0,
+    // Scale game stats
+    scaleDueCount: Int = 0,
+    scaleUnlockedCount: Int = 0,
     // Actions
     onStartReviewClicked: () -> Unit,
     onHistoryClicked: (GameType) -> Unit = {},
@@ -43,18 +47,21 @@ fun HomeScreen(
         GameType.CHORD_FUNCTION -> functionDueCount
         GameType.CHORD_PROGRESSION -> progressionDueCount
         GameType.INTERVAL -> intervalDueCount
+        GameType.SCALE -> scaleDueCount
     }
     val unlockedCount = when (selectedGameMode) {
         GameType.CHORD_TYPE -> chordTypeUnlockedCount
         GameType.CHORD_FUNCTION -> functionUnlockedCount
         GameType.CHORD_PROGRESSION -> progressionUnlockedCount
         GameType.INTERVAL -> intervalUnlockedCount
+        GameType.SCALE -> scaleUnlockedCount
     }
     val totalCards = when (selectedGameMode) {
         GameType.CHORD_TYPE -> Deck.TOTAL_CARDS
         GameType.CHORD_FUNCTION -> FunctionDeck.TOTAL_CARDS
         GameType.CHORD_PROGRESSION -> ProgressionDeck.TOTAL_CARDS
         GameType.INTERVAL -> IntervalDeck.TOTAL_CARDS
+        GameType.SCALE -> ScaleDeck.TOTAL_CARDS
     }
 
     Column(
@@ -79,13 +86,14 @@ fun HomeScreen(
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
-        // Game mode tabs - use ScrollableTabRow for 4 tabs
+        // Game mode tabs - use ScrollableTabRow for 5 tabs
         ScrollableTabRow(
             selectedTabIndex = when (selectedGameMode) {
                 GameType.CHORD_TYPE -> 0
                 GameType.CHORD_FUNCTION -> 1
                 GameType.CHORD_PROGRESSION -> 2
                 GameType.INTERVAL -> 3
+                GameType.SCALE -> 4
             },
             modifier = Modifier.fillMaxWidth(),
             edgePadding = 0.dp
@@ -109,6 +117,11 @@ fun HomeScreen(
                 selected = selectedGameMode == GameType.INTERVAL,
                 onClick = { onGameModeChanged(GameType.INTERVAL) },
                 text = { Text("Intervals ($intervalDueCount)") }
+            )
+            Tab(
+                selected = selectedGameMode == GameType.SCALE,
+                onClick = { onGameModeChanged(GameType.SCALE) },
+                text = { Text("Scales ($scaleDueCount)") }
             )
         }
 
@@ -212,6 +225,7 @@ fun HomeScreen(
                 GameType.CHORD_FUNCTION -> "Identify chord function (IV, V, vi, etc.)"
                 GameType.CHORD_PROGRESSION -> "Identify chord progressions (I-IV-V-I, etc.)"
                 GameType.INTERVAL -> "Identify intervals (Minor 2nd, Perfect 5th, etc.)"
+                GameType.SCALE -> "Identify scales (Major, Dorian, Pentatonic, etc.)"
             },
             fontSize = 14.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

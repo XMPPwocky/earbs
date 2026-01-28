@@ -34,6 +34,8 @@ import net.xmppwocky.earbs.data.db.IntervalCardDao
 import net.xmppwocky.earbs.data.db.IntervalCardWithFsrs
 import net.xmppwocky.earbs.data.db.ProgressionCardDao
 import net.xmppwocky.earbs.data.db.ProgressionCardWithFsrs
+import net.xmppwocky.earbs.data.db.ScaleCardDao
+import net.xmppwocky.earbs.data.db.ScaleCardWithFsrs
 import net.xmppwocky.earbs.data.entity.FunctionCardEntity
 import net.xmppwocky.earbs.model.Card
 import net.xmppwocky.earbs.model.ChordFunction
@@ -47,7 +49,10 @@ import net.xmppwocky.earbs.model.KeyQuality
 import net.xmppwocky.earbs.model.ProgressionCard
 import net.xmppwocky.earbs.model.ProgressionDeck
 import net.xmppwocky.earbs.model.ProgressionType
+import net.xmppwocky.earbs.model.ScaleCard
+import net.xmppwocky.earbs.model.ScaleDeck
 import net.xmppwocky.earbs.audio.IntervalType
+import net.xmppwocky.earbs.audio.ScaleType
 import java.time.LocalDateTime
 
 private const val TAG = "EarbsRepository"
@@ -61,6 +66,7 @@ class EarbsRepository(
     private val functionCardDao: FunctionCardDao,
     private val progressionCardDao: ProgressionCardDao,
     private val intervalCardDao: IntervalCardDao,
+    private val scaleCardDao: ScaleCardDao,
     private val fsrsStateDao: FsrsStateDao,
     private val reviewSessionDao: ReviewSessionDao,
     private val trialDao: TrialDao,
@@ -110,6 +116,9 @@ class EarbsRepository(
     /** Adapter for interval card operations */
     private val intervalOps by lazy { IntervalCardOperations(intervalCardDao) }
 
+    /** Adapter for scale card operations */
+    private val scaleOps by lazy { ScaleCardOperations(scaleCardDao) }
+
     // ========== Generic Methods with GameType Dispatch ==========
 
     /**
@@ -122,6 +131,7 @@ class EarbsRepository(
             GameType.CHORD_FUNCTION -> initializeFunctionStartingDeck()
             GameType.CHORD_PROGRESSION -> initializeProgressionStartingDeck()
             GameType.INTERVAL -> initializeIntervalStartingDeck()
+            GameType.SCALE -> initializeScaleStartingDeck()
         }
     }
 
@@ -136,6 +146,7 @@ class EarbsRepository(
             GameType.CHORD_FUNCTION -> functionCardDao.countDue(now)
             GameType.CHORD_PROGRESSION -> progressionCardDao.countDue(now)
             GameType.INTERVAL -> intervalCardDao.countDue(now)
+            GameType.SCALE -> scaleCardDao.countDue(now)
         }
         Log.d(TAG, "${gameType.name} due count: $count")
         return count
@@ -152,6 +163,7 @@ class EarbsRepository(
             GameType.CHORD_FUNCTION -> functionCardDao.countDueFlow(now)
             GameType.CHORD_PROGRESSION -> progressionCardDao.countDueFlow(now)
             GameType.INTERVAL -> intervalCardDao.countDueFlow(now)
+            GameType.SCALE -> scaleCardDao.countDueFlow(now)
         }
     }
 
@@ -164,6 +176,7 @@ class EarbsRepository(
             GameType.CHORD_FUNCTION -> functionCardDao.countUnlocked()
             GameType.CHORD_PROGRESSION -> progressionCardDao.countUnlocked()
             GameType.INTERVAL -> intervalCardDao.countUnlocked()
+            GameType.SCALE -> scaleCardDao.countUnlocked()
         }
     }
 
@@ -176,6 +189,7 @@ class EarbsRepository(
             GameType.CHORD_FUNCTION -> functionCardDao.countUnlockedFlow()
             GameType.CHORD_PROGRESSION -> progressionCardDao.countUnlockedFlow()
             GameType.INTERVAL -> intervalCardDao.countUnlockedFlow()
+            GameType.SCALE -> scaleCardDao.countUnlockedFlow()
         }
     }
 
@@ -189,6 +203,7 @@ class EarbsRepository(
             GameType.CHORD_FUNCTION -> functionCardDao.setUnlocked(cardId, unlocked)
             GameType.CHORD_PROGRESSION -> progressionCardDao.setUnlocked(cardId, unlocked)
             GameType.INTERVAL -> intervalCardDao.setUnlocked(cardId, unlocked)
+            GameType.SCALE -> scaleCardDao.setUnlocked(cardId, unlocked)
         }
     }
 
@@ -203,6 +218,7 @@ class EarbsRepository(
             GameType.CHORD_FUNCTION -> functionCardDao.setDeprecated(cardId, deprecated)
             GameType.CHORD_PROGRESSION -> progressionCardDao.setDeprecated(cardId, deprecated)
             GameType.INTERVAL -> intervalCardDao.setDeprecated(cardId, deprecated)
+            GameType.SCALE -> scaleCardDao.setDeprecated(cardId, deprecated)
         }
     }
 
@@ -222,6 +238,9 @@ class EarbsRepository(
             GameType.INTERVAL -> intervalCardDao.getDeprecatedCardsWithFsrsFlow().map { list ->
                 list.map { it.toCardWithFsrs() }
             }
+            GameType.SCALE -> scaleCardDao.getDeprecatedCardsWithFsrsFlow().map { list ->
+                list.map { it.toCardWithFsrs() }
+            }
         }
     }
 
@@ -234,6 +253,7 @@ class EarbsRepository(
             GameType.CHORD_FUNCTION -> functionCardDao.countDeprecated()
             GameType.CHORD_PROGRESSION -> progressionCardDao.countDeprecated()
             GameType.INTERVAL -> intervalCardDao.countDeprecated()
+            GameType.SCALE -> scaleCardDao.countDeprecated()
         }
     }
 
@@ -1114,6 +1134,152 @@ class EarbsRepository(
         return intervalCardDao.getDeprecatedCardsWithFsrsFlow()
     }
 
+    // ========== Scale Recognition Game (Game 5) ==========
+
+    /**
+     * Ensure scale cards are properly initialized.
+     * Cards are pre-created by the database migration (v12).
+     * This method is kept for safety in case FSRS state is missing.
+     */
+    suspend fun initializeScaleStartingDeck() {
+        val cardCount = scaleCardDao.count()
+        Log.i(TAG, "Scale cards in database: $cardCount")
+
+        // Cards should be pre-created by migration. Just verify FSRS state exists.
+        if (cardCount > 0) {
+            val now = System.currentTimeMillis()
+            val cards = scaleCardDao.getAllCardsOrdered()
+            var createdCount = 0
+            for (card in cards) {
+                val fsrsState = fsrsStateDao.getByCardId(card.id)
+                if (fsrsState == null) {
+                    Log.w(TAG, "Creating missing FSRS state for ${card.id}")
+                    fsrsStateDao.insert(FsrsStateEntity(
+                        cardId = card.id,
+                        gameType = GameType.SCALE.name,
+                        dueDate = now
+                    ))
+                    createdCount++
+                }
+            }
+            if (createdCount > 0) {
+                Log.i(TAG, "Created $createdCount missing FSRS states for scale cards")
+            }
+        }
+    }
+
+    // ========== Scale Card Unlock Management ==========
+
+    /**
+     * Set the unlock status for a scale card.
+     * FSRS state is preserved when locking/unlocking.
+     * @see setCardUnlocked(GameType, String, Boolean) for generic version
+     */
+    suspend fun setScaleCardUnlocked(cardId: String, unlocked: Boolean) =
+        setCardUnlocked(GameType.SCALE, cardId, unlocked)
+
+    /**
+     * Get all scale cards for the unlock management screen.
+     * Includes both locked and unlocked cards with their FSRS state.
+     */
+    fun getAllScaleCardsForUnlockScreen(): Flow<List<ScaleCardWithFsrs>> {
+        return scaleCardDao.getAllCardsWithFsrsOrderedFlow()
+    }
+
+    /**
+     * Get all scale cards for the unlock management screen (suspend version).
+     */
+    suspend fun getAllScaleCardsForUnlockScreenSuspend(): List<ScaleCardWithFsrs> {
+        return scaleCardDao.getAllCardsWithFsrsOrdered()
+    }
+
+    /**
+     * Get the number of unlocked scale cards.
+     * @see getUnlockedCount(GameType) for generic version
+     */
+    suspend fun getScaleUnlockedCount(): Int = getUnlockedCount(GameType.SCALE)
+
+    /**
+     * Observe the number of unlocked scale cards.
+     * @see getUnlockedCountFlow(GameType) for generic version
+     */
+    fun getScaleUnlockedCountFlow(): Flow<Int> = getUnlockedCountFlow(GameType.SCALE)
+
+    /**
+     * Select scale cards for a review session.
+     * Uses the generic selection algorithm with scale card operations.
+     */
+    suspend fun selectScaleCardsForReview(): List<ScaleCard> {
+        return selectCardsGeneric(scaleOps, "scale")
+    }
+
+    /**
+     * Record a scale game trial and update FSRS state.
+     *
+     * @param answeredScale The scale the user selected
+     * @return the new due date for the card
+     */
+    suspend fun recordScaleTrialAndUpdateFsrs(
+        sessionId: Long,
+        card: ScaleCard,
+        wasCorrect: Boolean,
+        answeredScale: ScaleType
+    ): Long {
+        val timestamp = System.currentTimeMillis()
+        val cardId = card.id
+
+        Log.i(TAG, "Recording scale trial for $cardId: ${if (wasCorrect) "CORRECT" else "WRONG (answered ${answeredScale.displayName})"}")
+
+        // 1. Insert trial record
+        trialDao.insert(TrialEntity(
+            sessionId = sessionId,
+            cardId = cardId,
+            timestamp = timestamp,
+            wasCorrect = wasCorrect,
+            gameType = GameType.SCALE.name,
+            answeredScale = if (wasCorrect) null else answeredScale.name
+        ))
+
+        // 2. Get FSRS state
+        val fsrsState = fsrsStateDao.getByCardId(cardId)
+        if (fsrsState == null) {
+            Log.e(TAG, "FSRS state not found: $cardId")
+            return timestamp
+        }
+
+        // 3. Calculate rating: correct=Good, wrong=Again
+        val rating = if (wasCorrect) Rating.Good else Rating.Again
+
+        // 4. Apply FSRS update
+        return applyFsrsUpdate(fsrsState, rating)
+    }
+
+    /**
+     * Get count of due scale cards.
+     * @see getDueCount(GameType) for generic version
+     */
+    suspend fun getScaleDueCount(): Int = getDueCount(GameType.SCALE)
+
+    /**
+     * Observe due count for scale game.
+     * @see getDueCountFlow(GameType) for generic version
+     */
+    fun getScaleDueCountFlow(): Flow<Int> = getDueCountFlow(GameType.SCALE)
+
+    /**
+     * Get all scale cards with FSRS flow for UI.
+     */
+    fun getAllScaleCardsWithFsrsFlow(): Flow<List<ScaleCardWithFsrs>> {
+        return scaleCardDao.getAllUnlockedWithFsrsFlow()
+    }
+
+    /**
+     * Get deprecated scale cards.
+     */
+    fun getDeprecatedScaleCardsFlow(): Flow<List<ScaleCardWithFsrs>> {
+        return scaleCardDao.getDeprecatedCardsWithFsrsFlow()
+    }
+
     /**
      * Reset FSRS state for a card to initial values.
      * Review history is preserved.
@@ -1152,6 +1318,7 @@ class EarbsRepository(
             GameType.CHORD_FUNCTION -> functionCardDao.getByIdWithFsrs(cardId)?.toGeneric()
             GameType.CHORD_PROGRESSION -> progressionCardDao.getByIdWithFsrs(cardId)?.toGeneric()
             GameType.INTERVAL -> intervalCardDao.getByIdWithFsrs(cardId)?.toGeneric()
+            GameType.SCALE -> scaleCardDao.getByIdWithFsrs(cardId)?.toGeneric()
         }
     }
 
@@ -1400,6 +1567,67 @@ private fun IntervalCardWithFsrs.toGeneric(): GenericCardWithFsrs {
         stability = stability,
         difficulty = difficulty,
         interval = interval_,
+        dueDate = dueDate,
+        reviewCount = reviewCount,
+        lastReview = lastReview,
+        phase = phase,
+        lapses = lapses
+    )
+}
+
+/**
+ * Convert ScaleCardWithFsrs to domain ScaleCard.
+ */
+private fun ScaleCardWithFsrs.toScaleCard(): ScaleCard {
+    return ScaleCard(
+        scale = ScaleType.valueOf(scale),
+        octave = octave,
+        direction = net.xmppwocky.earbs.audio.ScaleDirection.valueOf(direction)
+    )
+}
+
+/**
+ * Convert ScaleCardWithFsrs to CardWithFsrs for unified display.
+ * Used when displaying deprecated cards across game types.
+ */
+private fun ScaleCardWithFsrs.toCardWithFsrs(): CardWithFsrs {
+    val displayName = "${ScaleType.valueOf(scale).displayName} ($direction)"
+    return CardWithFsrs(
+        id = id,
+        chordType = displayName,  // Use scale + direction as "chordType" for display
+        octave = octave,
+        playbackMode = "ARPEGGIATED",  // Scales are always played sequentially
+        unlocked = unlocked,
+        deprecated = deprecated,
+        stability = stability,
+        difficulty = difficulty,
+        interval = interval,
+        dueDate = dueDate,
+        reviewCount = reviewCount,
+        lastReview = lastReview,
+        phase = phase,
+        lapses = lapses
+    )
+}
+
+/**
+ * Convert ScaleCardWithFsrs to GenericCardWithFsrs.
+ */
+private fun ScaleCardWithFsrs.toGeneric(): GenericCardWithFsrs {
+    // Format: "Major (ascending)"
+    val scaleType = ScaleType.valueOf(scale)
+    val directionLower = direction.lowercase()
+    val displayName = "${scaleType.displayName} ($directionLower)"
+    return GenericCardWithFsrs(
+        id = id,
+        displayName = displayName,
+        octave = octave,
+        playbackMode = "ARPEGGIATED",  // Scales are always played sequentially
+        unlocked = unlocked,
+        deprecated = deprecated,
+        stability = stability,
+        difficulty = difficulty,
+        interval = interval,
         dueDate = dueDate,
         reviewCount = reviewCount,
         lastReview = lastReview,

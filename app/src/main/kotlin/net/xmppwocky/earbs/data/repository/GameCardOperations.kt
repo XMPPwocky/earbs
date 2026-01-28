@@ -10,6 +10,8 @@ import net.xmppwocky.earbs.data.db.IntervalCardDao
 import net.xmppwocky.earbs.data.db.IntervalCardWithFsrs
 import net.xmppwocky.earbs.data.db.ProgressionCardDao
 import net.xmppwocky.earbs.data.db.ProgressionCardWithFsrs
+import net.xmppwocky.earbs.data.db.ScaleCardDao
+import net.xmppwocky.earbs.data.db.ScaleCardWithFsrs
 import net.xmppwocky.earbs.data.entity.CardEntity
 import net.xmppwocky.earbs.data.entity.FunctionCardEntity
 import net.xmppwocky.earbs.model.Card
@@ -19,6 +21,7 @@ import net.xmppwocky.earbs.model.GameCard
 import net.xmppwocky.earbs.model.IntervalCard
 import net.xmppwocky.earbs.model.KeyQuality
 import net.xmppwocky.earbs.model.ProgressionCard
+import net.xmppwocky.earbs.model.ScaleCard
 
 /**
  * Common data structure for cards with FSRS state used in selection algorithm.
@@ -277,5 +280,62 @@ class IntervalCardOperations(
         playbackMode = direction,  // Use direction as "mode" for grouping
         dueDate = dueDate,
         groupKey = interval  // Use interval type as grouping key
+    )
+}
+
+/**
+ * Adapter wrapping ScaleCardDao for scale game.
+ */
+class ScaleCardOperations(
+    private val scaleCardDao: ScaleCardDao
+) : GameCardOperations<ScaleCard> {
+
+    override suspend fun count(): Int = scaleCardDao.count()
+
+    override suspend fun getDueCards(now: Long): List<CardWithFsrsData> {
+        return scaleCardDao.getDueCards(now).map { it.toCardWithFsrsData() }
+    }
+
+    override suspend fun getAllUnlockedWithFsrs(): List<CardWithFsrsData> {
+        return scaleCardDao.getAllUnlockedWithFsrs().map { it.toCardWithFsrsData() }
+    }
+
+    override suspend fun getNonDueCardsByGroup(
+        now: Long,
+        groupKey: String?,
+        octave: Int,
+        mode: String,
+        limit: Int
+    ): List<CardWithFsrsData> {
+        // groupKey is scale name, mode is direction for scale game
+        val scale = groupKey ?: return emptyList()
+        return scaleCardDao.getNonDueCardsByGroup(now, scale, octave, mode, limit)
+            .map { it.toCardWithFsrsData() }
+    }
+
+    override suspend fun getNonDueCards(now: Long, limit: Int): List<CardWithFsrsData> {
+        return scaleCardDao.getNonDueCards(now, limit).map { it.toCardWithFsrsData() }
+    }
+
+    override fun toDomainCard(data: CardWithFsrsData): ScaleCard {
+        // Parse from card ID format: {scale}_{octave}_{direction}
+        return ScaleCard.fromId(data.id)
+    }
+
+    /**
+     * Override grouping to use scale type and direction instead of octave and playbackMode.
+     * For scales, we want to group by scale type (e.g., MAJOR) and direction.
+     */
+    override fun getGroupingKey(data: CardWithFsrsData): Triple<String?, Int, String> {
+        // groupKey = scale type, mode = direction
+        return Triple(data.groupKey, data.octave, data.playbackMode)
+    }
+
+    private fun ScaleCardWithFsrs.toCardWithFsrsData() = CardWithFsrsData(
+        id = id,
+        octave = octave,
+        playbackMode = direction,  // Use direction as "mode" for grouping
+        dueDate = dueDate,
+        groupKey = scale  // Use scale type as grouping key
     )
 }
