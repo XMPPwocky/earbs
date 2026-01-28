@@ -17,6 +17,7 @@ import net.xmppwocky.earbs.data.entity.CardEntity
 import net.xmppwocky.earbs.data.entity.FsrsStateEntity
 import net.xmppwocky.earbs.data.entity.FunctionCardEntity
 import net.xmppwocky.earbs.data.entity.GameType
+import net.xmppwocky.earbs.data.entity.IntervalCardEntity
 import net.xmppwocky.earbs.data.entity.ProgressionCardEntity
 import net.xmppwocky.earbs.data.entity.ReviewSessionEntity
 import org.junit.After
@@ -206,6 +207,56 @@ abstract class DatabaseTestBase {
                 FsrsStateEntity(
                     cardId = cardId,
                     gameType = GameType.CHORD_PROGRESSION.name,
+                    dueDate = dueDate,
+                    stability = stability,
+                    difficulty = difficulty,
+                    interval = interval,
+                    reviewCount = reviewCount,
+                    lastReview = lastReview,
+                    phase = phase,
+                    lapses = lapses
+                )
+            )
+        }
+
+        return card
+    }
+
+    /**
+     * Create a test IntervalCardEntity with optional FSRS state.
+     */
+    protected suspend fun createIntervalCard(
+        intervalType: String = "PERFECT_5TH",
+        octave: Int = 4,
+        direction: String = "ASCENDING",
+        unlocked: Boolean = true,
+        deprecated: Boolean = false,
+        withFsrsState: Boolean = true,
+        dueDate: Long = System.currentTimeMillis(),
+        stability: Double = 2.5,
+        difficulty: Double = 2.5,
+        interval: Int = 0,
+        reviewCount: Int = 0,
+        lastReview: Long? = null,
+        phase: Int = 0,
+        lapses: Int = 0
+    ): IntervalCardEntity {
+        val cardId = "${intervalType}_${octave}_${direction}"
+        val card = IntervalCardEntity(
+            id = cardId,
+            interval = intervalType,
+            octave = octave,
+            direction = direction,
+            unlocked = unlocked,
+            deprecated = deprecated
+        )
+        intervalCardDao.insert(card)
+
+        if (withFsrsState) {
+            fsrsStateDao.insert(
+                FsrsStateEntity(
+                    cardId = cardId,
+                    gameType = GameType.INTERVAL.name,
                     dueDate = dueDate,
                     stability = stability,
                     difficulty = difficulty,
