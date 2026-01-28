@@ -17,6 +17,7 @@ import net.xmppwocky.earbs.data.entity.FsrsStateEntity
 import net.xmppwocky.earbs.data.entity.FunctionCardEntity
 import net.xmppwocky.earbs.data.entity.GameType
 import net.xmppwocky.earbs.data.entity.ProgressionCardEntity
+import net.xmppwocky.earbs.data.entity.ReviewSessionEntity
 import org.junit.After
 import org.junit.Before
 import org.junit.runner.RunWith
@@ -255,6 +256,22 @@ abstract class DatabaseTestBase {
                 dueDate = now + offset
             )
         }
+    }
+
+    /**
+     * Create a ReviewSessionEntity and insert it. Returns the session ID.
+     */
+    protected suspend fun createSession(
+        gameType: GameType = GameType.CHORD_TYPE,
+        startedAt: Long = System.currentTimeMillis(),
+        completedAt: Long? = null
+    ): Long {
+        val session = ReviewSessionEntity(
+            startedAt = startedAt,
+            completedAt = completedAt,
+            gameType = gameType.name
+        )
+        return reviewSessionDao.insert(session)
     }
 
     companion object {

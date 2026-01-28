@@ -4,21 +4,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import net.xmppwocky.earbs.data.DatabaseTestBase
 import net.xmppwocky.earbs.data.entity.GameType
-import net.xmppwocky.earbs.data.entity.ReviewSessionEntity
 import net.xmppwocky.earbs.data.entity.TrialEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TrialDaoTest : DatabaseTestBase() {
-
-    private suspend fun createSession(gameType: GameType = GameType.CHORD_TYPE): Long {
-        val session = ReviewSessionEntity(
-            startedAt = System.currentTimeMillis(),
-            gameType = gameType.name
-        )
-        return reviewSessionDao.insert(session)
-    }
 
     // ========== Basic Insert/Query Tests ==========
 

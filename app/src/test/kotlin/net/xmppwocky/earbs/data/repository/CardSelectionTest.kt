@@ -1,7 +1,6 @@
 package net.xmppwocky.earbs.data.repository
 
 import kotlinx.coroutines.test.runTest
-import net.xmppwocky.earbs.data.DatabaseTestBase
 import net.xmppwocky.earbs.data.entity.CardEntity
 import net.xmppwocky.earbs.data.entity.FsrsStateEntity
 import net.xmppwocky.earbs.data.entity.FunctionCardEntity
@@ -11,25 +10,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-class CardSelectionTest : DatabaseTestBase() {
-
-    private lateinit var repository: EarbsRepository
+class CardSelectionTest : RepositoryTestBase() {
 
     @Before
-    fun setupRepository() {
+    fun setTestSessionSize() {
         // Set session size to 5 for easier testing
-        prefs.edit().putInt("session_size", 5).apply()
-
-        repository = EarbsRepository(
-            cardDao = cardDao,
-            functionCardDao = functionCardDao,
-            progressionCardDao = progressionCardDao,
-            fsrsStateDao = fsrsStateDao,
-            reviewSessionDao = reviewSessionDao,
-            trialDao = trialDao,
-            historyDao = historyDao,
-            prefs = prefs
-        )
+        setSessionSize(5)
     }
 
     // ========== Basic Selection Tests ==========

@@ -1,5 +1,6 @@
 package net.xmppwocky.earbs.data.db
 
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import net.xmppwocky.earbs.data.DatabaseTestBase
@@ -16,125 +17,147 @@ import org.junit.Test
  */
 class ProgressionCardDaoDeprecationTest : DatabaseTestBase() {
 
-    // ========== Review Exclusion Tests ==========
+    private var cardCounter = 0
+
+    private val adapter = object : DeprecationTestAdapter<ProgressionCardWithFsrs> {
+        override suspend fun createActiveCard(dueDate: Long): String {
+            val prog = "PROG_${cardCounter++}"
+            createProgressionCard(progression = prog, dueDate = dueDate)
+            return "${prog}_4_ARPEGGIATED"
+        }
+
+        override suspend fun createDeprecatedCard(dueDate: Long): String {
+            val prog = "PROG_${cardCounter++}"
+            createProgressionCard(progression = prog, deprecated = true, dueDate = dueDate)
+            return "${prog}_4_ARPEGGIATED"
+        }
+
+        override suspend fun createActiveCardWithFsrs(
+            stability: Double,
+            difficulty: Double,
+            interval: Int,
+            reviewCount: Int,
+            phase: Int,
+            lapses: Int,
+            lastReview: Long
+        ): String {
+            val prog = "PROG_${cardCounter++}"
+            createProgressionCard(
+                progression = prog,
+                stability = stability,
+                difficulty = difficulty,
+                interval = interval,
+                reviewCount = reviewCount,
+                phase = phase,
+                lapses = lapses,
+                lastReview = lastReview
+            )
+            return "${prog}_4_ARPEGGIATED"
+        }
+
+        override suspend fun createUnlockedCard(): String {
+            val prog = "PROG_${cardCounter++}"
+            createProgressionCard(progression = prog, unlocked = true)
+            return "${prog}_4_ARPEGGIATED"
+        }
+
+        override suspend fun createLockedCard(): String {
+            val prog = "PROG_${cardCounter++}"
+            createProgressionCard(progression = prog, unlocked = false)
+            return "${prog}_4_ARPEGGIATED"
+        }
+
+        override suspend fun createDeprecatedUnlockedCard(): String {
+            val prog = "PROG_${cardCounter++}"
+            createProgressionCard(progression = prog, unlocked = true, deprecated = true)
+            return "${prog}_4_ARPEGGIATED"
+        }
+
+        override suspend fun getDueCards(now: Long) = progressionCardDao.getDueCards(now)
+        override suspend fun getNonDueCards(now: Long, limit: Int) = progressionCardDao.getNonDueCards(now, limit)
+        override suspend fun countDue(now: Long) = progressionCardDao.countDue(now)
+        override suspend fun countUnlocked() = progressionCardDao.countUnlocked()
+        override fun countUnlockedFlow() = progressionCardDao.countUnlockedFlow()
+        override suspend fun getAllUnlocked() = progressionCardDao.getAllUnlocked()
+        override suspend fun getAllUnlockedWithFsrs() = progressionCardDao.getAllUnlockedWithFsrs()
+        override fun getAllUnlockedWithFsrsFlow() = progressionCardDao.getAllUnlockedWithFsrsFlow()
+        override suspend fun getDeprecatedCardsWithFsrs() = progressionCardDao.getDeprecatedCardsWithFsrs()
+        override fun getDeprecatedCardsWithFsrsFlow() = progressionCardDao.getDeprecatedCardsWithFsrsFlow()
+        override suspend fun countDeprecated() = progressionCardDao.countDeprecated()
+        override suspend fun setDeprecated(id: String, deprecated: Boolean) = progressionCardDao.setDeprecated(id, deprecated)
+        override suspend fun getByIdWithFsrs(id: String) = progressionCardDao.getByIdWithFsrs(id)
+        override suspend fun getAllCardsOrdered() = progressionCardDao.getAllCardsOrdered()
+        override suspend fun getAllCardsWithFsrsOrdered() = progressionCardDao.getAllCardsWithFsrsOrdered()
+        override fun countDueFlow(now: Long) = progressionCardDao.countDueFlow(now)
+
+        override fun getId(card: ProgressionCardWithFsrs) = card.id
+        override fun isDeprecated(card: ProgressionCardWithFsrs) = card.deprecated
+        override fun getStability(card: ProgressionCardWithFsrs) = card.stability
+        override fun getDifficulty(card: ProgressionCardWithFsrs) = card.difficulty
+        override fun getInterval(card: ProgressionCardWithFsrs) = card.interval
+        override fun getReviewCount(card: ProgressionCardWithFsrs) = card.reviewCount
+        override fun getPhase(card: ProgressionCardWithFsrs) = card.phase
+        override fun getLapses(card: ProgressionCardWithFsrs) = card.lapses
+    }
+
+    // ========== Review Exclusion Tests (Shared) ==========
 
     @Test
     fun `getDueCards excludes deprecated cards even when due`() = runTest {
         val now = System.currentTimeMillis()
-
-        // Active due card
-        createProgressionCard(progression = "I_IV_V_I", dueDate = now - HOUR_MS)
-
-        // Deprecated due card (should be excluded)
-        createProgressionCard(progression = "I_V_vi_IV", deprecated = true, dueDate = now - HOUR_MS)
-
-        val dueCards = progressionCardDao.getDueCards(now)
-
-        assertEquals(1, dueCards.size)
-        assertEquals("I_IV_V_I_4_ARPEGGIATED", dueCards[0].id)
+        DeprecationTestHelper.testDueCardsExcludesDeprecated(adapter, now, HOUR_MS)
     }
 
     @Test
     fun `getNonDueCards excludes deprecated cards`() = runTest {
         val now = System.currentTimeMillis()
-
-        // Active non-due card
-        createProgressionCard(progression = "I_IV_V_I", dueDate = now + HOUR_MS)
-
-        // Deprecated non-due card (should be excluded)
-        createProgressionCard(progression = "I_V_vi_IV", deprecated = true, dueDate = now + HOUR_MS)
-
-        val nonDueCards = progressionCardDao.getNonDueCards(now, 10)
-
-        assertEquals(1, nonDueCards.size)
-        assertEquals("I_IV_V_I_4_ARPEGGIATED", nonDueCards[0].id)
+        DeprecationTestHelper.testNonDueCardsExcludesDeprecated(adapter, now, HOUR_MS)
     }
+
+    @Test
+    fun `countDue excludes deprecated cards`() = runTest {
+        val now = System.currentTimeMillis()
+        DeprecationTestHelper.testCountDueExcludesDeprecated(adapter, now, HOUR_MS)
+    }
+
+    @Test
+    fun `countUnlocked excludes deprecated cards`() = runTest {
+        DeprecationTestHelper.testCountUnlockedExcludesDeprecated(adapter)
+    }
+
+    @Test
+    fun `countUnlockedFlow excludes deprecated cards`() = runTest {
+        DeprecationTestHelper.testCountUnlockedFlowExcludesDeprecated(adapter)
+    }
+
+    @Test
+    fun `getAllUnlocked excludes deprecated cards`() = runTest {
+        DeprecationTestHelper.testGetAllUnlockedExcludesDeprecated(adapter)
+    }
+
+    @Test
+    fun `getAllUnlockedWithFsrs excludes deprecated cards`() = runTest {
+        DeprecationTestHelper.testGetAllUnlockedWithFsrsExcludesDeprecated(adapter)
+    }
+
+    @Test
+    fun `getAllUnlockedWithFsrsFlow excludes deprecated cards`() = runTest {
+        DeprecationTestHelper.testGetAllUnlockedWithFsrsFlowExcludesDeprecated(adapter)
+    }
+
+    // ========== ProgressionCardDao-specific: getNonDueCardsByGroup, getByGroup ==========
 
     @Test
     fun `getNonDueCardsByGroup excludes deprecated cards`() = runTest {
         val now = System.currentTimeMillis()
 
-        // Active non-due card in group
         createProgressionCard(progression = "I_IV_V_I", octave = 4, playbackMode = "ARPEGGIATED", dueDate = now + HOUR_MS)
-
-        // Deprecated non-due card in same group (should be excluded)
         createProgressionCard(progression = "I_V_vi_IV", octave = 4, playbackMode = "ARPEGGIATED", deprecated = true, dueDate = now + HOUR_MS)
 
         val nonDueCards = progressionCardDao.getNonDueCardsByGroup(now, 4, "ARPEGGIATED", 10)
 
         assertEquals(1, nonDueCards.size)
         assertEquals("I_IV_V_I_4_ARPEGGIATED", nonDueCards[0].id)
-    }
-
-    @Test
-    fun `countDue excludes deprecated cards`() = runTest {
-        val now = System.currentTimeMillis()
-
-        // 2 active due cards
-        createProgressionCard(progression = "I_IV_V_I", dueDate = now - HOUR_MS)
-        createProgressionCard(progression = "I_V_vi_IV", dueDate = now - HOUR_MS)
-
-        // 1 deprecated due card (should not be counted)
-        createProgressionCard(progression = "ii_V_I", deprecated = true, dueDate = now - HOUR_MS)
-
-        assertEquals(2, progressionCardDao.countDue(now))
-    }
-
-    @Test
-    fun `countUnlocked excludes deprecated cards`() = runTest {
-        // 2 active unlocked cards
-        createProgressionCard(progression = "I_IV_V_I", unlocked = true)
-        createProgressionCard(progression = "I_V_vi_IV", unlocked = true)
-
-        // 1 deprecated unlocked card (should not be counted)
-        createProgressionCard(progression = "ii_V_I", unlocked = true, deprecated = true)
-
-        // 1 locked card (should not be counted)
-        createProgressionCard(progression = "I_vi_IV_V", unlocked = false)
-
-        assertEquals(2, progressionCardDao.countUnlocked())
-    }
-
-    @Test
-    fun `countUnlockedFlow excludes deprecated cards`() = runTest {
-        createProgressionCard(progression = "I_IV_V_I", unlocked = true)
-        createProgressionCard(progression = "I_V_vi_IV", unlocked = true, deprecated = true)
-
-        val count = progressionCardDao.countUnlockedFlow().first()
-        assertEquals(1, count)
-    }
-
-    @Test
-    fun `getAllUnlocked excludes deprecated cards`() = runTest {
-        createProgressionCard(progression = "I_IV_V_I", unlocked = true)
-        createProgressionCard(progression = "I_V_vi_IV", unlocked = true, deprecated = true)
-
-        val unlocked = progressionCardDao.getAllUnlocked()
-
-        assertEquals(1, unlocked.size)
-        assertEquals("I_IV_V_I_4_ARPEGGIATED", unlocked[0].id)
-    }
-
-    @Test
-    fun `getAllUnlockedWithFsrs excludes deprecated cards`() = runTest {
-        createProgressionCard(progression = "I_IV_V_I", unlocked = true)
-        createProgressionCard(progression = "I_V_vi_IV", unlocked = true, deprecated = true)
-
-        val unlockedWithFsrs = progressionCardDao.getAllUnlockedWithFsrs()
-
-        assertEquals(1, unlockedWithFsrs.size)
-        assertEquals("I_IV_V_I_4_ARPEGGIATED", unlockedWithFsrs[0].id)
-    }
-
-    @Test
-    fun `getAllUnlockedWithFsrsFlow excludes deprecated cards`() = runTest {
-        createProgressionCard(progression = "I_IV_V_I", unlocked = true)
-        createProgressionCard(progression = "I_V_vi_IV", unlocked = true, deprecated = true)
-
-        val cards = progressionCardDao.getAllUnlockedWithFsrsFlow().first()
-
-        assertEquals(1, cards.size)
-        assertEquals("I_IV_V_I_4_ARPEGGIATED", cards[0].id)
     }
 
     @Test
@@ -148,24 +171,11 @@ class ProgressionCardDaoDeprecationTest : DatabaseTestBase() {
         assertEquals("I_IV_V_I_4_ARPEGGIATED", cards[0].id)
     }
 
-    // ========== Archived Cards Retrieval Tests ==========
+    // ========== Archived Cards Retrieval Tests (Shared) ==========
 
     @Test
     fun `getDeprecatedCardsWithFsrs returns only deprecated cards`() = runTest {
-        // Active cards (should not be returned)
-        createProgressionCard(progression = "I_IV_V_I")
-        createProgressionCard(progression = "I_V_vi_IV")
-
-        // Deprecated cards (should be returned)
-        createProgressionCard(progression = "ii_V_I", deprecated = true)
-        createProgressionCard(progression = "I_vi_IV_V", deprecated = true)
-
-        val deprecatedCards = progressionCardDao.getDeprecatedCardsWithFsrs()
-
-        assertEquals(2, deprecatedCards.size)
-        assertTrue(deprecatedCards.all { it.deprecated })
-        assertTrue(deprecatedCards.any { it.progression == "ii_V_I" })
-        assertTrue(deprecatedCards.any { it.progression == "I_vi_IV_V" })
+        DeprecationTestHelper.testGetDeprecatedCardsWithFsrsReturnsOnlyDeprecated(adapter)
     }
 
     @Test
@@ -198,74 +208,24 @@ class ProgressionCardDaoDeprecationTest : DatabaseTestBase() {
 
     @Test
     fun `getDeprecatedCardsWithFsrsFlow emits deprecated cards`() = runTest {
-        createProgressionCard(progression = "I_IV_V_I", deprecated = true)
-        createProgressionCard(progression = "I_V_vi_IV")
-
-        val deprecatedCards = progressionCardDao.getDeprecatedCardsWithFsrsFlow().first()
-
-        assertEquals(1, deprecatedCards.size)
-        assertEquals("I_IV_V_I_4_ARPEGGIATED", deprecatedCards[0].id)
+        DeprecationTestHelper.testGetDeprecatedCardsWithFsrsFlowEmitsDeprecated(adapter)
     }
 
     @Test
     fun `countDeprecated returns correct count`() = runTest {
-        // Active cards
-        createProgressionCard(progression = "I_IV_V_I")
-        createProgressionCard(progression = "I_V_vi_IV")
-
-        // Deprecated cards
-        createProgressionCard(progression = "ii_V_I", deprecated = true)
-        createProgressionCard(progression = "I_vi_IV_V", deprecated = true)
-        createProgressionCard(progression = "vi_IV_I_V", deprecated = true)
-
-        assertEquals(3, progressionCardDao.countDeprecated())
+        DeprecationTestHelper.testCountDeprecatedReturnsCorrectCount(adapter)
     }
 
     @Test
     fun `getByIdWithFsrs returns deprecated cards for history display`() = runTest {
-        createProgressionCard(
-            progression = "I_IV_V_I",
-            deprecated = true,
-            stability = 5.0,
-            difficulty = 4.0
-        )
-
-        val card = progressionCardDao.getByIdWithFsrs("I_IV_V_I_4_ARPEGGIATED")
-
-        assertNotNull(card)
-        assertTrue(card!!.deprecated)
-        assertEquals("I_IV_V_I", card.progression)
-        assertEquals(5.0, card.stability, 0.01)
+        DeprecationTestHelper.testGetByIdWithFsrsReturnsDeprecatedCards(adapter)
     }
 
-    // ========== Data Preservation Tests ==========
+    // ========== Data Preservation Tests (Shared) ==========
 
     @Test
     fun `setDeprecated preserves FSRS state`() = runTest {
-        val now = System.currentTimeMillis()
-        createProgressionCard(
-            progression = "I_IV_V_I",
-            stability = 8.5,
-            difficulty = 3.2,
-            interval = 14,
-            reviewCount = 10,
-            lastReview = now - DAY_MS,
-            phase = 2,
-            lapses = 1
-        )
-
-        // Deprecate the card
-        progressionCardDao.setDeprecated("I_IV_V_I_4_ARPEGGIATED", true)
-
-        // Verify FSRS state is preserved
-        val card = progressionCardDao.getByIdWithFsrs("I_IV_V_I_4_ARPEGGIATED")
-        assertNotNull(card)
-        assertEquals(8.5, card!!.stability, 0.01)
-        assertEquals(3.2, card.difficulty, 0.01)
-        assertEquals(14, card.interval)
-        assertEquals(10, card.reviewCount)
-        assertEquals(2, card.phase)
-        assertEquals(1, card.lapses)
+        DeprecationTestHelper.testSetDeprecatedPreservesFsrsState(adapter, DAY_MS)
     }
 
     @Test
@@ -277,10 +237,8 @@ class ProgressionCardDaoDeprecationTest : DatabaseTestBase() {
             unlocked = true
         )
 
-        // Deprecate the card
         progressionCardDao.setDeprecated("I_IV_V_I_5_BLOCK", true)
 
-        // Verify card fields are preserved
         val card = progressionCardDao.getById("I_IV_V_I_5_BLOCK")
         assertNotNull(card)
         assertEquals("I_IV_V_I", card!!.progression)
@@ -290,69 +248,35 @@ class ProgressionCardDaoDeprecationTest : DatabaseTestBase() {
         assertTrue(card.deprecated)
     }
 
-    // ========== Toggle Tests ==========
+    // ========== Toggle Tests (Shared) ==========
 
     @Test
     fun `setDeprecated sets deprecated flag`() = runTest {
-        createProgressionCard(progression = "I_IV_V_I")
-
-        progressionCardDao.setDeprecated("I_IV_V_I_4_ARPEGGIATED", true)
-
-        val card = progressionCardDao.getById("I_IV_V_I_4_ARPEGGIATED")
-        assertTrue(card!!.deprecated)
+        DeprecationTestHelper.testSetDeprecatedSetsFlag(adapter)
     }
 
     @Test
     fun `setDeprecated false clears deprecated flag`() = runTest {
-        createProgressionCard(progression = "I_IV_V_I", deprecated = true)
-
-        progressionCardDao.setDeprecated("I_IV_V_I_4_ARPEGGIATED", false)
-
-        val card = progressionCardDao.getById("I_IV_V_I_4_ARPEGGIATED")
-        assertFalse(card!!.deprecated)
+        DeprecationTestHelper.testSetDeprecatedFalseClearsFlag(adapter)
     }
 
     @Test
     fun `toggle deprecated back and forth works correctly`() = runTest {
-        createProgressionCard(progression = "I_IV_V_I")
-
-        // Deprecate
-        progressionCardDao.setDeprecated("I_IV_V_I_4_ARPEGGIATED", true)
-        assertTrue(progressionCardDao.getById("I_IV_V_I_4_ARPEGGIATED")!!.deprecated)
-
-        // Un-deprecate
-        progressionCardDao.setDeprecated("I_IV_V_I_4_ARPEGGIATED", false)
-        assertFalse(progressionCardDao.getById("I_IV_V_I_4_ARPEGGIATED")!!.deprecated)
-
-        // Deprecate again
-        progressionCardDao.setDeprecated("I_IV_V_I_4_ARPEGGIATED", true)
-        assertTrue(progressionCardDao.getById("I_IV_V_I_4_ARPEGGIATED")!!.deprecated)
+        DeprecationTestHelper.testToggleDeprecatedBackAndForth(adapter)
     }
 
-    // ========== Edge Cases ==========
+    // ========== Edge Cases (Shared) ==========
 
     @Test
     fun `all cards deprecated returns empty due list`() = runTest {
         val now = System.currentTimeMillis()
-
-        createProgressionCard(progression = "I_IV_V_I", deprecated = true, dueDate = now - HOUR_MS)
-        createProgressionCard(progression = "I_V_vi_IV", deprecated = true, dueDate = now - HOUR_MS)
-
-        val dueCards = progressionCardDao.getDueCards(now)
-
-        assertTrue(dueCards.isEmpty())
+        DeprecationTestHelper.testAllCardsDeprecatedReturnsEmptyDueList(adapter, now, HOUR_MS)
     }
 
     @Test
     fun `all cards deprecated returns empty non-due list`() = runTest {
         val now = System.currentTimeMillis()
-
-        createProgressionCard(progression = "I_IV_V_I", deprecated = true, dueDate = now + HOUR_MS)
-        createProgressionCard(progression = "I_V_vi_IV", deprecated = true, dueDate = now + HOUR_MS)
-
-        val nonDueCards = progressionCardDao.getNonDueCards(now, 10)
-
-        assertTrue(nonDueCards.isEmpty())
+        DeprecationTestHelper.testAllCardsDeprecatedReturnsEmptyNonDueList(adapter, now, HOUR_MS)
     }
 
     @Test
@@ -367,36 +291,21 @@ class ProgressionCardDaoDeprecationTest : DatabaseTestBase() {
 
     @Test
     fun `getAllCardsOrdered excludes deprecated cards`() = runTest {
-        createProgressionCard(progression = "I_IV_V_I")
-        createProgressionCard(progression = "I_V_vi_IV", deprecated = true)
-
-        val cards = progressionCardDao.getAllCardsOrdered()
-
-        assertEquals(1, cards.size)
-        assertEquals("I_IV_V_I_4_ARPEGGIATED", cards[0].id)
+        DeprecationTestHelper.testGetAllCardsOrderedExcludesDeprecated(adapter)
     }
 
     @Test
     fun `getAllCardsWithFsrsOrdered excludes deprecated cards`() = runTest {
-        createProgressionCard(progression = "I_IV_V_I")
-        createProgressionCard(progression = "I_V_vi_IV", deprecated = true)
-
-        val cards = progressionCardDao.getAllCardsWithFsrsOrdered()
-
-        assertEquals(1, cards.size)
-        assertEquals("I_IV_V_I_4_ARPEGGIATED", cards[0].id)
+        DeprecationTestHelper.testGetAllCardsWithFsrsOrderedExcludesDeprecated(adapter)
     }
 
     @Test
     fun `countDueFlow excludes deprecated cards`() = runTest {
         val now = System.currentTimeMillis()
-
-        createProgressionCard(progression = "I_IV_V_I", dueDate = now - HOUR_MS)
-        createProgressionCard(progression = "I_V_vi_IV", deprecated = true, dueDate = now - HOUR_MS)
-
-        val count = progressionCardDao.countDueFlow(now).first()
-        assertEquals(1, count)
+        DeprecationTestHelper.testCountDueFlowExcludesDeprecated(adapter, now, HOUR_MS)
     }
+
+    // ========== ProgressionCardDao-specific edge case ==========
 
     @Test
     fun `deprecated cards across different octaves and modes are all returned`() = runTest {

@@ -1,5 +1,6 @@
 package net.xmppwocky.earbs.data.db
 
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import net.xmppwocky.earbs.data.DatabaseTestBase
@@ -16,125 +17,147 @@ import org.junit.Test
  */
 class FunctionCardDaoDeprecationTest : DatabaseTestBase() {
 
-    // ========== Review Exclusion Tests ==========
+    private var cardCounter = 0
+
+    private val adapter = object : DeprecationTestAdapter<FunctionCardWithFsrs> {
+        override suspend fun createActiveCard(dueDate: Long): String {
+            val func = "FUNC_${cardCounter++}"
+            createFunctionCard(function = func, dueDate = dueDate)
+            return "${func}_MAJOR_4_ARPEGGIATED"
+        }
+
+        override suspend fun createDeprecatedCard(dueDate: Long): String {
+            val func = "FUNC_${cardCounter++}"
+            createFunctionCard(function = func, deprecated = true, dueDate = dueDate)
+            return "${func}_MAJOR_4_ARPEGGIATED"
+        }
+
+        override suspend fun createActiveCardWithFsrs(
+            stability: Double,
+            difficulty: Double,
+            interval: Int,
+            reviewCount: Int,
+            phase: Int,
+            lapses: Int,
+            lastReview: Long
+        ): String {
+            val func = "FUNC_${cardCounter++}"
+            createFunctionCard(
+                function = func,
+                stability = stability,
+                difficulty = difficulty,
+                interval = interval,
+                reviewCount = reviewCount,
+                phase = phase,
+                lapses = lapses,
+                lastReview = lastReview
+            )
+            return "${func}_MAJOR_4_ARPEGGIATED"
+        }
+
+        override suspend fun createUnlockedCard(): String {
+            val func = "FUNC_${cardCounter++}"
+            createFunctionCard(function = func, unlocked = true)
+            return "${func}_MAJOR_4_ARPEGGIATED"
+        }
+
+        override suspend fun createLockedCard(): String {
+            val func = "FUNC_${cardCounter++}"
+            createFunctionCard(function = func, unlocked = false)
+            return "${func}_MAJOR_4_ARPEGGIATED"
+        }
+
+        override suspend fun createDeprecatedUnlockedCard(): String {
+            val func = "FUNC_${cardCounter++}"
+            createFunctionCard(function = func, unlocked = true, deprecated = true)
+            return "${func}_MAJOR_4_ARPEGGIATED"
+        }
+
+        override suspend fun getDueCards(now: Long) = functionCardDao.getDueCards(now)
+        override suspend fun getNonDueCards(now: Long, limit: Int) = functionCardDao.getNonDueCards(now, limit)
+        override suspend fun countDue(now: Long) = functionCardDao.countDue(now)
+        override suspend fun countUnlocked() = functionCardDao.countUnlocked()
+        override fun countUnlockedFlow() = functionCardDao.countUnlockedFlow()
+        override suspend fun getAllUnlocked() = functionCardDao.getAllUnlocked()
+        override suspend fun getAllUnlockedWithFsrs() = functionCardDao.getAllUnlockedWithFsrs()
+        override fun getAllUnlockedWithFsrsFlow() = functionCardDao.getAllUnlockedWithFsrsFlow()
+        override suspend fun getDeprecatedCardsWithFsrs() = functionCardDao.getDeprecatedCardsWithFsrs()
+        override fun getDeprecatedCardsWithFsrsFlow() = functionCardDao.getDeprecatedCardsWithFsrsFlow()
+        override suspend fun countDeprecated() = functionCardDao.countDeprecated()
+        override suspend fun setDeprecated(id: String, deprecated: Boolean) = functionCardDao.setDeprecated(id, deprecated)
+        override suspend fun getByIdWithFsrs(id: String) = functionCardDao.getByIdWithFsrs(id)
+        override suspend fun getAllCardsOrdered() = functionCardDao.getAllCardsOrdered()
+        override suspend fun getAllCardsWithFsrsOrdered() = functionCardDao.getAllCardsWithFsrsOrdered()
+        override fun countDueFlow(now: Long) = functionCardDao.countDueFlow(now)
+
+        override fun getId(card: FunctionCardWithFsrs) = card.id
+        override fun isDeprecated(card: FunctionCardWithFsrs) = card.deprecated
+        override fun getStability(card: FunctionCardWithFsrs) = card.stability
+        override fun getDifficulty(card: FunctionCardWithFsrs) = card.difficulty
+        override fun getInterval(card: FunctionCardWithFsrs) = card.interval
+        override fun getReviewCount(card: FunctionCardWithFsrs) = card.reviewCount
+        override fun getPhase(card: FunctionCardWithFsrs) = card.phase
+        override fun getLapses(card: FunctionCardWithFsrs) = card.lapses
+    }
+
+    // ========== Review Exclusion Tests (Shared) ==========
 
     @Test
     fun `getDueCards excludes deprecated cards even when due`() = runTest {
         val now = System.currentTimeMillis()
-
-        // Active due card
-        createFunctionCard(function = "IV", dueDate = now - HOUR_MS)
-
-        // Deprecated due card (should be excluded)
-        createFunctionCard(function = "V", deprecated = true, dueDate = now - HOUR_MS)
-
-        val dueCards = functionCardDao.getDueCards(now)
-
-        assertEquals(1, dueCards.size)
-        assertEquals("IV_MAJOR_4_ARPEGGIATED", dueCards[0].id)
+        DeprecationTestHelper.testDueCardsExcludesDeprecated(adapter, now, HOUR_MS)
     }
 
     @Test
     fun `getNonDueCards excludes deprecated cards`() = runTest {
         val now = System.currentTimeMillis()
-
-        // Active non-due card
-        createFunctionCard(function = "IV", dueDate = now + HOUR_MS)
-
-        // Deprecated non-due card (should be excluded)
-        createFunctionCard(function = "V", deprecated = true, dueDate = now + HOUR_MS)
-
-        val nonDueCards = functionCardDao.getNonDueCards(now, 10)
-
-        assertEquals(1, nonDueCards.size)
-        assertEquals("IV_MAJOR_4_ARPEGGIATED", nonDueCards[0].id)
+        DeprecationTestHelper.testNonDueCardsExcludesDeprecated(adapter, now, HOUR_MS)
     }
+
+    @Test
+    fun `countDue excludes deprecated cards`() = runTest {
+        val now = System.currentTimeMillis()
+        DeprecationTestHelper.testCountDueExcludesDeprecated(adapter, now, HOUR_MS)
+    }
+
+    @Test
+    fun `countUnlocked excludes deprecated cards`() = runTest {
+        DeprecationTestHelper.testCountUnlockedExcludesDeprecated(adapter)
+    }
+
+    @Test
+    fun `countUnlockedFlow excludes deprecated cards`() = runTest {
+        DeprecationTestHelper.testCountUnlockedFlowExcludesDeprecated(adapter)
+    }
+
+    @Test
+    fun `getAllUnlocked excludes deprecated cards`() = runTest {
+        DeprecationTestHelper.testGetAllUnlockedExcludesDeprecated(adapter)
+    }
+
+    @Test
+    fun `getAllUnlockedWithFsrs excludes deprecated cards`() = runTest {
+        DeprecationTestHelper.testGetAllUnlockedWithFsrsExcludesDeprecated(adapter)
+    }
+
+    @Test
+    fun `getAllUnlockedWithFsrsFlow excludes deprecated cards`() = runTest {
+        DeprecationTestHelper.testGetAllUnlockedWithFsrsFlowExcludesDeprecated(adapter)
+    }
+
+    // ========== FunctionCardDao-specific: getNonDueCardsByGroup, getByKeyQuality, getByGroup ==========
 
     @Test
     fun `getNonDueCardsByGroup excludes deprecated cards`() = runTest {
         val now = System.currentTimeMillis()
 
-        // Active non-due card in group
         createFunctionCard(function = "IV", keyQuality = "MAJOR", octave = 4, playbackMode = "ARPEGGIATED", dueDate = now + HOUR_MS)
-
-        // Deprecated non-due card in same group (should be excluded)
         createFunctionCard(function = "V", keyQuality = "MAJOR", octave = 4, playbackMode = "ARPEGGIATED", deprecated = true, dueDate = now + HOUR_MS)
 
         val nonDueCards = functionCardDao.getNonDueCardsByGroup(now, "MAJOR", 4, "ARPEGGIATED", 10)
 
         assertEquals(1, nonDueCards.size)
         assertEquals("IV_MAJOR_4_ARPEGGIATED", nonDueCards[0].id)
-    }
-
-    @Test
-    fun `countDue excludes deprecated cards`() = runTest {
-        val now = System.currentTimeMillis()
-
-        // 2 active due cards
-        createFunctionCard(function = "IV", dueDate = now - HOUR_MS)
-        createFunctionCard(function = "V", dueDate = now - HOUR_MS)
-
-        // 1 deprecated due card (should not be counted)
-        createFunctionCard(function = "vi", deprecated = true, dueDate = now - HOUR_MS)
-
-        assertEquals(2, functionCardDao.countDue(now))
-    }
-
-    @Test
-    fun `countUnlocked excludes deprecated cards`() = runTest {
-        // 2 active unlocked cards
-        createFunctionCard(function = "IV", unlocked = true)
-        createFunctionCard(function = "V", unlocked = true)
-
-        // 1 deprecated unlocked card (should not be counted)
-        createFunctionCard(function = "vi", unlocked = true, deprecated = true)
-
-        // 1 locked card (should not be counted)
-        createFunctionCard(function = "ii", unlocked = false)
-
-        assertEquals(2, functionCardDao.countUnlocked())
-    }
-
-    @Test
-    fun `countUnlockedFlow excludes deprecated cards`() = runTest {
-        createFunctionCard(function = "IV", unlocked = true)
-        createFunctionCard(function = "V", unlocked = true, deprecated = true)
-
-        val count = functionCardDao.countUnlockedFlow().first()
-        assertEquals(1, count)
-    }
-
-    @Test
-    fun `getAllUnlocked excludes deprecated cards`() = runTest {
-        createFunctionCard(function = "IV", unlocked = true)
-        createFunctionCard(function = "V", unlocked = true, deprecated = true)
-
-        val unlocked = functionCardDao.getAllUnlocked()
-
-        assertEquals(1, unlocked.size)
-        assertEquals("IV_MAJOR_4_ARPEGGIATED", unlocked[0].id)
-    }
-
-    @Test
-    fun `getAllUnlockedWithFsrs excludes deprecated cards`() = runTest {
-        createFunctionCard(function = "IV", unlocked = true)
-        createFunctionCard(function = "V", unlocked = true, deprecated = true)
-
-        val unlockedWithFsrs = functionCardDao.getAllUnlockedWithFsrs()
-
-        assertEquals(1, unlockedWithFsrs.size)
-        assertEquals("IV_MAJOR_4_ARPEGGIATED", unlockedWithFsrs[0].id)
-    }
-
-    @Test
-    fun `getAllUnlockedWithFsrsFlow excludes deprecated cards`() = runTest {
-        createFunctionCard(function = "IV", unlocked = true)
-        createFunctionCard(function = "V", unlocked = true, deprecated = true)
-
-        val cards = functionCardDao.getAllUnlockedWithFsrsFlow().first()
-
-        assertEquals(1, cards.size)
-        assertEquals("IV_MAJOR_4_ARPEGGIATED", cards[0].id)
     }
 
     @Test
@@ -159,24 +182,11 @@ class FunctionCardDaoDeprecationTest : DatabaseTestBase() {
         assertEquals("IV_MAJOR_4_ARPEGGIATED", cards[0].id)
     }
 
-    // ========== Archived Cards Retrieval Tests ==========
+    // ========== Archived Cards Retrieval Tests (Shared) ==========
 
     @Test
     fun `getDeprecatedCardsWithFsrs returns only deprecated cards`() = runTest {
-        // Active cards (should not be returned)
-        createFunctionCard(function = "IV")
-        createFunctionCard(function = "V")
-
-        // Deprecated cards (should be returned)
-        createFunctionCard(function = "vi", deprecated = true)
-        createFunctionCard(function = "ii", deprecated = true)
-
-        val deprecatedCards = functionCardDao.getDeprecatedCardsWithFsrs()
-
-        assertEquals(2, deprecatedCards.size)
-        assertTrue(deprecatedCards.all { it.deprecated })
-        assertTrue(deprecatedCards.any { it.function == "vi" })
-        assertTrue(deprecatedCards.any { it.function == "ii" })
+        DeprecationTestHelper.testGetDeprecatedCardsWithFsrsReturnsOnlyDeprecated(adapter)
     }
 
     @Test
@@ -209,74 +219,24 @@ class FunctionCardDaoDeprecationTest : DatabaseTestBase() {
 
     @Test
     fun `getDeprecatedCardsWithFsrsFlow emits deprecated cards`() = runTest {
-        createFunctionCard(function = "IV", deprecated = true)
-        createFunctionCard(function = "V")
-
-        val deprecatedCards = functionCardDao.getDeprecatedCardsWithFsrsFlow().first()
-
-        assertEquals(1, deprecatedCards.size)
-        assertEquals("IV_MAJOR_4_ARPEGGIATED", deprecatedCards[0].id)
+        DeprecationTestHelper.testGetDeprecatedCardsWithFsrsFlowEmitsDeprecated(adapter)
     }
 
     @Test
     fun `countDeprecated returns correct count`() = runTest {
-        // Active cards
-        createFunctionCard(function = "IV")
-        createFunctionCard(function = "V")
-
-        // Deprecated cards
-        createFunctionCard(function = "vi", deprecated = true)
-        createFunctionCard(function = "ii", deprecated = true)
-        createFunctionCard(function = "iii", deprecated = true)
-
-        assertEquals(3, functionCardDao.countDeprecated())
+        DeprecationTestHelper.testCountDeprecatedReturnsCorrectCount(adapter)
     }
 
     @Test
     fun `getByIdWithFsrs returns deprecated cards for history display`() = runTest {
-        createFunctionCard(
-            function = "IV",
-            deprecated = true,
-            stability = 5.0,
-            difficulty = 4.0
-        )
-
-        val card = functionCardDao.getByIdWithFsrs("IV_MAJOR_4_ARPEGGIATED")
-
-        assertNotNull(card)
-        assertTrue(card!!.deprecated)
-        assertEquals("IV", card.function)
-        assertEquals(5.0, card.stability, 0.01)
+        DeprecationTestHelper.testGetByIdWithFsrsReturnsDeprecatedCards(adapter)
     }
 
-    // ========== Data Preservation Tests ==========
+    // ========== Data Preservation Tests (Shared) ==========
 
     @Test
     fun `setDeprecated preserves FSRS state`() = runTest {
-        val now = System.currentTimeMillis()
-        createFunctionCard(
-            function = "IV",
-            stability = 8.5,
-            difficulty = 3.2,
-            interval = 14,
-            reviewCount = 10,
-            lastReview = now - DAY_MS,
-            phase = 2,
-            lapses = 1
-        )
-
-        // Deprecate the card
-        functionCardDao.setDeprecated("IV_MAJOR_4_ARPEGGIATED", true)
-
-        // Verify FSRS state is preserved
-        val card = functionCardDao.getByIdWithFsrs("IV_MAJOR_4_ARPEGGIATED")
-        assertNotNull(card)
-        assertEquals(8.5, card!!.stability, 0.01)
-        assertEquals(3.2, card.difficulty, 0.01)
-        assertEquals(14, card.interval)
-        assertEquals(10, card.reviewCount)
-        assertEquals(2, card.phase)
-        assertEquals(1, card.lapses)
+        DeprecationTestHelper.testSetDeprecatedPreservesFsrsState(adapter, DAY_MS)
     }
 
     @Test
@@ -289,10 +249,8 @@ class FunctionCardDaoDeprecationTest : DatabaseTestBase() {
             unlocked = true
         )
 
-        // Deprecate the card
         functionCardDao.setDeprecated("IV_MINOR_5_BLOCK", true)
 
-        // Verify card fields are preserved
         val card = functionCardDao.getById("IV_MINOR_5_BLOCK")
         assertNotNull(card)
         assertEquals("IV", card!!.function)
@@ -303,69 +261,35 @@ class FunctionCardDaoDeprecationTest : DatabaseTestBase() {
         assertTrue(card.deprecated)
     }
 
-    // ========== Toggle Tests ==========
+    // ========== Toggle Tests (Shared) ==========
 
     @Test
     fun `setDeprecated sets deprecated flag`() = runTest {
-        createFunctionCard(function = "IV")
-
-        functionCardDao.setDeprecated("IV_MAJOR_4_ARPEGGIATED", true)
-
-        val card = functionCardDao.getById("IV_MAJOR_4_ARPEGGIATED")
-        assertTrue(card!!.deprecated)
+        DeprecationTestHelper.testSetDeprecatedSetsFlag(adapter)
     }
 
     @Test
     fun `setDeprecated false clears deprecated flag`() = runTest {
-        createFunctionCard(function = "IV", deprecated = true)
-
-        functionCardDao.setDeprecated("IV_MAJOR_4_ARPEGGIATED", false)
-
-        val card = functionCardDao.getById("IV_MAJOR_4_ARPEGGIATED")
-        assertFalse(card!!.deprecated)
+        DeprecationTestHelper.testSetDeprecatedFalseClearsFlag(adapter)
     }
 
     @Test
     fun `toggle deprecated back and forth works correctly`() = runTest {
-        createFunctionCard(function = "IV")
-
-        // Deprecate
-        functionCardDao.setDeprecated("IV_MAJOR_4_ARPEGGIATED", true)
-        assertTrue(functionCardDao.getById("IV_MAJOR_4_ARPEGGIATED")!!.deprecated)
-
-        // Un-deprecate
-        functionCardDao.setDeprecated("IV_MAJOR_4_ARPEGGIATED", false)
-        assertFalse(functionCardDao.getById("IV_MAJOR_4_ARPEGGIATED")!!.deprecated)
-
-        // Deprecate again
-        functionCardDao.setDeprecated("IV_MAJOR_4_ARPEGGIATED", true)
-        assertTrue(functionCardDao.getById("IV_MAJOR_4_ARPEGGIATED")!!.deprecated)
+        DeprecationTestHelper.testToggleDeprecatedBackAndForth(adapter)
     }
 
-    // ========== Edge Cases ==========
+    // ========== Edge Cases (Shared) ==========
 
     @Test
     fun `all cards deprecated returns empty due list`() = runTest {
         val now = System.currentTimeMillis()
-
-        createFunctionCard(function = "IV", deprecated = true, dueDate = now - HOUR_MS)
-        createFunctionCard(function = "V", deprecated = true, dueDate = now - HOUR_MS)
-
-        val dueCards = functionCardDao.getDueCards(now)
-
-        assertTrue(dueCards.isEmpty())
+        DeprecationTestHelper.testAllCardsDeprecatedReturnsEmptyDueList(adapter, now, HOUR_MS)
     }
 
     @Test
     fun `all cards deprecated returns empty non-due list`() = runTest {
         val now = System.currentTimeMillis()
-
-        createFunctionCard(function = "IV", deprecated = true, dueDate = now + HOUR_MS)
-        createFunctionCard(function = "V", deprecated = true, dueDate = now + HOUR_MS)
-
-        val nonDueCards = functionCardDao.getNonDueCards(now, 10)
-
-        assertTrue(nonDueCards.isEmpty())
+        DeprecationTestHelper.testAllCardsDeprecatedReturnsEmptyNonDueList(adapter, now, HOUR_MS)
     }
 
     @Test
@@ -380,36 +304,21 @@ class FunctionCardDaoDeprecationTest : DatabaseTestBase() {
 
     @Test
     fun `getAllCardsOrdered excludes deprecated cards`() = runTest {
-        createFunctionCard(function = "IV")
-        createFunctionCard(function = "V", deprecated = true)
-
-        val cards = functionCardDao.getAllCardsOrdered()
-
-        assertEquals(1, cards.size)
-        assertEquals("IV_MAJOR_4_ARPEGGIATED", cards[0].id)
+        DeprecationTestHelper.testGetAllCardsOrderedExcludesDeprecated(adapter)
     }
 
     @Test
     fun `getAllCardsWithFsrsOrdered excludes deprecated cards`() = runTest {
-        createFunctionCard(function = "IV")
-        createFunctionCard(function = "V", deprecated = true)
-
-        val cards = functionCardDao.getAllCardsWithFsrsOrdered()
-
-        assertEquals(1, cards.size)
-        assertEquals("IV_MAJOR_4_ARPEGGIATED", cards[0].id)
+        DeprecationTestHelper.testGetAllCardsWithFsrsOrderedExcludesDeprecated(adapter)
     }
 
     @Test
     fun `countDueFlow excludes deprecated cards`() = runTest {
         val now = System.currentTimeMillis()
-
-        createFunctionCard(function = "IV", dueDate = now - HOUR_MS)
-        createFunctionCard(function = "V", deprecated = true, dueDate = now - HOUR_MS)
-
-        val count = functionCardDao.countDueFlow(now).first()
-        assertEquals(1, count)
+        DeprecationTestHelper.testCountDueFlowExcludesDeprecated(adapter, now, HOUR_MS)
     }
+
+    // ========== FunctionCardDao-specific edge case ==========
 
     @Test
     fun `deprecated cards in different key qualities are both returned`() = runTest {

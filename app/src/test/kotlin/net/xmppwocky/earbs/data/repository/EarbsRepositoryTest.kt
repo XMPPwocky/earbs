@@ -1,7 +1,6 @@
 package net.xmppwocky.earbs.data.repository
 
 import kotlinx.coroutines.test.runTest
-import net.xmppwocky.earbs.data.DatabaseTestBase
 import net.xmppwocky.earbs.data.entity.CardEntity
 import net.xmppwocky.earbs.data.entity.FsrsStateEntity
 import net.xmppwocky.earbs.data.entity.FunctionCardEntity
@@ -12,26 +11,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Test
 
-class EarbsRepositoryTest : DatabaseTestBase() {
-
-    private lateinit var repository: EarbsRepository
-
-    @Before
-    fun setupRepository() {
-        repository = EarbsRepository(
-            cardDao = cardDao,
-            functionCardDao = functionCardDao,
-            progressionCardDao = progressionCardDao,
-            fsrsStateDao = fsrsStateDao,
-            reviewSessionDao = reviewSessionDao,
-            trialDao = trialDao,
-            historyDao = historyDao,
-            prefs = prefs
-        )
-    }
+class EarbsRepositoryTest : RepositoryTestBase() {
 
     // ========== Initialization Tests (Chord Type) ==========
 
