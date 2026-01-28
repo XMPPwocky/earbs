@@ -14,9 +14,12 @@ class ProgressionDeckTest {
     }
 
     @Test
-    fun `each unlock group has exactly 2 progressions`() {
+    fun `each unlock group has 1 or 2 progressions`() {
         ProgressionDeck.UNLOCK_ORDER.forEach { group ->
-            assertEquals(2, group.progressions.size)
+            assertTrue(
+                "Group should have 1-2 progressions, got ${group.progressions.size}",
+                group.progressions.size in 1..2
+            )
         }
     }
 
@@ -96,23 +99,27 @@ class ProgressionDeckTest {
     }
 
     @Test
-    fun `groups 24-29 are 5-chord major progressions`() {
+    fun `groups 24-29 are new 4-chord major progressions (replacing deprecated 5-chord)`() {
         for (i in 24..29) {
             val group = ProgressionDeck.UNLOCK_ORDER[i]
             group.progressions.forEach { prog ->
-                assertEquals("Group $i should have 5-chord progressions", 5, prog.semitoneOffsets.size)
+                assertEquals("Group $i should have 4-chord progressions", 4, prog.semitoneOffsets.size)
                 assertEquals("Group $i should have major progressions", KeyQuality.MAJOR, prog.keyQuality)
+                // These new progressions are in LOOP category (end on V, not I)
+                assertEquals("Group $i should have loop category", ProgressionCategory.LOOP, prog.category)
             }
         }
     }
 
     @Test
-    fun `groups 30-35 are 5-chord minor progressions`() {
+    fun `groups 30-35 are new 4-chord minor progressions (replacing deprecated 5-chord)`() {
         for (i in 30..35) {
             val group = ProgressionDeck.UNLOCK_ORDER[i]
             group.progressions.forEach { prog ->
-                assertEquals("Group $i should have 5-chord progressions", 5, prog.semitoneOffsets.size)
+                assertEquals("Group $i should have 4-chord progressions", 4, prog.semitoneOffsets.size)
                 assertEquals("Group $i should have minor progressions", KeyQuality.MINOR, prog.keyQuality)
+                // These new progressions are in LOOP category (end on v, not i)
+                assertEquals("Group $i should have loop category", ProgressionCategory.LOOP, prog.category)
             }
         }
     }
@@ -142,8 +149,10 @@ class ProgressionDeckTest {
     // ========== TOTAL_CARDS tests ==========
 
     @Test
-    fun `TOTAL_CARDS equals 96`() {
-        assertEquals(96, ProgressionDeck.TOTAL_CARDS)
+    fun `TOTAL_CARDS equals 84`() {
+        // 14 active progressions × 3 octaves × 2 modes = 84 active cards
+        // (4 deprecated 5-chord progressions are not counted)
+        assertEquals(84, ProgressionDeck.TOTAL_CARDS)
     }
 
     @Test
@@ -153,8 +162,9 @@ class ProgressionDeckTest {
     }
 
     @Test
-    fun `getAllCards returns 96 cards`() {
-        assertEquals(96, ProgressionDeck.getAllCards().size)
+    fun `getAllCards returns 84 cards`() {
+        // Only active progressions are in UNLOCK_ORDER
+        assertEquals(84, ProgressionDeck.getAllCards().size)
     }
 
     // ========== MAX_UNLOCK_LEVEL test ==========
@@ -190,10 +200,29 @@ class ProgressionDeckTest {
     // ========== ProgressionUnlockGroup validation tests ==========
 
     @Test
-    fun `ProgressionUnlockGroup requires exactly 2 progressions`() {
+    fun `ProgressionUnlockGroup accepts 1 or 2 progressions`() {
+        // 1 progression is valid
+        val singleGroup = ProgressionUnlockGroup(
+            listOf(ProgressionType.I_IV_I_MAJOR),
+            4,
+            PlaybackMode.ARPEGGIATED
+        )
+        assertEquals(1, singleGroup.progressions.size)
+
+        // 2 progressions is valid
+        val doubleGroup = ProgressionUnlockGroup(
+            listOf(ProgressionType.I_IV_I_MAJOR, ProgressionType.I_V_I_MAJOR),
+            4,
+            PlaybackMode.ARPEGGIATED
+        )
+        assertEquals(2, doubleGroup.progressions.size)
+    }
+
+    @Test
+    fun `ProgressionUnlockGroup with 0 progressions throws`() {
         assertThrows(IllegalArgumentException::class.java) {
             ProgressionUnlockGroup(
-                listOf(ProgressionType.I_IV_I_MAJOR),
+                emptyList(),
                 4,
                 PlaybackMode.ARPEGGIATED
             )
@@ -231,22 +260,41 @@ class ProgressionDeckTest {
     fun `all generated cards are unique`() {
         val allCards = ProgressionDeck.getAllCards()
         val uniqueIds = allCards.map { it.id }.toSet()
-        assertEquals(96, uniqueIds.size)
+        assertEquals(84, uniqueIds.size)
     }
 
     // ========== Each progression appears in all octaves and modes ==========
 
     @Test
-    fun `each progression appears in multiple octaves and modes`() {
+    fun `each active progression appears in multiple octaves and modes`() {
         val allCards = ProgressionDeck.getAllCards()
 
-        // Each progression should appear 6 times (3 octaves * 2 modes)
+        // Active progressions should appear 6 times (3 octaves * 2 modes)
+        // Deprecated 5-chord progressions should not appear in UNLOCK_ORDER
         val progressionCounts = allCards.groupBy { it.progression }.mapValues { it.value.size }
-        ProgressionType.entries.forEach { progression ->
+
+        // 14 active progressions in deck
+        assertEquals(14, progressionCounts.size)
+
+        progressionCounts.forEach { (progression, count) ->
             assertEquals(
                 "$progression should appear 6 times",
                 6,
-                progressionCounts[progression]
+                count
+            )
+        }
+
+        // Deprecated progressions should not be in the deck
+        val deprecatedProgressions = listOf(
+            ProgressionType.I_vi_ii_V_I_MAJOR,
+            ProgressionType.I_vi_IV_V_I_MAJOR,
+            ProgressionType.i_VI_iio_v_i_MINOR,
+            ProgressionType.i_VI_iv_v_i_MINOR
+        )
+        deprecatedProgressions.forEach { progression ->
+            assertFalse(
+                "Deprecated $progression should not be in deck",
+                progressionCounts.containsKey(progression)
             )
         }
     }

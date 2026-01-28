@@ -12,7 +12,7 @@ data class ProgressionUnlockGroup(
     val playbackMode: PlaybackMode
 ) {
     init {
-        require(progressions.size == 2) { "ProgressionUnlockGroup must have exactly 2 progressions, got ${progressions.size}" }
+        require(progressions.size in 1..2) { "ProgressionUnlockGroup must have 1-2 progressions, got ${progressions.size}" }
     }
 
     /**
@@ -29,19 +29,20 @@ data class ProgressionUnlockGroup(
  * Card model: (progression, octave, playback_mode)
  * Each progression has a fixed key quality (major or minor).
  *
- * 16 progression types (8 patterns × 2 key qualities):
+ * 14 active progression types:
  * - 3-chord: I-IV-I, I-V-I (major); i-iv-i, i-v-i (minor)
  * - 4-chord resolving: I-IV-V-I, I-ii-V-I (major); i-iv-v-i, i-ii°-v-i (minor)
- * - 5-chord: I-vi-ii-V-I, I-vi-IV-V-I (major); i-VI-ii°-v-i, i-VI-iv-v-i (minor)
+ * - New 4-chord: I-vi-ii-V (major); i-VI-ii°-v (minor) - replaced 5-chord versions
  * - Loops: I-V-vi-IV, I-vi-IV-V (major); i-v-VI-iv, i-VI-iv-v (minor)
  *
- * Total cards: 16 progressions × 3 octaves × 2 modes = 96 cards
- * Unlocked in 48 groups of 2 cards each.
+ * Total active cards: 14 progressions × 3 octaves × 2 modes = 84 cards
+ * (Plus 24 deprecated 5-chord cards preserved for historical data)
+ * Unlocked in 48 groups.
  *
  * Unlock order:
  * - 3-chord major, then 3-chord minor
- * - 4-chord major, then 4-chord minor
- * - 5-chord major, then 5-chord minor
+ * - 4-chord resolving major, then 4-chord resolving minor
+ * - New 4-chord major, then new 4-chord minor
  * - Loops major, then loops minor
  * - Within each: octave 4 first, then 3, then 5
  * - Within each octave: arpeggiated first, then block
@@ -81,19 +82,19 @@ object ProgressionDeck {
     )
 
     /**
-     * 5-chord major progressions.
+     * New 4-chord major progressions (replace deprecated 5-chord).
+     * Only I_vi_ii_V_MAJOR since I_vi_IV_V_MAJOR already exists in LOOPS_MAJOR.
      */
-    private val FIVE_CHORD_MAJOR = listOf(
-        ProgressionType.I_vi_ii_V_I_MAJOR,
-        ProgressionType.I_vi_IV_V_I_MAJOR
+    private val NEW_FOUR_CHORD_MAJOR = listOf(
+        ProgressionType.I_vi_ii_V_MAJOR
     )
 
     /**
-     * 5-chord minor progressions.
+     * New 4-chord minor progressions (replace deprecated 5-chord).
+     * Only i_VI_iio_v_MINOR since i_VI_iv_v_MINOR already exists in LOOPS_MINOR.
      */
-    private val FIVE_CHORD_MINOR = listOf(
-        ProgressionType.i_VI_iio_v_i_MINOR,
-        ProgressionType.i_VI_iv_v_i_MINOR
+    private val NEW_FOUR_CHORD_MINOR = listOf(
+        ProgressionType.i_VI_iio_v_MINOR
     )
 
     /**
@@ -131,17 +132,17 @@ object ProgressionDeck {
     }
 
     /**
-     * Full unlock order: 48 groups of 2 cards each.
+     * Full unlock order: 42 groups (36 with 2 cards + 6 with 1 card = 84 total cards).
      *
      * Order by complexity, then key quality:
-     * 0-5: 3-chord major
-     * 6-11: 3-chord minor
-     * 12-17: 4-chord major
-     * 18-23: 4-chord minor
-     * 24-29: 5-chord major
-     * 30-35: 5-chord minor
-     * 36-41: Loops major
-     * 42-47: Loops minor
+     * 0-5: 3-chord major (2 each)
+     * 6-11: 3-chord minor (2 each)
+     * 12-17: 4-chord major resolving (2 each)
+     * 18-23: 4-chord minor resolving (2 each)
+     * 24-29: New 4-chord major (1 each) - replaces deprecated 5-chord
+     * 30-35: New 4-chord minor (1 each) - replaces deprecated 5-chord
+     * 36-41: Loops major (2 each)
+     * 42-47: Loops minor (2 each)
      */
     val UNLOCK_ORDER: List<ProgressionUnlockGroup> = buildList {
         // 3-chord progressions
@@ -152,9 +153,9 @@ object ProgressionDeck {
         addAll(generateGroups(FOUR_CHORD_MAJOR))    // groups 12-17
         addAll(generateGroups(FOUR_CHORD_MINOR))    // groups 18-23
 
-        // 5-chord progressions
-        addAll(generateGroups(FIVE_CHORD_MAJOR))    // groups 24-29
-        addAll(generateGroups(FIVE_CHORD_MINOR))    // groups 30-35
+        // New 4-chord progressions (replacing deprecated 5-chord)
+        addAll(generateGroups(NEW_FOUR_CHORD_MAJOR))  // groups 24-29
+        addAll(generateGroups(NEW_FOUR_CHORD_MINOR))  // groups 30-35
 
         // Loop progressions
         addAll(generateGroups(LOOPS_MAJOR))         // groups 36-41
@@ -162,9 +163,11 @@ object ProgressionDeck {
     }
 
     /**
-     * Total number of cards when fully unlocked.
+     * Total number of active cards when fully unlocked.
+     * 14 active progressions × 3 octaves × 2 modes = 84 cards
+     * (4 deprecated 5-chord progressions × 6 variants = 24 deprecated cards not counted)
      */
-    const val TOTAL_CARDS = 96  // 16 progressions × 3 octaves × 2 modes
+    const val TOTAL_CARDS = 84
 
     /**
      * Maximum unlock level (0-indexed).
@@ -208,8 +211,8 @@ object ProgressionDeck {
             group.progressions.all { it in THREE_CHORD_MINOR } -> "3-chord Minor"
             group.progressions.all { it in FOUR_CHORD_MAJOR } -> "4-chord Major"
             group.progressions.all { it in FOUR_CHORD_MINOR } -> "4-chord Minor"
-            group.progressions.all { it in FIVE_CHORD_MAJOR } -> "5-chord Major"
-            group.progressions.all { it in FIVE_CHORD_MINOR } -> "5-chord Minor"
+            group.progressions.all { it in NEW_FOUR_CHORD_MAJOR } -> "4-chord Major (vi-ii-V)"
+            group.progressions.all { it in NEW_FOUR_CHORD_MINOR } -> "4-chord Minor (VI-ii°-v)"
             group.progressions.all { it in LOOPS_MAJOR } -> "Loops Major"
             group.progressions.all { it in LOOPS_MINOR } -> "Loops Minor"
             else -> "Mixed"

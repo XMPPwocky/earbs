@@ -25,7 +25,7 @@ private const val TAG = "EarbsDatabase"
         ReviewSessionEntity::class,
         TrialEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class EarbsDatabase : RoomDatabase() {
@@ -530,6 +530,59 @@ abstract class EarbsDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration from version 9 to 10:
+         * - Deprecate all 5-chord progression cards (4 progressions × 6 variants = 24 cards)
+         * - Create new 4-chord progression cards (2 progressions × 6 variants = 12 cards)
+         * - The 5-chord versions I-vi-IV-V-I and i-VI-iv-v-i already have 4-chord
+         *   equivalents in the LOOPS (I-vi-IV-V and i-VI-iv-v), so only 2 new progressions
+         *   need to be created: I-vi-ii-V and i-VI-ii°-v
+         */
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                Log.i(TAG, "Migrating database from version 9 to 10: deprecating 5-chord progressions")
+
+                // 1. Deprecate all 5-chord progression cards (4 progressions × 6 variants = 24 cards)
+                val fiveChordProgressions = listOf(
+                    "I_vi_ii_V_I_MAJOR",
+                    "I_vi_IV_V_I_MAJOR",
+                    "i_VI_iio_v_i_MINOR",
+                    "i_VI_iv_v_i_MINOR"
+                )
+                for (progression in fiveChordProgressions) {
+                    db.execSQL("UPDATE progression_cards SET deprecated = 1 WHERE progression = '$progression'")
+                }
+                Log.i(TAG, "Deprecated 24 five-chord progression cards")
+
+                // 2. Insert new 4-chord progression cards (2 progressions × 6 variants = 12 cards)
+                val newProgressions = listOf("I_vi_ii_V_MAJOR", "i_VI_iio_v_MINOR")
+                val octaves = listOf(4, 3, 5)
+                val modes = listOf("ARPEGGIATED", "BLOCK")
+                val now = System.currentTimeMillis()
+
+                for (progression in newProgressions) {
+                    for (octave in octaves) {
+                        for (mode in modes) {
+                            val id = "${progression}_${octave}_$mode"
+                            // Cards locked by default (unlocked = 0)
+                            db.execSQL("""
+                                INSERT OR IGNORE INTO progression_cards (id, progression, octave, playbackMode, unlocked, deprecated)
+                                VALUES ('$id', '$progression', $octave, '$mode', 0, 0)
+                            """.trimIndent())
+                            // Create FSRS state
+                            db.execSQL("""
+                                INSERT OR IGNORE INTO fsrs_state (cardId, gameType, stability, difficulty, `interval`, dueDate, reviewCount, lastReview, phase, lapses)
+                                VALUES ('$id', 'CHORD_PROGRESSION', 2.5, 2.5, 0, $now, 0, NULL, 0, 0)
+                            """.trimIndent())
+                        }
+                    }
+                }
+                Log.i(TAG, "Created 12 new 4-chord progression cards")
+
+                Log.i(TAG, "Migration 9->10 complete: deprecated 5-chord, added new 4-chord progressions")
+            }
+        }
+
         fun getDatabase(context: Context): EarbsDatabase {
             return INSTANCE ?: synchronized(this) {
                 Log.i(TAG, "Creating database instance")
@@ -538,7 +591,7 @@ abstract class EarbsDatabase : RoomDatabase() {
                     EarbsDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

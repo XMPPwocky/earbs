@@ -8,30 +8,35 @@ class ProgressionTypeTest {
     // ========== Progression count tests ==========
 
     @Test
-    fun `there are 16 progression types total`() {
-        assertEquals(16, ProgressionType.entries.size)
+    fun `there are 18 progression types total`() {
+        // 14 active + 4 deprecated 5-chord = 18 total
+        assertEquals(18, ProgressionType.entries.size)
     }
 
     @Test
-    fun `there are 8 major progressions`() {
-        assertEquals(8, ProgressionType.MAJOR_PROGRESSIONS.size)
+    fun `there are 9 major progressions`() {
+        // 8 original + 1 new (I_vi_ii_V_MAJOR)
+        assertEquals(9, ProgressionType.MAJOR_PROGRESSIONS.size)
     }
 
     @Test
-    fun `there are 8 minor progressions`() {
-        assertEquals(8, ProgressionType.MINOR_PROGRESSIONS.size)
+    fun `there are 9 minor progressions`() {
+        // 8 original + 1 new (i_VI_iio_v_MINOR)
+        assertEquals(9, ProgressionType.MINOR_PROGRESSIONS.size)
     }
 
     @Test
     fun `there are 12 resolving progressions (6 major + 6 minor)`() {
+        // Resolving progressions end on I (tonic)
         val resolving = ProgressionType.entries.filter { it.category == ProgressionCategory.RESOLVING }
         assertEquals(12, resolving.size)
     }
 
     @Test
-    fun `there are 4 loop progressions (2 major + 2 minor)`() {
+    fun `there are 6 loop progressions (3 major + 3 minor)`() {
+        // 4 original + 2 new (I_vi_ii_V_MAJOR, i_VI_iio_v_MINOR)
         val loops = ProgressionType.entries.filter { it.category == ProgressionCategory.LOOP }
-        assertEquals(4, loops.size)
+        assertEquals(6, loops.size)
     }
 
     // ========== Key quality tests ==========
@@ -140,6 +145,12 @@ class ProgressionTypeTest {
         assertEquals(listOf(0, 9, 5, 7), ProgressionType.I_vi_IV_V_MAJOR.semitoneOffsets)
     }
 
+    @Test
+    fun `I_vi_ii_V_MAJOR has correct semitone offsets`() {
+        // New 4-chord progression (replaces 5-chord I-vi-ii-V-I)
+        assertEquals(listOf(0, 9, 2, 7), ProgressionType.I_vi_ii_V_MAJOR.semitoneOffsets)
+    }
+
     // ========== Minor semitone offset tests ==========
 
     @Test
@@ -203,6 +214,20 @@ class ProgressionTypeTest {
         )
     }
 
+    @Test
+    fun `I_vi_ii_V_MAJOR has correct qualities`() {
+        // New 4-chord progression (replaces 5-chord I-vi-ii-V-I)
+        assertEquals(
+            listOf(
+                ChordQuality.MAJOR,  // I
+                ChordQuality.MINOR,  // vi
+                ChordQuality.MINOR,  // ii
+                ChordQuality.MAJOR   // V
+            ),
+            ProgressionType.I_vi_ii_V_MAJOR.chordQualities
+        )
+    }
+
     // ========== Minor key chord quality tests ==========
 
     @Test
@@ -248,6 +273,26 @@ class ProgressionTypeTest {
         )
     }
 
+    @Test
+    fun `i_VI_iio_v_MINOR has correct qualities`() {
+        // New 4-chord progression (replaces 5-chord i-VI-ii°-v-i)
+        assertEquals(
+            listOf(
+                ChordQuality.MINOR,      // i
+                ChordQuality.MAJOR,      // VI
+                ChordQuality.DIMINISHED, // ii°
+                ChordQuality.MINOR       // v
+            ),
+            ProgressionType.i_VI_iio_v_MINOR.chordQualities
+        )
+    }
+
+    @Test
+    fun `i_VI_iio_v_MINOR has correct semitone offsets`() {
+        // New 4-chord progression (replaces 5-chord i-VI-ii°-v-i)
+        assertEquals(listOf(0, 9, 2, 7), ProgressionType.i_VI_iio_v_MINOR.semitoneOffsets)
+    }
+
     // ========== Quality count matches chord count ==========
 
     @Test
@@ -274,6 +319,7 @@ class ProgressionTypeTest {
 
     @Test
     fun `FOUR_CHORD_RESOLVING contains 4 progressions (2 major + 2 minor)`() {
+        // Only progressions that end on I (not the new ones that end on V)
         assertEquals(4, ProgressionType.FOUR_CHORD_RESOLVING.size)
         assertTrue(ProgressionType.FOUR_CHORD_RESOLVING.contains(ProgressionType.I_IV_V_I_MAJOR))
         assertTrue(ProgressionType.FOUR_CHORD_RESOLVING.contains(ProgressionType.I_ii_V_I_MAJOR))
@@ -291,12 +337,15 @@ class ProgressionTypeTest {
     }
 
     @Test
-    fun `LOOPS contains 4 progressions (2 major + 2 minor)`() {
-        assertEquals(4, ProgressionType.LOOPS.size)
+    fun `LOOPS contains 6 progressions (3 major + 3 minor)`() {
+        // 4 original + 2 new (I_vi_ii_V_MAJOR, i_VI_iio_v_MINOR)
+        assertEquals(6, ProgressionType.LOOPS.size)
         assertTrue(ProgressionType.LOOPS.contains(ProgressionType.I_V_vi_IV_MAJOR))
         assertTrue(ProgressionType.LOOPS.contains(ProgressionType.I_vi_IV_V_MAJOR))
+        assertTrue(ProgressionType.LOOPS.contains(ProgressionType.I_vi_ii_V_MAJOR))
         assertTrue(ProgressionType.LOOPS.contains(ProgressionType.i_v_VI_iv_MINOR))
         assertTrue(ProgressionType.LOOPS.contains(ProgressionType.i_VI_iv_v_MINOR))
+        assertTrue(ProgressionType.LOOPS.contains(ProgressionType.i_VI_iio_v_MINOR))
     }
 
     // ========== Display name tests ==========
@@ -307,6 +356,7 @@ class ProgressionTypeTest {
         assertEquals("I - V - I", ProgressionType.I_V_I_MAJOR.displayName)
         assertEquals("I - IV - V - I", ProgressionType.I_IV_V_I_MAJOR.displayName)
         assertEquals("I - ii - V - I", ProgressionType.I_ii_V_I_MAJOR.displayName)
+        assertEquals("I - vi - ii - V", ProgressionType.I_vi_ii_V_MAJOR.displayName)
         assertEquals("I - vi - ii - V - I", ProgressionType.I_vi_ii_V_I_MAJOR.displayName)
         assertEquals("I - vi - IV - V - I", ProgressionType.I_vi_IV_V_I_MAJOR.displayName)
         assertEquals("I - V - vi - IV", ProgressionType.I_V_vi_IV_MAJOR.displayName)
@@ -319,6 +369,7 @@ class ProgressionTypeTest {
         assertEquals("i - v - i", ProgressionType.i_v_i_MINOR.displayName)
         assertEquals("i - iv - v - i", ProgressionType.i_iv_v_i_MINOR.displayName)
         assertEquals("i - ii° - v - i", ProgressionType.i_iio_v_i_MINOR.displayName)
+        assertEquals("i - VI - ii° - v", ProgressionType.i_VI_iio_v_MINOR.displayName)
         assertEquals("i - VI - ii° - v - i", ProgressionType.i_VI_iio_v_i_MINOR.displayName)
         assertEquals("i - VI - iv - v - i", ProgressionType.i_VI_iv_v_i_MINOR.displayName)
         assertEquals("i - v - VI - iv", ProgressionType.i_v_VI_iv_MINOR.displayName)

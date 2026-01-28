@@ -12,17 +12,18 @@ enum class ProgressionCategory {
  * Chord progression types for ear training.
  *
  * Each progression has a fixed key quality (major or minor) and fixed chord qualities.
- * There are 8 progression patterns, each available in both major and minor keys,
- * for 16 total progressions.
+ * There are 18 total progressions (14 active + 4 deprecated 5-chord).
  *
  * Major progressions use uppercase Roman numerals: I-IV-V-I
  * Minor progressions use lowercase Roman numerals: i-iv-v-i
  *
- * Progression patterns:
+ * Progression patterns (active):
  * - 3-chord resolving: I-IV-I, I-V-I
- * - 4-chord resolving: I-IV-V-I, I-ii-V-I
- * - 5-chord resolving: I-vi-ii-V-I, I-vi-IV-V-I
- * - 4-chord loops: I-V-vi-IV, I-vi-IV-V
+ * - 4-chord resolving: I-IV-V-I, I-ii-V-I, I-vi-ii-V, I-vi-IV-V (loop used as resolving)
+ * - 4-chord loops: I-V-vi-IV, i-v-VI-iv
+ *
+ * Deprecated 5-chord progressions (kept for historical data):
+ * - I-vi-ii-V-I, I-vi-IV-V-I, i-VI-ii°-v-i, i-VI-iv-v-i
  */
 enum class ProgressionType(
     val displayName: String,
@@ -72,7 +73,20 @@ enum class ProgressionType(
         )
     ),
 
-    // 5-chord progressions (resolving)
+    // New 4-chord progression (replaces 5-chord I-vi-ii-V-I)
+    // Categorized as LOOP since it ends on V (doesn't resolve to I)
+    I_vi_ii_V_MAJOR(
+        displayName = "I - vi - ii - V",
+        semitoneOffsets = listOf(0, 9, 2, 7),
+        category = ProgressionCategory.LOOP,
+        keyQuality = KeyQuality.MAJOR,
+        // vi is minor, ii is minor in major key
+        chordQualities = listOf(
+            ChordQuality.MAJOR, ChordQuality.MINOR, ChordQuality.MINOR, ChordQuality.MAJOR
+        )
+    ),
+
+    // 5-chord progressions (resolving) - DEPRECATED: kept for historical data
     I_vi_ii_V_I_MAJOR(
         displayName = "I - vi - ii - V - I",
         semitoneOffsets = listOf(0, 9, 2, 7, 0),
@@ -161,7 +175,20 @@ enum class ProgressionType(
         )
     ),
 
-    // 5-chord progressions (resolving)
+    // New 4-chord progression (replaces 5-chord i-VI-ii°-v-i)
+    // Categorized as LOOP since it ends on v (doesn't resolve to i)
+    i_VI_iio_v_MINOR(
+        displayName = "i - VI - ii° - v",
+        semitoneOffsets = listOf(0, 9, 2, 7),
+        category = ProgressionCategory.LOOP,
+        keyQuality = KeyQuality.MINOR,
+        // VI is major, ii° is diminished in minor key
+        chordQualities = listOf(
+            ChordQuality.MINOR, ChordQuality.MAJOR, ChordQuality.DIMINISHED, ChordQuality.MINOR
+        )
+    ),
+
+    // 5-chord progressions (resolving) - DEPRECATED: kept for historical data
     i_VI_iio_v_i_MINOR(
         displayName = "i - VI - ii° - v - i",
         semitoneOffsets = listOf(0, 9, 2, 7, 0),
