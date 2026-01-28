@@ -26,6 +26,9 @@ import kotlinx.coroutines.launch
 import net.xmppwocky.earbs.audio.AudioEngine
 import net.xmppwocky.earbs.audio.ChordBuilder
 import net.xmppwocky.earbs.audio.ChordType
+import net.xmppwocky.earbs.audio.IntervalBuilder
+import net.xmppwocky.earbs.audio.IntervalStrategy
+import net.xmppwocky.earbs.audio.IntervalType
 import net.xmppwocky.earbs.audio.ProgressionStrategy
 import net.xmppwocky.earbs.data.backup.DatabaseBackupManager
 import net.xmppwocky.earbs.data.db.EarbsDatabase
@@ -36,6 +39,7 @@ import net.xmppwocky.earbs.model.ChordFunction
 import net.xmppwocky.earbs.model.FunctionCard
 import net.xmppwocky.earbs.model.GameAnswer
 import net.xmppwocky.earbs.model.GenericReviewSession
+import net.xmppwocky.earbs.model.IntervalCard
 import net.xmppwocky.earbs.model.ProgressionCard
 import net.xmppwocky.earbs.model.ProgressionType
 import net.xmppwocky.earbs.ui.AnswerResult
@@ -48,6 +52,8 @@ import net.xmppwocky.earbs.ui.FunctionReviewScreen
 import net.xmppwocky.earbs.ui.FunctionReviewScreenState
 import net.xmppwocky.earbs.ui.GenericAnswerResult
 import net.xmppwocky.earbs.ui.HistoryScreen
+import net.xmppwocky.earbs.ui.IntervalReviewScreen
+import net.xmppwocky.earbs.ui.IntervalReviewState
 import net.xmppwocky.earbs.ui.ProgressionReviewScreen
 import net.xmppwocky.earbs.ui.ProgressionReviewState
 import net.xmppwocky.earbs.ui.HomeScreen
@@ -72,6 +78,7 @@ enum class Screen {
     REVIEW,
     FUNCTION_REVIEW,
     PROGRESSION_REVIEW,
+    INTERVAL_REVIEW,
     RESULTS,
     HISTORY,
     CARD_DETAILS,
@@ -261,6 +268,7 @@ private fun EarbsApp(
     var progressionUnlockedCount by remember { mutableIntStateOf(0) }
 
     // Interval game state
+    var intervalSession by remember { mutableStateOf<GenericReviewSession<IntervalCard>?>(null) }
     var intervalDueCount by remember { mutableIntStateOf(0) }
     var intervalUnlockedCount by remember { mutableIntStateOf(0) }
 
@@ -366,8 +374,15 @@ private fun EarbsApp(
                                 currentScreen = Screen.PROGRESSION_REVIEW
                             }
                             GameType.INTERVAL -> {
-                                Log.i(TAG, "Interval review not yet implemented")
-                                // TODO: Implement interval review session
+                                Log.i(TAG, "Starting interval review session")
+                                val cards = repository.selectIntervalCardsForReview()
+                                if (cards.isEmpty()) {
+                                    Log.w(TAG, "No interval cards available for session")
+                                    return@launch
+                                }
+                                intervalSession = GenericReviewSession(cards, "interval")
+                                dbSessionId = repository.startSession(GameType.INTERVAL)
+                                currentScreen = Screen.INTERVAL_REVIEW
                             }
                         }
                     }
@@ -469,6 +484,35 @@ private fun EarbsApp(
             }
         }
 
+        Screen.INTERVAL_REVIEW -> {
+            intervalSession?.let { activeSession ->
+                IntervalReviewSessionScreen(
+                    session = activeSession,
+                    sessionId = dbSessionId ?: 0L,
+                    repository = repository,
+                    prefs = prefs,
+                    onSessionComplete = { result ->
+                        coroutineScope.launch {
+                            Log.i(TAG, "Interval session complete: ${result.correctCount}/${result.totalTrials}")
+                            dbSessionId?.let { repository.completeSession(it) }
+                            intervalDueCount = repository.getIntervalDueCount()
+                            sessionResult = result
+                            currentScreen = Screen.RESULTS
+                        }
+                    },
+                    onAbortSession = {
+                        Log.i(TAG, "Interval session aborted by user")
+                        intervalSession = null
+                        dbSessionId = null
+                        currentScreen = Screen.HOME
+                    }
+                )
+            } ?: run {
+                Log.w(TAG, "Interval review screen but no session, returning to home")
+                currentScreen = Screen.HOME
+            }
+        }
+
         Screen.RESULTS -> {
             sessionResult?.let { result ->
                 ResultsScreen(
@@ -479,6 +523,7 @@ private fun EarbsApp(
                         chordTypeSession = null
                         functionSession = null
                         progressionSession = null
+                        intervalSession = null
                         dbSessionId = null
                         sessionResult = null
                         currentScreen = Screen.HOME
@@ -1184,6 +1229,197 @@ private fun ProgressionReviewSessionScreen(
 
                 // Auto-play next progression
                 playCurrentProgression()
+            }
+        },
+        onAbortSession = onAbortSession
+    )
+}
+
+/**
+ * Interval Review Session Screen - manages state and audio for interval game.
+ */
+@Composable
+private fun IntervalReviewSessionScreen(
+    session: GenericReviewSession<IntervalCard>,
+    sessionId: Long,
+    repository: EarbsRepository,
+    prefs: SharedPreferences,
+    onSessionComplete: (SessionResult) -> Unit,
+    onAbortSession: () -> Unit
+) {
+    val initialCard = session.getCurrentCard()
+    var reviewState by remember {
+        mutableStateOf(
+            IntervalReviewState(
+                session = session,
+                currentCard = initialCard,
+                currentRootSemitones = initialCard?.let { IntervalBuilder.randomRootInOctave(it.octave) }
+            )
+        )
+    }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Read settings from prefs
+    val autoAdvanceDelayMs = prefs.getInt(PREF_KEY_AUTO_ADVANCE_DELAY, DEFAULT_AUTO_ADVANCE_DELAY).toLong()
+    val learnFromMistakesEnabled = prefs.getBoolean(PREF_KEY_LEARN_FROM_MISTAKES, DEFAULT_LEARN_FROM_MISTAKES)
+    val playbackDuration = prefs.getInt(PREF_KEY_PLAYBACK_DURATION, DEFAULT_PLAYBACK_DURATION)
+
+    // Play arbitrary interval (for learning mode)
+    fun playInterval(intervalType: IntervalType) {
+        val currentCard = reviewState.currentCard ?: return
+        val rootSemitones = reviewState.currentRootSemitones ?: return
+
+        Log.i(TAG, "Playing interval ${intervalType.displayName} for learning mode")
+        reviewState = reviewState.copy(isPlaying = true)
+
+        coroutineScope.launch {
+            try {
+                IntervalStrategy.playAnswer(
+                    answer = GameAnswer.IntervalAnswer(intervalType),
+                    card = currentCard,
+                    rootSemitones = rootSemitones,
+                    durationMs = playbackDuration
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Error playing interval", e)
+            } finally {
+                reviewState = reviewState.copy(isPlaying = false)
+            }
+        }
+    }
+
+    // Shared play function for both manual play and auto-play
+    fun playCurrentInterval() {
+        val currentCard = reviewState.currentCard ?: return
+        val rootSemitones = reviewState.currentRootSemitones ?: return
+
+        Log.i(TAG, "Playing interval for trial ${session.currentTrial + 1}")
+        Log.i(TAG, "Playing interval ${currentCard.displayName}, root: $rootSemitones, direction: ${currentCard.direction}")
+
+        reviewState = reviewState.copy(
+            isPlaying = true,
+            lastAnswer = null
+        )
+
+        coroutineScope.launch {
+            try {
+                IntervalStrategy.playCard(
+                    card = currentCard,
+                    rootSemitones = rootSemitones,
+                    durationMs = playbackDuration
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Error playing interval", e)
+            } finally {
+                reviewState = reviewState.copy(
+                    isPlaying = false,
+                    hasPlayedThisTrial = true
+                )
+                Log.i(TAG, "Interval playback finished, ready for answer")
+            }
+        }
+    }
+
+    IntervalReviewScreen(
+        state = reviewState,
+        autoAdvanceDelayMs = autoAdvanceDelayMs,
+        onPlayClicked = {
+            Log.i(TAG, "Play button clicked for interval trial ${session.currentTrial + 1}")
+            playCurrentInterval()
+        },
+        onAnswerClicked = { answeredInterval ->
+            val currentCard = reviewState.currentCard ?: return@IntervalReviewScreen
+
+            Log.i(TAG, "Interval answer clicked: ${answeredInterval.displayName}")
+
+            val isCorrect = answeredInterval == currentCard.interval
+
+            val result = if (isCorrect) {
+                Log.i(TAG, "CORRECT! User answered ${answeredInterval.displayName}")
+                GenericAnswerResult.Correct<GameAnswer.IntervalAnswer>()
+            } else {
+                Log.i(TAG, "WRONG! User answered ${answeredInterval.displayName}, actual was ${currentCard.interval.displayName}")
+                GenericAnswerResult.Wrong(
+                    actualAnswer = GameAnswer.IntervalAnswer(currentCard.interval),
+                    selectedAnswer = GameAnswer.IntervalAnswer(answeredInterval)
+                )
+            }
+
+            coroutineScope.launch {
+                repository.recordIntervalTrialAndUpdateFsrs(sessionId, currentCard, isCorrect, answeredInterval)
+            }
+
+            session.recordAnswer(isCorrect)
+
+            val enterLearningMode = learnFromMistakesEnabled && !isCorrect
+            reviewState = reviewState.copy(
+                lastAnswer = result,
+                showingFeedback = true,
+                inLearningMode = enterLearningMode
+            )
+
+            // Auto-play incorrect interval if entering learning mode
+            if (enterLearningMode) {
+                Log.i(TAG, "Entering learning mode - playing incorrect interval: ${answeredInterval.displayName}")
+                playInterval(answeredInterval)
+            }
+        },
+        onTrialComplete = {
+            val nextCard = session.getCurrentCard()
+            val nextRootSemitones = nextCard?.let { IntervalBuilder.randomRootInOctave(it.octave) }
+            Log.i(TAG, "Interval trial complete, next card: ${nextCard?.displayName}, root: $nextRootSemitones")
+
+            reviewState = reviewState.copy(
+                currentCard = nextCard,
+                currentRootSemitones = nextRootSemitones,
+                lastAnswer = null,
+                hasPlayedThisTrial = false,
+                showingFeedback = false,
+                inLearningMode = false
+            )
+        },
+        onAutoPlay = {
+            Log.i(TAG, "Auto-playing next interval")
+            playCurrentInterval()
+        },
+        onSessionComplete = {
+            onSessionComplete(SessionResult(
+                correctCount = session.correctCount,
+                totalTrials = session.totalTrials,
+                sessionId = sessionId,
+                gameType = GameType.INTERVAL.name
+            ))
+        },
+        onPlayInterval = { intervalType ->
+            Log.i(TAG, "Learning mode: playing interval ${intervalType.displayName}")
+            playInterval(intervalType)
+        },
+        onNextClicked = {
+            Log.i(TAG, "Learning mode: Next clicked")
+            if (session.isComplete()) {
+                Log.i(TAG, "Interval session complete after learning mode, navigating to results")
+                onSessionComplete(SessionResult(
+                    correctCount = session.correctCount,
+                    totalTrials = session.totalTrials,
+                    sessionId = sessionId,
+                    gameType = GameType.INTERVAL.name
+                ))
+            } else {
+                Log.i(TAG, "Advancing to next interval trial")
+                val nextCard = session.getCurrentCard()
+                val nextRootSemitones = nextCard?.let { IntervalBuilder.randomRootInOctave(it.octave) }
+
+                reviewState = reviewState.copy(
+                    currentCard = nextCard,
+                    currentRootSemitones = nextRootSemitones,
+                    lastAnswer = null,
+                    hasPlayedThisTrial = false,
+                    showingFeedback = false,
+                    inLearningMode = false
+                )
+
+                // Auto-play next interval
+                playCurrentInterval()
             }
         },
         onAbortSession = onAbortSession
