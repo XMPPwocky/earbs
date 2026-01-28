@@ -18,13 +18,36 @@ Android app (Kotlin, Jetpack Compose) for ear training chord recognition using F
 - Package name: `net.xmppwocky.earbs`
 - Source directory: `app/src/main/kotlin/` (not `java/`)
 
-## Core Concepts
+## Game Types
 
-- **Card**: A `(chord_type, octave, playback_mode)` tuple. User answers chord type only.
-- **Octaves**: 3, 4, 5 (octave 4 is starting point)
-- **Review session**: 20 cards, 1 trial each, shuffled randomly
+Three ear training games, each with its own card type and deck:
 
-## Chord Types & Intervals (semitones from root)
+| Game | Card tuple | Total cards | Answer options |
+|------|------------|-------------|----------------|
+| Chord Type | `(chord_type, octave, mode)` | 48 | Session-based (distinct types in session) |
+| Chord Function | `(function, key_quality, octave, mode)` | 72 | Card-based (all functions for key) |
+| Chord Progression | `(progression, octave, mode)` | 84 | Session-based (distinct progressions) |
+
+All games share: octaves 3/4/5, playback modes arpeggiated/block, FSRS scheduling.
+
+## Architecture
+
+Key abstractions for game-agnostic code:
+- **`GameCard`** - Interface for all card types (`id`, `octave`, `playbackMode`, `displayName`)
+- **`GameTypeConfig<C, A>`** - Sealed class with game-specific behavior (answer options, correctness checking, unlock groups)
+- **`GameCardOperations<C>`** - Interface for card database operations (due cards, unlock, FSRS updates)
+- **`GenericReviewSession<C>`** - Type-parameterized session that works with any card type
+
+Database: FSRS state stored separately from card data (`fsrs_state` table with `gameType` discriminator).
+
+## Card Deprecation
+
+Cards can be deprecated at the app level (e.g., when removing a progression type):
+- `deprecated` column on all card tables (default 0)
+- Deprecated cards excluded from reviews but historical data preserved
+- Migration adds new cards and marks old ones deprecated atomically
+
+## Chord Types (for Chord Type game)
 
 | Type   | Intervals      |
 |--------|----------------|
@@ -37,29 +60,15 @@ Android app (Kotlin, Jetpack Compose) for ear training chord recognition using F
 | Min7   | 0, 3, 7, 10    |
 | Dim7   | 0, 3, 6, 9     |
 
-## Per-Trial FSRS Grading
+## FSRS & Card Selection
 
-Each trial immediately updates FSRS for that card:
-- **Correct** → Good rating (interval extends)
-- **Wrong** → Again rating (card becomes due soon)
+Per-trial grading: Correct → Good, Wrong → Again.
 
-## Card Selection Algorithm
-
-1. Get due cards (next_review ≤ now)
-2. If ≥20 due, take the 20 most overdue
-3. If <20 due, pad with non-due cards (reviewing early)
+Card selection (all games):
+1. Get unlocked, non-deprecated, due cards
+2. If ≥20 due, take 20 most overdue
+3. If <20 due, pad with non-due cards
 4. Shuffle randomly
-5. Run session with those 20 cards
-
-## Starting Deck & Unlock Order
-
-Cards unlock in groups of 4:
-1. Major, Minor, Sus2, Sus4 @ octave 4, arpeggiated *(starting deck)*
-2. Major, Minor, Sus2, Sus4 @ octave 4, block
-3. Major, Minor, Sus2, Sus4 @ octave 3, arpeggiated
-4. (continues expanding octaves and modes, then 7th chords)
-
-Total: 48 cards (8 types × 3 octaves × 2 modes)
 
 ## Audio
 
@@ -105,9 +114,9 @@ Check emulator status: `adb devices`
 
 | Category | Location | Examples |
 |----------|----------|----------|
-| DAO tests | `data/db/` | CardDaoTest, FunctionCardDaoTest, TrialDaoTest |
+| DAO tests | `data/db/` | CardDaoTest, FunctionCardDaoTest, *DaoDeprecationTest |
 | Repository tests | `data/repository/` | EarbsRepositoryTest, CardSelectionTest |
-| Model tests | `model/` | DeckTest, ReviewSessionTest, ProgressionTypeTest |
+| Model tests | `model/` | DeckTest, ProgressionDeckTest, ProgressionTypeTest |
 | Audio tests | `audio/` | AudioEngineTest, ChordBuilderTest |
 | UI tests (instrumented) | `ui/` | ReviewScreenTest, HistoryScreenTest |
 
