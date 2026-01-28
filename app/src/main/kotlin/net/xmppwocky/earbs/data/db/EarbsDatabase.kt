@@ -10,6 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import net.xmppwocky.earbs.data.entity.CardEntity
 import net.xmppwocky.earbs.data.entity.FunctionCardEntity
 import net.xmppwocky.earbs.data.entity.FsrsStateEntity
+import net.xmppwocky.earbs.data.entity.IntervalCardEntity
 import net.xmppwocky.earbs.data.entity.ProgressionCardEntity
 import net.xmppwocky.earbs.data.entity.ReviewSessionEntity
 import net.xmppwocky.earbs.data.entity.TrialEntity
@@ -21,17 +22,19 @@ private const val TAG = "EarbsDatabase"
         CardEntity::class,
         FunctionCardEntity::class,
         ProgressionCardEntity::class,
+        IntervalCardEntity::class,
         FsrsStateEntity::class,
         ReviewSessionEntity::class,
         TrialEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 abstract class EarbsDatabase : RoomDatabase() {
     abstract fun cardDao(): CardDao
     abstract fun functionCardDao(): FunctionCardDao
     abstract fun progressionCardDao(): ProgressionCardDao
+    abstract fun intervalCardDao(): IntervalCardDao
     abstract fun fsrsStateDao(): FsrsStateDao
     abstract fun reviewSessionDao(): ReviewSessionDao
     abstract fun trialDao(): TrialDao
@@ -583,6 +586,84 @@ abstract class EarbsDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration from version 10 to 11:
+         * - Create interval_cards table for interval recognition game
+         * - Pre-create all 108 interval cards (12 intervals × 3 octaves × 3 directions)
+         * - Create FSRS state for all interval cards
+         * - Add answeredInterval column to trials table
+         */
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                Log.i(TAG, "Migrating database from version 10 to 11: adding interval recognition game")
+
+                // 1. Create interval_cards table
+                Log.i(TAG, "Creating interval_cards table")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS interval_cards (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        interval TEXT NOT NULL,
+                        octave INTEGER NOT NULL,
+                        direction TEXT NOT NULL,
+                        unlocked INTEGER NOT NULL DEFAULT 1,
+                        deprecated INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+
+                // 2. Add answeredInterval column to trials table
+                Log.i(TAG, "Adding answeredInterval column to trials table")
+                db.execSQL("ALTER TABLE trials ADD COLUMN answeredInterval TEXT")
+
+                // 3. Pre-create all 108 interval cards
+                // Unlock order: PERFECT_5TH, OCTAVE, MAJOR_3RD, MINOR_3RD, PERFECT_4TH,
+                //               MAJOR_2ND, MINOR_2ND, MAJOR_6TH, MINOR_6TH, MINOR_7TH, MAJOR_7TH, TRITONE
+                // Starting deck: PERFECT_5TH at octave 4, all 3 directions (unlocked)
+                Log.i(TAG, "Pre-creating interval cards")
+
+                val intervals = listOf(
+                    "MINOR_2ND", "MAJOR_2ND", "MINOR_3RD", "MAJOR_3RD",
+                    "PERFECT_4TH", "TRITONE", "PERFECT_5TH", "MINOR_6TH",
+                    "MAJOR_6TH", "MINOR_7TH", "MAJOR_7TH", "OCTAVE"
+                )
+                val octaves = listOf(3, 4, 5)
+                val directions = listOf("ASCENDING", "DESCENDING", "HARMONIC")
+
+                // Starting deck: PERFECT_5TH at octave 4
+                val startingIds = setOf(
+                    "PERFECT_5TH_4_ASCENDING",
+                    "PERFECT_5TH_4_DESCENDING",
+                    "PERFECT_5TH_4_HARMONIC"
+                )
+
+                for (interval in intervals) {
+                    for (octave in octaves) {
+                        for (direction in directions) {
+                            val id = "${interval}_${octave}_$direction"
+                            val unlocked = if (startingIds.contains(id)) 1 else 0
+                            db.execSQL("""
+                                INSERT OR IGNORE INTO interval_cards (id, interval, octave, direction, unlocked, deprecated)
+                                VALUES ('$id', '$interval', $octave, '$direction', $unlocked, 0)
+                            """.trimIndent())
+                        }
+                    }
+                }
+
+                Log.i(TAG, "Inserted 108 interval cards")
+
+                // 4. Create FSRS state for all interval cards
+                val now = System.currentTimeMillis()
+                db.execSQL("""
+                    INSERT OR IGNORE INTO fsrs_state (cardId, gameType, stability, difficulty, `interval`, dueDate, reviewCount, lastReview, phase, lapses)
+                    SELECT id, 'INTERVAL', 2.5, 2.5, 0, $now, 0, NULL, 0, 0
+                    FROM interval_cards
+                    WHERE id NOT IN (SELECT cardId FROM fsrs_state WHERE gameType = 'INTERVAL')
+                """.trimIndent())
+
+                Log.i(TAG, "Created FSRS state for interval cards")
+                Log.i(TAG, "Migration 10->11 complete: added interval recognition game support")
+            }
+        }
+
         fun getDatabase(context: Context): EarbsDatabase {
             return INSTANCE ?: synchronized(this) {
                 Log.i(TAG, "Creating database instance")
@@ -591,7 +672,7 @@ abstract class EarbsDatabase : RoomDatabase() {
                     EarbsDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

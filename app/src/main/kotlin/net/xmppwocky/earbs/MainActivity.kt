@@ -124,6 +124,7 @@ class MainActivity : ComponentActivity() {
             cardDao = database.cardDao(),
             functionCardDao = database.functionCardDao(),
             progressionCardDao = database.progressionCardDao(),
+            intervalCardDao = database.intervalCardDao(),
             fsrsStateDao = database.fsrsStateDao(),
             reviewSessionDao = database.reviewSessionDao(),
             trialDao = database.trialDao(),
@@ -211,6 +212,7 @@ class MainActivity : ComponentActivity() {
             cardDao = database.cardDao(),
             functionCardDao = database.functionCardDao(),
             progressionCardDao = database.progressionCardDao(),
+            intervalCardDao = database.intervalCardDao(),
             fsrsStateDao = database.fsrsStateDao(),
             reviewSessionDao = database.reviewSessionDao(),
             trialDao = database.trialDao(),
@@ -258,6 +260,10 @@ private fun EarbsApp(
     var progressionDueCount by remember { mutableIntStateOf(0) }
     var progressionUnlockedCount by remember { mutableIntStateOf(0) }
 
+    // Interval game state
+    var intervalDueCount by remember { mutableIntStateOf(0) }
+    var intervalUnlockedCount by remember { mutableIntStateOf(0) }
+
     // Shared state
     var dbSessionId by remember { mutableStateOf<Long?>(null) }
     var sessionResult by remember { mutableStateOf<SessionResult?>(null) }
@@ -285,11 +291,17 @@ private fun EarbsApp(
         progressionDueCount = repository.getProgressionDueCount()
         progressionUnlockedCount = repository.getProgressionUnlockedCount()
 
+        // Initialize interval game (verify FSRS state exists for all cards)
+        repository.initializeIntervalStartingDeck()
+        intervalDueCount = repository.getIntervalDueCount()
+        intervalUnlockedCount = repository.getIntervalUnlockedCount()
+
         isLoading = false
         Log.i(TAG, "Initialization complete")
         Log.i(TAG, "  Chord type: $chordTypeDueCount due, $chordTypeUnlockedCount unlocked")
         Log.i(TAG, "  Function: $functionDueCount due, $functionUnlockedCount unlocked")
         Log.i(TAG, "  Progression: $progressionDueCount due, $progressionUnlockedCount unlocked")
+        Log.i(TAG, "  Interval: $intervalDueCount due, $intervalUnlockedCount unlocked")
     }
 
     Log.d(TAG, "EarbsApp composing, screen: $currentScreen, gameMode: $selectedGameMode")
@@ -315,6 +327,8 @@ private fun EarbsApp(
                 functionUnlockedCount = functionUnlockedCount,
                 progressionDueCount = progressionDueCount,
                 progressionUnlockedCount = progressionUnlockedCount,
+                intervalDueCount = intervalDueCount,
+                intervalUnlockedCount = intervalUnlockedCount,
                 onStartReviewClicked = {
                     coroutineScope.launch {
                         when (selectedGameMode) {
@@ -350,6 +364,10 @@ private fun EarbsApp(
                                 progressionSession = GenericReviewSession(cards, "progression")
                                 dbSessionId = repository.startSession(GameType.CHORD_PROGRESSION)
                                 currentScreen = Screen.PROGRESSION_REVIEW
+                            }
+                            GameType.INTERVAL -> {
+                                Log.i(TAG, "Interval review not yet implemented")
+                                // TODO: Implement interval review session
                             }
                         }
                     }

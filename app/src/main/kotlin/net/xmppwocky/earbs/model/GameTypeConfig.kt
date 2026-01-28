@@ -1,6 +1,7 @@
 package net.xmppwocky.earbs.model
 
 import net.xmppwocky.earbs.audio.ChordType
+import net.xmppwocky.earbs.audio.IntervalType
 import net.xmppwocky.earbs.data.entity.GameType
 
 /**
@@ -181,6 +182,45 @@ sealed class GameTypeConfig<C : GameCard, A : GameAnswer> {
         }
     }
 
+    /**
+     * Configuration for the Interval recognition game.
+     * User hears two notes and identifies the interval between them.
+     */
+    data object IntervalGame : GameTypeConfig<IntervalCard, GameAnswer.IntervalAnswer>() {
+        override val gameType: GameType = GameType.INTERVAL
+        override val totalCards: Int = IntervalDeck.TOTAL_CARDS
+        override val cardsPerUnlock: Int = IntervalDeck.CARDS_PER_GROUP
+        override val maxUnlockLevel: Int = IntervalDeck.MAX_UNLOCK_LEVEL
+        override val displayName: String = "Intervals"
+        override val description: String = "Identify interval (Minor 2nd, Perfect 5th, etc.)"
+        override val unlockGroupCount: Int = IntervalDeck.UNLOCK_ORDER.size
+
+        override fun getAnswerOptions(card: IntervalCard, session: GenericReviewSession<IntervalCard>): List<GameAnswer.IntervalAnswer> {
+            // Session-based: show distinct intervals in session
+            return session.cards
+                .map { it.interval }
+                .distinct()
+                .sortedBy { it.ordinal }
+                .map { GameAnswer.IntervalAnswer(it) }
+        }
+
+        override fun isCorrectAnswer(card: IntervalCard, answer: GameAnswer.IntervalAnswer): Boolean {
+            return card.interval == answer.interval
+        }
+
+        override fun getCorrectAnswer(card: IntervalCard): GameAnswer.IntervalAnswer {
+            return GameAnswer.IntervalAnswer(card.interval)
+        }
+
+        override fun getUnlockGroupIndex(card: IntervalCard): Int {
+            return IntervalDeck.getGroupIndex(card)
+        }
+
+        override fun getUnlockGroupName(groupIndex: Int): String {
+            return IntervalDeck.getGroupName(groupIndex)
+        }
+    }
+
     companion object {
         /**
          * Get the config for a given game type.
@@ -189,6 +229,7 @@ sealed class GameTypeConfig<C : GameCard, A : GameAnswer> {
             GameType.CHORD_TYPE -> ChordTypeGame
             GameType.CHORD_FUNCTION -> FunctionGame
             GameType.CHORD_PROGRESSION -> ProgressionGame
+            GameType.INTERVAL -> IntervalGame
         }
     }
 }

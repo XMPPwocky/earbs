@@ -34,8 +34,9 @@ data class TrialEntity(
     val cardId: String,
     val timestamp: Long,                    // epoch millis
     val wasCorrect: Boolean,
-    val gameType: String = "CHORD_TYPE",    // CHORD_TYPE, CHORD_FUNCTION, or CHORD_PROGRESSION
+    val gameType: String = "CHORD_TYPE",    // CHORD_TYPE, CHORD_FUNCTION, CHORD_PROGRESSION, or INTERVAL
     val answeredChordType: String? = null,  // What user answered for chord type game (null = correct or N/A)
     val answeredFunction: String? = null,   // What user answered for function game (null = correct or N/A)
-    val answeredProgression: String? = null // What user answered for progression game (null = correct or N/A)
+    val answeredProgression: String? = null, // What user answered for progression game (null = correct or N/A)
+    val answeredInterval: String? = null    // What user answered for interval game (null = correct or N/A)
 )

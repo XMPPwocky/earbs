@@ -83,11 +83,13 @@ fun HistoryScreen(
         GameType.CHORD_TYPE -> "Chord Type"
         GameType.CHORD_FUNCTION -> "Function"
         GameType.CHORD_PROGRESSION -> "Progression"
+        GameType.INTERVAL -> "Interval"
     }
     val cardCount = when (gameType) {
         GameType.CHORD_TYPE -> chordTypeCards.size
         GameType.CHORD_FUNCTION -> functionCards.size
         GameType.CHORD_PROGRESSION -> progressionCards.size
+        GameType.INTERVAL -> 0  // TODO: Add intervalCards parameter
     }
     Log.d(TAG, "HistoryScreen composing: ${sessions.size} sessions, $cardCount cards (gameType=${gameType.name})")
 
@@ -453,6 +455,7 @@ private fun CardsTab(
                     groupKey = "$keyQuality @ Octave ${card.octave}, $mode"
                 )
             }
+            GameType.INTERVAL -> emptyList()  // TODO: Add interval card display
         }
     }
 
@@ -502,6 +505,7 @@ private fun CardsTab(
                     groupKey = "Archived: $keyQuality @ Octave ${card.octave}, $mode"
                 )
             }
+            GameType.INTERVAL -> emptyList()  // TODO: Add interval deprecated card display
         }
     }
 
@@ -805,6 +809,7 @@ private fun StatsTab(
         GameType.CHORD_TYPE -> chordConfusion?.isNotEmpty() == true
         GameType.CHORD_FUNCTION -> functionConfusion?.isNotEmpty() == true
         GameType.CHORD_PROGRESSION -> false // No confusion matrix for progressions yet
+        GameType.INTERVAL -> false  // TODO: Add interval confusion matrix
     }
 
     if (cardStats.isEmpty() && !hasConfusionData) {
@@ -830,6 +835,7 @@ private fun StatsTab(
             GameType.CHORD_TYPE -> computeMasteryDistribution(chordTypeCards)
             GameType.CHORD_FUNCTION -> computeFunctionMasteryDistribution(functionCards)
             GameType.CHORD_PROGRESSION -> computeProgressionMasteryDistribution(progressionCards)
+            GameType.INTERVAL -> net.xmppwocky.earbs.model.MasteryDistribution(0, 0, 0, 0)  // TODO: Add interval mastery
         }
     }
 
@@ -837,6 +843,7 @@ private fun StatsTab(
         GameType.CHORD_TYPE -> "Chord Type"
         GameType.CHORD_FUNCTION -> "Function"
         GameType.CHORD_PROGRESSION -> "Progression"
+        GameType.INTERVAL -> "Interval"
     }
 
     LazyColumn(

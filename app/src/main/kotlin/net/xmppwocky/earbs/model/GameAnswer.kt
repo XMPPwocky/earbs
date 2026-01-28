@@ -1,6 +1,7 @@
 package net.xmppwocky.earbs.model
 
 import net.xmppwocky.earbs.audio.ChordType
+import net.xmppwocky.earbs.audio.IntervalType
 
 /**
  * Sealed interface for all game answer types.
@@ -32,5 +33,13 @@ sealed interface GameAnswer {
      */
     data class ProgressionAnswer(val progression: ProgressionType) : GameAnswer {
         override val displayName: String get() = progression.displayName
+    }
+
+    /**
+     * Answer for the interval recognition game.
+     * User identifies the interval (Minor 2nd, Major 3rd, Perfect 5th, etc.)
+     */
+    data class IntervalAnswer(val interval: IntervalType) : GameAnswer {
+        override val displayName: String get() = interval.displayName
     }
 }

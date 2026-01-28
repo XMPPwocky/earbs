@@ -10,7 +10,8 @@ import androidx.room.PrimaryKey
 enum class GameType {
     CHORD_TYPE,
     CHORD_FUNCTION,
-    CHORD_PROGRESSION
+    CHORD_PROGRESSION,
+    INTERVAL
 }
 
 /**

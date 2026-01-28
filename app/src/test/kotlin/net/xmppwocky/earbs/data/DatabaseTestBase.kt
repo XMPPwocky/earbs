@@ -9,6 +9,7 @@ import net.xmppwocky.earbs.data.db.EarbsDatabase
 import net.xmppwocky.earbs.data.db.FsrsStateDao
 import net.xmppwocky.earbs.data.db.FunctionCardDao
 import net.xmppwocky.earbs.data.db.HistoryDao
+import net.xmppwocky.earbs.data.db.IntervalCardDao
 import net.xmppwocky.earbs.data.db.ProgressionCardDao
 import net.xmppwocky.earbs.data.db.ReviewSessionDao
 import net.xmppwocky.earbs.data.db.TrialDao
@@ -35,6 +36,7 @@ abstract class DatabaseTestBase {
     protected lateinit var cardDao: CardDao
     protected lateinit var functionCardDao: FunctionCardDao
     protected lateinit var progressionCardDao: ProgressionCardDao
+    protected lateinit var intervalCardDao: IntervalCardDao
     protected lateinit var fsrsStateDao: FsrsStateDao
     protected lateinit var reviewSessionDao: ReviewSessionDao
     protected lateinit var trialDao: TrialDao
@@ -51,6 +53,7 @@ abstract class DatabaseTestBase {
         cardDao = db.cardDao()
         functionCardDao = db.functionCardDao()
         progressionCardDao = db.progressionCardDao()
+        intervalCardDao = db.intervalCardDao()
         fsrsStateDao = db.fsrsStateDao()
         reviewSessionDao = db.reviewSessionDao()
         trialDao = db.trialDao()

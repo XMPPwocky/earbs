@@ -30,6 +30,8 @@ import net.xmppwocky.earbs.fsrs.FSRS
 import net.xmppwocky.earbs.fsrs.FlashCard
 import net.xmppwocky.earbs.fsrs.Rating
 import net.xmppwocky.earbs.data.db.FunctionCardWithFsrs
+import net.xmppwocky.earbs.data.db.IntervalCardDao
+import net.xmppwocky.earbs.data.db.IntervalCardWithFsrs
 import net.xmppwocky.earbs.data.db.ProgressionCardDao
 import net.xmppwocky.earbs.data.db.ProgressionCardWithFsrs
 import net.xmppwocky.earbs.data.entity.FunctionCardEntity
@@ -39,10 +41,13 @@ import net.xmppwocky.earbs.model.Deck
 import net.xmppwocky.earbs.model.FunctionCard
 import net.xmppwocky.earbs.model.FunctionDeck
 import net.xmppwocky.earbs.model.GameCard
+import net.xmppwocky.earbs.model.IntervalCard
+import net.xmppwocky.earbs.model.IntervalDeck
 import net.xmppwocky.earbs.model.KeyQuality
 import net.xmppwocky.earbs.model.ProgressionCard
 import net.xmppwocky.earbs.model.ProgressionDeck
 import net.xmppwocky.earbs.model.ProgressionType
+import net.xmppwocky.earbs.audio.IntervalType
 import java.time.LocalDateTime
 
 private const val TAG = "EarbsRepository"
@@ -55,6 +60,7 @@ class EarbsRepository(
     private val cardDao: CardDao,
     private val functionCardDao: FunctionCardDao,
     private val progressionCardDao: ProgressionCardDao,
+    private val intervalCardDao: IntervalCardDao,
     private val fsrsStateDao: FsrsStateDao,
     private val reviewSessionDao: ReviewSessionDao,
     private val trialDao: TrialDao,
@@ -101,6 +107,9 @@ class EarbsRepository(
     /** Adapter for progression card operations */
     private val progressionOps by lazy { ProgressionCardOperations(progressionCardDao) }
 
+    /** Adapter for interval card operations */
+    private val intervalOps by lazy { IntervalCardOperations(intervalCardDao) }
+
     // ========== Generic Methods with GameType Dispatch ==========
 
     /**
@@ -112,6 +121,7 @@ class EarbsRepository(
             GameType.CHORD_TYPE -> initializeStartingDeck()
             GameType.CHORD_FUNCTION -> initializeFunctionStartingDeck()
             GameType.CHORD_PROGRESSION -> initializeProgressionStartingDeck()
+            GameType.INTERVAL -> initializeIntervalStartingDeck()
         }
     }
 
@@ -125,6 +135,7 @@ class EarbsRepository(
             GameType.CHORD_TYPE -> cardDao.countDue(now)
             GameType.CHORD_FUNCTION -> functionCardDao.countDue(now)
             GameType.CHORD_PROGRESSION -> progressionCardDao.countDue(now)
+            GameType.INTERVAL -> intervalCardDao.countDue(now)
         }
         Log.d(TAG, "${gameType.name} due count: $count")
         return count
@@ -140,6 +151,7 @@ class EarbsRepository(
             GameType.CHORD_TYPE -> cardDao.countDueFlow(now)
             GameType.CHORD_FUNCTION -> functionCardDao.countDueFlow(now)
             GameType.CHORD_PROGRESSION -> progressionCardDao.countDueFlow(now)
+            GameType.INTERVAL -> intervalCardDao.countDueFlow(now)
         }
     }
 
@@ -151,6 +163,7 @@ class EarbsRepository(
             GameType.CHORD_TYPE -> cardDao.countUnlocked()
             GameType.CHORD_FUNCTION -> functionCardDao.countUnlocked()
             GameType.CHORD_PROGRESSION -> progressionCardDao.countUnlocked()
+            GameType.INTERVAL -> intervalCardDao.countUnlocked()
         }
     }
 
@@ -162,6 +175,7 @@ class EarbsRepository(
             GameType.CHORD_TYPE -> cardDao.countUnlockedFlow()
             GameType.CHORD_FUNCTION -> functionCardDao.countUnlockedFlow()
             GameType.CHORD_PROGRESSION -> progressionCardDao.countUnlockedFlow()
+            GameType.INTERVAL -> intervalCardDao.countUnlockedFlow()
         }
     }
 
@@ -174,6 +188,7 @@ class EarbsRepository(
             GameType.CHORD_TYPE -> cardDao.setUnlocked(cardId, unlocked)
             GameType.CHORD_FUNCTION -> functionCardDao.setUnlocked(cardId, unlocked)
             GameType.CHORD_PROGRESSION -> progressionCardDao.setUnlocked(cardId, unlocked)
+            GameType.INTERVAL -> intervalCardDao.setUnlocked(cardId, unlocked)
         }
     }
 
@@ -187,6 +202,7 @@ class EarbsRepository(
             GameType.CHORD_TYPE -> cardDao.setDeprecated(cardId, deprecated)
             GameType.CHORD_FUNCTION -> functionCardDao.setDeprecated(cardId, deprecated)
             GameType.CHORD_PROGRESSION -> progressionCardDao.setDeprecated(cardId, deprecated)
+            GameType.INTERVAL -> intervalCardDao.setDeprecated(cardId, deprecated)
         }
     }
 
@@ -203,6 +219,9 @@ class EarbsRepository(
             GameType.CHORD_PROGRESSION -> progressionCardDao.getDeprecatedCardsWithFsrsFlow().map { list ->
                 list.map { it.toCardWithFsrs() }
             }
+            GameType.INTERVAL -> intervalCardDao.getDeprecatedCardsWithFsrsFlow().map { list ->
+                list.map { it.toCardWithFsrs() }
+            }
         }
     }
 
@@ -214,6 +233,7 @@ class EarbsRepository(
             GameType.CHORD_TYPE -> cardDao.countDeprecated()
             GameType.CHORD_FUNCTION -> functionCardDao.countDeprecated()
             GameType.CHORD_PROGRESSION -> progressionCardDao.countDeprecated()
+            GameType.INTERVAL -> intervalCardDao.countDeprecated()
         }
     }
 
@@ -948,6 +968,152 @@ class EarbsRepository(
         return progressionCardDao.getAllUnlockedWithFsrsFlow()
     }
 
+    // ========== Interval Recognition Game (Game 4) ==========
+
+    /**
+     * Ensure interval cards are properly initialized.
+     * Cards are pre-created by the database migration (v11).
+     * This method is kept for safety in case FSRS state is missing.
+     */
+    suspend fun initializeIntervalStartingDeck() {
+        val cardCount = intervalCardDao.count()
+        Log.i(TAG, "Interval cards in database: $cardCount")
+
+        // Cards should be pre-created by migration. Just verify FSRS state exists.
+        if (cardCount > 0) {
+            val now = System.currentTimeMillis()
+            val cards = intervalCardDao.getAllCardsOrdered()
+            var createdCount = 0
+            for (card in cards) {
+                val fsrsState = fsrsStateDao.getByCardId(card.id)
+                if (fsrsState == null) {
+                    Log.w(TAG, "Creating missing FSRS state for ${card.id}")
+                    fsrsStateDao.insert(FsrsStateEntity(
+                        cardId = card.id,
+                        gameType = GameType.INTERVAL.name,
+                        dueDate = now
+                    ))
+                    createdCount++
+                }
+            }
+            if (createdCount > 0) {
+                Log.i(TAG, "Created $createdCount missing FSRS states for interval cards")
+            }
+        }
+    }
+
+    // ========== Interval Card Unlock Management ==========
+
+    /**
+     * Set the unlock status for an interval card.
+     * FSRS state is preserved when locking/unlocking.
+     * @see setCardUnlocked(GameType, String, Boolean) for generic version
+     */
+    suspend fun setIntervalCardUnlocked(cardId: String, unlocked: Boolean) =
+        setCardUnlocked(GameType.INTERVAL, cardId, unlocked)
+
+    /**
+     * Get all interval cards for the unlock management screen.
+     * Includes both locked and unlocked cards with their FSRS state.
+     */
+    fun getAllIntervalCardsForUnlockScreen(): Flow<List<IntervalCardWithFsrs>> {
+        return intervalCardDao.getAllCardsWithFsrsOrderedFlow()
+    }
+
+    /**
+     * Get all interval cards for the unlock management screen (suspend version).
+     */
+    suspend fun getAllIntervalCardsForUnlockScreenSuspend(): List<IntervalCardWithFsrs> {
+        return intervalCardDao.getAllCardsWithFsrsOrdered()
+    }
+
+    /**
+     * Get the number of unlocked interval cards.
+     * @see getUnlockedCount(GameType) for generic version
+     */
+    suspend fun getIntervalUnlockedCount(): Int = getUnlockedCount(GameType.INTERVAL)
+
+    /**
+     * Observe the number of unlocked interval cards.
+     * @see getUnlockedCountFlow(GameType) for generic version
+     */
+    fun getIntervalUnlockedCountFlow(): Flow<Int> = getUnlockedCountFlow(GameType.INTERVAL)
+
+    /**
+     * Select interval cards for a review session.
+     * Uses the generic selection algorithm with interval card operations.
+     */
+    suspend fun selectIntervalCardsForReview(): List<IntervalCard> {
+        return selectCardsGeneric(intervalOps, "interval")
+    }
+
+    /**
+     * Record an interval game trial and update FSRS state.
+     *
+     * @param answeredInterval The interval the user selected
+     * @return the new due date for the card
+     */
+    suspend fun recordIntervalTrialAndUpdateFsrs(
+        sessionId: Long,
+        card: IntervalCard,
+        wasCorrect: Boolean,
+        answeredInterval: IntervalType
+    ): Long {
+        val timestamp = System.currentTimeMillis()
+        val cardId = card.id
+
+        Log.i(TAG, "Recording interval trial for $cardId: ${if (wasCorrect) "CORRECT" else "WRONG (answered ${answeredInterval.displayName})"}")
+
+        // 1. Insert trial record
+        trialDao.insert(TrialEntity(
+            sessionId = sessionId,
+            cardId = cardId,
+            timestamp = timestamp,
+            wasCorrect = wasCorrect,
+            gameType = GameType.INTERVAL.name,
+            answeredInterval = if (wasCorrect) null else answeredInterval.name
+        ))
+
+        // 2. Get FSRS state
+        val fsrsState = fsrsStateDao.getByCardId(cardId)
+        if (fsrsState == null) {
+            Log.e(TAG, "FSRS state not found: $cardId")
+            return timestamp
+        }
+
+        // 3. Calculate rating: correct=Good, wrong=Again
+        val rating = if (wasCorrect) Rating.Good else Rating.Again
+
+        // 4. Apply FSRS update
+        return applyFsrsUpdate(fsrsState, rating)
+    }
+
+    /**
+     * Get count of due interval cards.
+     * @see getDueCount(GameType) for generic version
+     */
+    suspend fun getIntervalDueCount(): Int = getDueCount(GameType.INTERVAL)
+
+    /**
+     * Observe due count for interval game.
+     * @see getDueCountFlow(GameType) for generic version
+     */
+    fun getIntervalDueCountFlow(): Flow<Int> = getDueCountFlow(GameType.INTERVAL)
+
+    /**
+     * Get all interval cards with FSRS flow for UI.
+     */
+    fun getAllIntervalCardsWithFsrsFlow(): Flow<List<IntervalCardWithFsrs>> {
+        return intervalCardDao.getAllUnlockedWithFsrsFlow()
+    }
+
+    /**
+     * Get deprecated interval cards.
+     */
+    fun getDeprecatedIntervalCardsFlow(): Flow<List<IntervalCardWithFsrs>> {
+        return intervalCardDao.getDeprecatedCardsWithFsrsFlow()
+    }
+
     /**
      * Reset FSRS state for a card to initial values.
      * Review history is preserved.
@@ -985,6 +1151,7 @@ class EarbsRepository(
             GameType.CHORD_TYPE -> cardDao.getByIdWithFsrs(cardId)?.toGeneric()
             GameType.CHORD_FUNCTION -> functionCardDao.getByIdWithFsrs(cardId)?.toGeneric()
             GameType.CHORD_PROGRESSION -> progressionCardDao.getByIdWithFsrs(cardId)?.toGeneric()
+            GameType.INTERVAL -> intervalCardDao.getByIdWithFsrs(cardId)?.toGeneric()
         }
     }
 
@@ -1172,6 +1339,67 @@ private fun ProgressionCardWithFsrs.toGeneric(): GenericCardWithFsrs {
         stability = stability,
         difficulty = difficulty,
         interval = interval,
+        dueDate = dueDate,
+        reviewCount = reviewCount,
+        lastReview = lastReview,
+        phase = phase,
+        lapses = lapses
+    )
+}
+
+/**
+ * Convert IntervalCardWithFsrs to domain IntervalCard.
+ */
+private fun IntervalCardWithFsrs.toIntervalCard(): IntervalCard {
+    return IntervalCard(
+        interval = net.xmppwocky.earbs.audio.IntervalType.valueOf(interval),
+        octave = octave,
+        direction = net.xmppwocky.earbs.audio.IntervalDirection.valueOf(direction)
+    )
+}
+
+/**
+ * Convert IntervalCardWithFsrs to CardWithFsrs for unified display.
+ * Used when displaying deprecated cards across game types.
+ */
+private fun IntervalCardWithFsrs.toCardWithFsrs(): CardWithFsrs {
+    val displayName = "${net.xmppwocky.earbs.audio.IntervalType.valueOf(interval).displayName} ($direction)"
+    return CardWithFsrs(
+        id = id,
+        chordType = displayName,  // Use interval + direction as "chordType" for display
+        octave = octave,
+        playbackMode = if (direction == "HARMONIC") "BLOCK" else "ARPEGGIATED",
+        unlocked = unlocked,
+        deprecated = deprecated,
+        stability = stability,
+        difficulty = difficulty,
+        interval = interval_,
+        dueDate = dueDate,
+        reviewCount = reviewCount,
+        lastReview = lastReview,
+        phase = phase,
+        lapses = lapses
+    )
+}
+
+/**
+ * Convert IntervalCardWithFsrs to GenericCardWithFsrs.
+ */
+private fun IntervalCardWithFsrs.toGeneric(): GenericCardWithFsrs {
+    // Format: "Perfect 5th (ascending)"
+    val intervalType = net.xmppwocky.earbs.audio.IntervalType.valueOf(interval)
+    val directionLower = direction.lowercase()
+    val displayName = "${intervalType.displayName} ($directionLower)"
+    return GenericCardWithFsrs(
+        id = id,
+        displayName = displayName,
+        octave = octave,
+        playbackMode = if (direction == "HARMONIC") "BLOCK" else "ARPEGGIATED",
+        unlocked = unlocked,
+        deprecated = deprecated,
+        stability = stability,
+        difficulty = difficulty,
+        interval = interval_,
         dueDate = dueDate,
         reviewCount = reviewCount,
         lastReview = lastReview,

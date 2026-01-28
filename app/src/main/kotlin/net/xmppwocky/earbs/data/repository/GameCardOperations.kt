@@ -6,6 +6,8 @@ import net.xmppwocky.earbs.data.db.CardDao
 import net.xmppwocky.earbs.data.db.CardWithFsrs
 import net.xmppwocky.earbs.data.db.FunctionCardDao
 import net.xmppwocky.earbs.data.db.FunctionCardWithFsrs
+import net.xmppwocky.earbs.data.db.IntervalCardDao
+import net.xmppwocky.earbs.data.db.IntervalCardWithFsrs
 import net.xmppwocky.earbs.data.db.ProgressionCardDao
 import net.xmppwocky.earbs.data.db.ProgressionCardWithFsrs
 import net.xmppwocky.earbs.data.entity.CardEntity
@@ -14,6 +16,7 @@ import net.xmppwocky.earbs.model.Card
 import net.xmppwocky.earbs.model.ChordFunction
 import net.xmppwocky.earbs.model.FunctionCard
 import net.xmppwocky.earbs.model.GameCard
+import net.xmppwocky.earbs.model.IntervalCard
 import net.xmppwocky.earbs.model.KeyQuality
 import net.xmppwocky.earbs.model.ProgressionCard
 
@@ -217,5 +220,62 @@ class ProgressionCardOperations(
         playbackMode = playbackMode,
         dueDate = dueDate,
         groupKey = null  // No additional grouping for progression game
+    )
+}
+
+/**
+ * Adapter wrapping IntervalCardDao for interval game.
+ */
+class IntervalCardOperations(
+    private val intervalCardDao: IntervalCardDao
+) : GameCardOperations<IntervalCard> {
+
+    override suspend fun count(): Int = intervalCardDao.count()
+
+    override suspend fun getDueCards(now: Long): List<CardWithFsrsData> {
+        return intervalCardDao.getDueCards(now).map { it.toCardWithFsrsData() }
+    }
+
+    override suspend fun getAllUnlockedWithFsrs(): List<CardWithFsrsData> {
+        return intervalCardDao.getAllUnlockedWithFsrs().map { it.toCardWithFsrsData() }
+    }
+
+    override suspend fun getNonDueCardsByGroup(
+        now: Long,
+        groupKey: String?,
+        octave: Int,
+        mode: String,
+        limit: Int
+    ): List<CardWithFsrsData> {
+        // groupKey is interval name, mode is direction for interval game
+        val interval = groupKey ?: return emptyList()
+        return intervalCardDao.getNonDueCardsByGroup(now, interval, octave, mode, limit)
+            .map { it.toCardWithFsrsData() }
+    }
+
+    override suspend fun getNonDueCards(now: Long, limit: Int): List<CardWithFsrsData> {
+        return intervalCardDao.getNonDueCards(now, limit).map { it.toCardWithFsrsData() }
+    }
+
+    override fun toDomainCard(data: CardWithFsrsData): IntervalCard {
+        // Parse from card ID format: {interval}_{octave}_{direction}
+        return IntervalCard.fromId(data.id)
+    }
+
+    /**
+     * Override grouping to use interval type and direction instead of octave and playbackMode.
+     * For intervals, we want to group by interval type (e.g., PERFECT_5TH) and direction.
+     */
+    override fun getGroupingKey(data: CardWithFsrsData): Triple<String?, Int, String> {
+        // groupKey = interval type, mode = direction
+        return Triple(data.groupKey, data.octave, data.playbackMode)
+    }
+
+    private fun IntervalCardWithFsrs.toCardWithFsrsData() = CardWithFsrsData(
+        id = id,
+        octave = octave,
+        playbackMode = direction,  // Use direction as "mode" for grouping
+        dueDate = dueDate,
+        groupKey = interval  // Use interval type as grouping key
     )
 }
