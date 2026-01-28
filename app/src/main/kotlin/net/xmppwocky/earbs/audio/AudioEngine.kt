@@ -239,6 +239,69 @@ object AudioEngine {
     }
 
     /**
+     * Play an interval with the given frequencies.
+     * Used for the interval recognition game.
+     *
+     * @param firstFreq First frequency to play (lower note for ascending, higher for descending)
+     * @param secondFreq Second frequency to play
+     * @param direction ASCENDING plays lower->higher, DESCENDING plays higher->lower, HARMONIC plays both together
+     * @param durationMs Duration of each note (or total for HARMONIC)
+     * @param pauseMs Pause between notes for melodic intervals (ignored for HARMONIC)
+     * @param intervalName For logging purposes
+     * @param rootSemitones For logging purposes
+     */
+    suspend fun playInterval(
+        firstFreq: Float,
+        secondFreq: Float,
+        direction: IntervalDirection,
+        durationMs: Int = 500,
+        pauseMs: Int = 150,
+        intervalName: String = "unknown",
+        rootSemitones: Int = 0
+    ) = withContext(Dispatchers.IO) {
+        val timestamp = System.currentTimeMillis()
+
+        // Log synthesis details before playing
+        Log.i(TAG, "=== INTERVAL SYNTHESIS ===")
+        Log.i(TAG, "Timestamp: $timestamp")
+        Log.i(TAG, "Interval: $intervalName")
+        Log.i(TAG, "Direction: $direction")
+        Log.i(TAG, "Root semitones from A4: $rootSemitones")
+        Log.i(TAG, "First frequency: ${"%.2f".format(firstFreq)} Hz")
+        Log.i(TAG, "Second frequency: ${"%.2f".format(secondFreq)} Hz")
+        Log.i(TAG, "Duration: ${durationMs}ms, Pause: ${pauseMs}ms")
+
+        when (direction) {
+            IntervalDirection.HARMONIC -> {
+                // Play both notes simultaneously
+                Log.i(TAG, "Playing harmonic interval (simultaneous)...")
+                playBlockChord(listOf(firstFreq, secondFreq), durationMs)
+            }
+            IntervalDirection.ASCENDING, IntervalDirection.DESCENDING -> {
+                // Play notes sequentially (melodic interval)
+                Log.i(TAG, "Playing melodic interval (sequential)...")
+
+                // Play first note
+                Log.i(TAG, "Playing first note...")
+                val firstWave = generateSquareWave(firstFreq, durationMs)
+                playAudio(firstWave)
+
+                // Pause between notes
+                Log.i(TAG, "Pausing for ${pauseMs}ms...")
+                Thread.sleep(pauseMs.toLong())
+
+                // Play second note
+                Log.i(TAG, "Playing second note...")
+                val secondWave = generateSquareWave(secondFreq, durationMs)
+                playAudio(secondWave)
+            }
+        }
+
+        Log.i(TAG, "Interval playback complete at ${System.currentTimeMillis()}")
+        Log.i(TAG, "=========================")
+    }
+
+    /**
      * Play a chord progression: a sequence of chords with pauses between them.
      * Used for the chord progression recognition game.
      *

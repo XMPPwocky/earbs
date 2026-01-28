@@ -4,6 +4,7 @@ import net.xmppwocky.earbs.model.Card
 import net.xmppwocky.earbs.model.FunctionCard
 import net.xmppwocky.earbs.model.GameAnswer
 import net.xmppwocky.earbs.model.GameCard
+import net.xmppwocky.earbs.model.IntervalCard
 import net.xmppwocky.earbs.model.ProgressionCard
 
 /**
@@ -104,6 +105,73 @@ sealed interface AudioPlaybackStrategy<C : GameCard, A : GameAnswer> {
                 rootSemitones = rootSemitones
             )
         }
+    }
+}
+
+/**
+ * Strategy for interval recognition game.
+ * Plays two notes as an interval (melodic or harmonic).
+ */
+object IntervalStrategy : AudioPlaybackStrategy<IntervalCard, GameAnswer.IntervalAnswer> {
+    private const val NOTE_DURATION_MS = 500
+    private const val PAUSE_MS = 150
+
+    /**
+     * Play audio for an interval card.
+     *
+     * @param card The interval card to play
+     * @param rootSemitones The root note in semitones from A4
+     * @param durationMs Duration for each note
+     */
+    override suspend fun playCard(
+        card: IntervalCard,
+        rootSemitones: Int,
+        durationMs: Int
+    ) {
+        val (firstFreq, secondFreq) = IntervalBuilder.buildInterval(
+            intervalType = card.interval,
+            rootSemitones = rootSemitones,
+            direction = card.direction
+        )
+        AudioEngine.playInterval(
+            firstFreq = firstFreq,
+            secondFreq = secondFreq,
+            direction = card.direction,
+            durationMs = durationMs,
+            pauseMs = PAUSE_MS,
+            intervalName = card.interval.displayName,
+            rootSemitones = rootSemitones
+        )
+    }
+
+    /**
+     * Play audio for a specific interval answer (for learning mode).
+     *
+     * @param answer The interval answer to play
+     * @param card The current card context (for direction)
+     * @param rootSemitones The root note in semitones from A4
+     * @param durationMs Duration for each note
+     */
+    override suspend fun playAnswer(
+        answer: GameAnswer.IntervalAnswer,
+        card: IntervalCard,
+        rootSemitones: Int,
+        durationMs: Int
+    ) {
+        val (firstFreq, secondFreq) = IntervalBuilder.buildInterval(
+            intervalType = answer.interval,
+            rootSemitones = rootSemitones,
+            direction = card.direction  // Use card's direction for learning mode
+        )
+        AudioEngine.playInterval(
+            firstFreq = firstFreq,
+            secondFreq = secondFreq,
+            direction = card.direction,
+            durationMs = durationMs,
+            pauseMs = PAUSE_MS,
+            intervalName = answer.interval.displayName,
+            rootSemitones = rootSemitones
+        )
     }
 }
 
