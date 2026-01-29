@@ -10,59 +10,41 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import net.xmppwocky.earbs.data.entity.GameType
-import net.xmppwocky.earbs.model.Deck
-import net.xmppwocky.earbs.model.FunctionDeck
-import net.xmppwocky.earbs.model.IntervalDeck
-import net.xmppwocky.earbs.model.ProgressionDeck
-import net.xmppwocky.earbs.model.ScaleDeck
+import net.xmppwocky.earbs.data.entity.displayName
+import net.xmppwocky.earbs.model.GameStats
+
+/**
+ * Helper to get stats for a specific game type from the list.
+ * Returns null if the game type is not in the list (which would indicate a bug).
+ */
+private fun List<GameStats>.forGameType(gameType: GameType): GameStats? =
+    find { it.gameType == gameType }
 
 @Composable
 fun HomeScreen(
     // Game mode selection
     selectedGameMode: GameType = GameType.CHORD_TYPE,
     onGameModeChanged: (GameType) -> Unit = {},
-    // Chord type game stats
-    chordTypeDueCount: Int = 0,
-    chordTypeUnlockedCount: Int = 4,
-    // Function game stats
-    functionDueCount: Int = 0,
-    functionUnlockedCount: Int = 0,
-    // Progression game stats
-    progressionDueCount: Int = 0,
-    progressionUnlockedCount: Int = 0,
-    // Interval game stats
-    intervalDueCount: Int = 0,
-    intervalUnlockedCount: Int = 0,
-    // Scale game stats
-    scaleDueCount: Int = 0,
-    scaleUnlockedCount: Int = 0,
+    // Game stats - a list ensures exhaustive handling of game types at call site
+    gameStats: List<GameStats>,
     // Actions
     onStartReviewClicked: () -> Unit,
     onHistoryClicked: (GameType) -> Unit = {},
     onSettingsClicked: () -> Unit = {}
 ) {
-    // Current game stats based on selected mode
-    val dueCount = when (selectedGameMode) {
-        GameType.CHORD_TYPE -> chordTypeDueCount
-        GameType.CHORD_FUNCTION -> functionDueCount
-        GameType.CHORD_PROGRESSION -> progressionDueCount
-        GameType.INTERVAL -> intervalDueCount
-        GameType.SCALE -> scaleDueCount
-    }
-    val unlockedCount = when (selectedGameMode) {
-        GameType.CHORD_TYPE -> chordTypeUnlockedCount
-        GameType.CHORD_FUNCTION -> functionUnlockedCount
-        GameType.CHORD_PROGRESSION -> progressionUnlockedCount
-        GameType.INTERVAL -> intervalUnlockedCount
-        GameType.SCALE -> scaleUnlockedCount
-    }
-    val totalCards = when (selectedGameMode) {
-        GameType.CHORD_TYPE -> Deck.TOTAL_CARDS
-        GameType.CHORD_FUNCTION -> FunctionDeck.TOTAL_CARDS
-        GameType.CHORD_PROGRESSION -> ProgressionDeck.TOTAL_CARDS
-        GameType.INTERVAL -> IntervalDeck.TOTAL_CARDS
-        GameType.SCALE -> ScaleDeck.TOTAL_CARDS
-    }
+    // Get stats for selected mode - asserts that all game types have stats
+    val currentStats = gameStats.forGameType(selectedGameMode)
+        ?: error("GameStats missing for $selectedGameMode - ensure all GameType values have stats")
+    val dueCount = currentStats.dueCount
+    val unlockedCount = currentStats.unlockedCount
+    val totalCards = currentStats.totalCards
+
+    // Get stats for each game type for the tabs
+    val chordTypeStats = gameStats.forGameType(GameType.CHORD_TYPE)
+    val functionStats = gameStats.forGameType(GameType.CHORD_FUNCTION)
+    val progressionStats = gameStats.forGameType(GameType.CHORD_PROGRESSION)
+    val intervalStats = gameStats.forGameType(GameType.INTERVAL)
+    val scaleStats = gameStats.forGameType(GameType.SCALE)
 
     Column(
         modifier = Modifier
@@ -87,6 +69,7 @@ fun HomeScreen(
         )
 
         // Game mode tabs - use ScrollableTabRow for 5 tabs
+        // The selectedTabIndex when expression is exhaustive
         ScrollableTabRow(
             selectedTabIndex = when (selectedGameMode) {
                 GameType.CHORD_TYPE -> 0
@@ -101,27 +84,27 @@ fun HomeScreen(
             Tab(
                 selected = selectedGameMode == GameType.CHORD_TYPE,
                 onClick = { onGameModeChanged(GameType.CHORD_TYPE) },
-                text = { Text("Types ($chordTypeDueCount)") }
+                text = { Text("Types (${chordTypeStats?.dueCount ?: 0})") }
             )
             Tab(
                 selected = selectedGameMode == GameType.CHORD_FUNCTION,
                 onClick = { onGameModeChanged(GameType.CHORD_FUNCTION) },
-                text = { Text("Functions ($functionDueCount)") }
+                text = { Text("Functions (${functionStats?.dueCount ?: 0})") }
             )
             Tab(
                 selected = selectedGameMode == GameType.CHORD_PROGRESSION,
                 onClick = { onGameModeChanged(GameType.CHORD_PROGRESSION) },
-                text = { Text("Prog. ($progressionDueCount)") }
+                text = { Text("Prog. (${progressionStats?.dueCount ?: 0})") }
             )
             Tab(
                 selected = selectedGameMode == GameType.INTERVAL,
                 onClick = { onGameModeChanged(GameType.INTERVAL) },
-                text = { Text("Intervals ($intervalDueCount)") }
+                text = { Text("Intervals (${intervalStats?.dueCount ?: 0})") }
             )
             Tab(
                 selected = selectedGameMode == GameType.SCALE,
                 onClick = { onGameModeChanged(GameType.SCALE) },
-                text = { Text("Scales ($scaleDueCount)") }
+                text = { Text("Scales (${scaleStats?.dueCount ?: 0})") }
             )
         }
 
@@ -218,7 +201,7 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Info text
+        // Info text - exhaustive when ensures compile error if new game type added
         Text(
             text = when (selectedGameMode) {
                 GameType.CHORD_TYPE -> "Identify chord quality (Major, Minor, etc.)"

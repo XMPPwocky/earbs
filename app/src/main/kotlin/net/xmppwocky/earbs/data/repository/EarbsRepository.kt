@@ -126,7 +126,8 @@ class EarbsRepository(
      * Ensures all cards have FSRS state initialized.
      */
     suspend fun initializeDeck(gameType: GameType) {
-        when (gameType) {
+        // Return type forces when to be exhaustive (compiler error if new game type added)
+        return when (gameType) {
             GameType.CHORD_TYPE -> initializeStartingDeck()
             GameType.CHORD_FUNCTION -> initializeFunctionStartingDeck()
             GameType.CHORD_PROGRESSION -> initializeProgressionStartingDeck()
@@ -198,7 +199,8 @@ class EarbsRepository(
      */
     suspend fun setCardUnlocked(gameType: GameType, cardId: String, unlocked: Boolean) {
         Log.i(TAG, "Setting ${gameType.name} card $cardId unlocked=$unlocked")
-        when (gameType) {
+        // Return type forces when to be exhaustive (compiler error if new game type added)
+        return when (gameType) {
             GameType.CHORD_TYPE -> cardDao.setUnlocked(cardId, unlocked)
             GameType.CHORD_FUNCTION -> functionCardDao.setUnlocked(cardId, unlocked)
             GameType.CHORD_PROGRESSION -> progressionCardDao.setUnlocked(cardId, unlocked)
@@ -213,7 +215,8 @@ class EarbsRepository(
      */
     suspend fun setCardDeprecated(gameType: GameType, cardId: String, deprecated: Boolean) {
         Log.i(TAG, "Setting ${gameType.name} card $cardId deprecated=$deprecated")
-        when (gameType) {
+        // Return type forces when to be exhaustive (compiler error if new game type added)
+        return when (gameType) {
             GameType.CHORD_TYPE -> cardDao.setDeprecated(cardId, deprecated)
             GameType.CHORD_FUNCTION -> functionCardDao.setDeprecated(cardId, deprecated)
             GameType.CHORD_PROGRESSION -> progressionCardDao.setDeprecated(cardId, deprecated)

@@ -16,6 +16,18 @@ enum class GameType {
 }
 
 /**
+ * User-facing display name for each game type.
+ * Using an exhaustive when expression ensures compile error if new game type is added.
+ */
+val GameType.displayName: String get() = when (this) {
+    GameType.CHORD_TYPE -> "Chord Type"
+    GameType.CHORD_FUNCTION -> "Function"
+    GameType.CHORD_PROGRESSION -> "Progression"
+    GameType.INTERVAL -> "Interval"
+    GameType.SCALE -> "Scale"
+}
+
+/**
  * FSRS spaced repetition state for any card across all games.
  * This table stores the scheduling state separately from game-specific card data.
  *

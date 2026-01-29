@@ -39,13 +39,20 @@ import net.xmppwocky.earbs.data.entity.GameType
 import net.xmppwocky.earbs.data.repository.EarbsRepository
 import net.xmppwocky.earbs.model.Card
 import net.xmppwocky.earbs.model.ChordFunction
+import net.xmppwocky.earbs.model.Deck
 import net.xmppwocky.earbs.model.FunctionCard
+import net.xmppwocky.earbs.model.FunctionDeck
+import net.xmppwocky.earbs.model.GameCards
+import net.xmppwocky.earbs.model.GameStats
 import net.xmppwocky.earbs.model.GameAnswer
 import net.xmppwocky.earbs.model.GenericReviewSession
 import net.xmppwocky.earbs.model.IntervalCard
+import net.xmppwocky.earbs.model.IntervalDeck
 import net.xmppwocky.earbs.model.ProgressionCard
+import net.xmppwocky.earbs.model.ProgressionDeck
 import net.xmppwocky.earbs.model.ProgressionType
 import net.xmppwocky.earbs.model.ScaleCard
+import net.xmppwocky.earbs.model.ScaleDeck
 import net.xmppwocky.earbs.ui.AnswerResult
 import net.xmppwocky.earbs.ui.CardDetailsScreen
 import net.xmppwocky.earbs.ui.DEFAULT_AUTO_ADVANCE_DELAY
@@ -346,19 +353,43 @@ private fun EarbsApp(
 
     when (currentScreen) {
         Screen.HOME -> {
+            // Build GameStats list - exhaustive when ensures compile error if new game type added
+            val gameStats = listOf(
+                GameStats(
+                    gameType = GameType.CHORD_TYPE,
+                    dueCount = chordTypeDueCount,
+                    unlockedCount = chordTypeUnlockedCount,
+                    totalCards = Deck.TOTAL_CARDS
+                ),
+                GameStats(
+                    gameType = GameType.CHORD_FUNCTION,
+                    dueCount = functionDueCount,
+                    unlockedCount = functionUnlockedCount,
+                    totalCards = FunctionDeck.TOTAL_CARDS
+                ),
+                GameStats(
+                    gameType = GameType.CHORD_PROGRESSION,
+                    dueCount = progressionDueCount,
+                    unlockedCount = progressionUnlockedCount,
+                    totalCards = ProgressionDeck.TOTAL_CARDS
+                ),
+                GameStats(
+                    gameType = GameType.INTERVAL,
+                    dueCount = intervalDueCount,
+                    unlockedCount = intervalUnlockedCount,
+                    totalCards = IntervalDeck.TOTAL_CARDS
+                ),
+                GameStats(
+                    gameType = GameType.SCALE,
+                    dueCount = scaleDueCount,
+                    unlockedCount = scaleUnlockedCount,
+                    totalCards = ScaleDeck.TOTAL_CARDS
+                )
+            )
             HomeScreen(
                 selectedGameMode = selectedGameMode,
                 onGameModeChanged = { selectedGameMode = it },
-                chordTypeDueCount = chordTypeDueCount,
-                chordTypeUnlockedCount = chordTypeUnlockedCount,
-                functionDueCount = functionDueCount,
-                functionUnlockedCount = functionUnlockedCount,
-                progressionDueCount = progressionDueCount,
-                progressionUnlockedCount = progressionUnlockedCount,
-                intervalDueCount = intervalDueCount,
-                intervalUnlockedCount = intervalUnlockedCount,
-                scaleDueCount = scaleDueCount,
-                scaleUnlockedCount = scaleUnlockedCount,
+                gameStats = gameStats,
                 onStartReviewClicked = {
                     coroutineScope.launch {
                         when (selectedGameMode) {
@@ -603,7 +634,7 @@ private fun EarbsApp(
             val sessions by repository.getSessionOverviewsByGameType(historyGameType).collectAsState(initial = emptyList())
             val cardStats by repository.getCardStatsByGameType(historyGameType).collectAsState(initial = emptyList())
 
-            // Load cards based on game type (active cards)
+            // Load cards based on game type (active cards) - only load for selected game type
             val chordTypeCards by repository.getAllCardsForUnlockScreen().collectAsState(initial = emptyList())
             val functionCards by repository.getAllFunctionCardsForUnlockScreen().collectAsState(initial = emptyList())
             val progressionCards by repository.getAllProgressionCardsForUnlockScreen().collectAsState(initial = emptyList())
@@ -617,19 +648,33 @@ private fun EarbsApp(
             val deprecatedIntervalCards by repository.getDeprecatedIntervalCardsFlow().collectAsState(initial = emptyList())
             val deprecatedScaleCards by repository.getDeprecatedScaleCardsFlow().collectAsState(initial = emptyList())
 
+            // Build GameCards sealed class with exhaustive when - compiler will error if new game type added
+            val cards: GameCards = when (historyGameType) {
+                GameType.CHORD_TYPE -> GameCards.ChordType(
+                    active = chordTypeCards,
+                    deprecated = deprecatedChordTypeCards
+                )
+                GameType.CHORD_FUNCTION -> GameCards.Function(
+                    active = functionCards,
+                    deprecated = deprecatedFunctionCards
+                )
+                GameType.CHORD_PROGRESSION -> GameCards.Progression(
+                    active = progressionCards,
+                    deprecated = deprecatedProgressionCards
+                )
+                GameType.INTERVAL -> GameCards.Interval(
+                    active = intervalCards,
+                    deprecated = deprecatedIntervalCards
+                )
+                GameType.SCALE -> GameCards.Scale(
+                    active = scaleCards,
+                    deprecated = deprecatedScaleCards
+                )
+            }
+
             HistoryScreen(
-                gameType = historyGameType,
+                cards = cards,
                 sessions = sessions,
-                chordTypeCards = chordTypeCards,
-                functionCards = functionCards,
-                progressionCards = progressionCards,
-                intervalCards = intervalCards,
-                scaleCards = scaleCards,
-                deprecatedChordTypeCards = deprecatedChordTypeCards,
-                deprecatedFunctionCards = deprecatedFunctionCards,
-                deprecatedProgressionCards = deprecatedProgressionCards,
-                deprecatedIntervalCards = deprecatedIntervalCards,
-                deprecatedScaleCards = deprecatedScaleCards,
                 cardStats = cardStats,
                 onBackClicked = {
                     coroutineScope.launch {

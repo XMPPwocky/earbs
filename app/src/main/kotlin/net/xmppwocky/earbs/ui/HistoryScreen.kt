@@ -36,7 +36,9 @@ import net.xmppwocky.earbs.data.db.ScaleCardWithFsrs
 import net.xmppwocky.earbs.data.db.SessionOverview
 import net.xmppwocky.earbs.data.entity.GameType
 import net.xmppwocky.earbs.data.entity.TrialEntity
+import net.xmppwocky.earbs.data.entity.displayName
 import net.xmppwocky.earbs.model.ChordFunction
+import net.xmppwocky.earbs.model.GameCards
 import net.xmppwocky.earbs.model.computeFunctionMasteryDistribution
 import net.xmppwocky.earbs.model.computeMasteryDistribution
 import net.xmppwocky.earbs.model.computeProgressionMasteryDistribution
@@ -62,18 +64,8 @@ enum class HistoryTab {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
-    gameType: GameType,
+    cards: GameCards,
     sessions: List<SessionOverview>,
-    chordTypeCards: List<CardWithFsrs> = emptyList(),
-    functionCards: List<FunctionCardWithFsrs> = emptyList(),
-    progressionCards: List<ProgressionCardWithFsrs> = emptyList(),
-    intervalCards: List<IntervalCardWithFsrs> = emptyList(),
-    scaleCards: List<ScaleCardWithFsrs> = emptyList(),
-    deprecatedChordTypeCards: List<CardWithFsrs> = emptyList(),
-    deprecatedFunctionCards: List<FunctionCardWithFsrs> = emptyList(),
-    deprecatedProgressionCards: List<ProgressionCardWithFsrs> = emptyList(),
-    deprecatedIntervalCards: List<IntervalCardWithFsrs> = emptyList(),
-    deprecatedScaleCards: List<ScaleCardWithFsrs> = emptyList(),
     cardStats: List<CardStatsView>,
     onBackClicked: () -> Unit,
     onLoadTrials: (suspend (Long) -> List<TrialEntity>)? = null,
@@ -87,26 +79,13 @@ fun HistoryScreen(
 
     var selectedTab by remember { mutableStateOf(HistoryTab.SESSIONS) }
 
-    val gameTypeDisplayName = when (gameType) {
-        GameType.CHORD_TYPE -> "Chord Type"
-        GameType.CHORD_FUNCTION -> "Function"
-        GameType.CHORD_PROGRESSION -> "Progression"
-        GameType.INTERVAL -> "Interval"
-        GameType.SCALE -> "Scale"
-    }
-    val cardCount = when (gameType) {
-        GameType.CHORD_TYPE -> chordTypeCards.size
-        GameType.CHORD_FUNCTION -> functionCards.size
-        GameType.CHORD_PROGRESSION -> progressionCards.size
-        GameType.INTERVAL -> intervalCards.size
-        GameType.SCALE -> scaleCards.size
-    }
-    Log.d(TAG, "HistoryScreen composing: ${sessions.size} sessions, $cardCount cards (gameType=${gameType.name})")
+    val gameType = cards.gameType
+    Log.d(TAG, "HistoryScreen composing: ${sessions.size} sessions, ${cards.activeCount} cards (gameType=${gameType.name})")
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("$gameTypeDisplayName History") },
+                title = { Text("${gameType.displayName} History") },
                 navigationIcon = {
                     IconButton(onClick = onBackClicked) {
                         Icon(
@@ -145,27 +124,14 @@ fun HistoryScreen(
             when (selectedTab) {
                 HistoryTab.SESSIONS -> SessionsTab(sessions, onLoadTrials)
                 HistoryTab.CARDS -> CardsTab(
-                    gameType = gameType,
-                    chordTypeCards = chordTypeCards,
-                    functionCards = functionCards,
-                    progressionCards = progressionCards,
-                    intervalCards = intervalCards,
-                    scaleCards = scaleCards,
-                    deprecatedChordTypeCards = deprecatedChordTypeCards,
-                    deprecatedFunctionCards = deprecatedFunctionCards,
-                    deprecatedProgressionCards = deprecatedProgressionCards,
-                    deprecatedIntervalCards = deprecatedIntervalCards,
-                    deprecatedScaleCards = deprecatedScaleCards,
+                    cards = cards,
                     onResetFsrs = onResetFsrs,
                     onCardClicked = onCardClicked,
                     onCardUnlockToggled = onCardUnlockToggled
                 )
                 HistoryTab.STATS -> StatsTab(
-                    gameType = gameType,
+                    cards = cards,
                     cardStats = cardStats,
-                    chordTypeCards = chordTypeCards,
-                    functionCards = functionCards,
-                    progressionCards = progressionCards,
                     onLoadChordConfusion = onLoadChordConfusion,
                     onLoadFunctionConfusion = onLoadFunctionConfusion
                 )
@@ -281,19 +247,20 @@ private fun SessionCard(
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                // Game type badge
+                // Game type badge - convert string to enum for comparison
+                val sessionGameType = runCatching { GameType.valueOf(session.gameType) }.getOrNull()
                 Surface(
-                    color = if (session.gameType == "CHORD_FUNCTION")
+                    color = if (sessionGameType == GameType.CHORD_FUNCTION)
                         MaterialTheme.colorScheme.tertiaryContainer
                     else
                         MaterialTheme.colorScheme.surfaceVariant,
                     shape = MaterialTheme.shapes.small
                 ) {
                     Text(
-                        text = if (session.gameType == "CHORD_FUNCTION") "Function" else "Chord",
+                        text = sessionGameType?.displayName ?: session.gameType,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                         fontSize = 11.sp,
-                        color = if (session.gameType == "CHORD_FUNCTION")
+                        color = if (sessionGameType == GameType.CHORD_FUNCTION)
                             MaterialTheme.colorScheme.onTertiaryContainer
                         else
                             MaterialTheme.colorScheme.onSurfaceVariant
@@ -334,7 +301,9 @@ private fun SessionCard(
 
 @Composable
 private fun TrialRow(trial: TrialEntity) {
-    val isFunction = trial.gameType == "CHORD_FUNCTION"
+    // Convert string to enum for comparison
+    val trialGameType = runCatching { GameType.valueOf(trial.gameType) }.getOrNull()
+    val isFunction = trialGameType == GameType.CHORD_FUNCTION
 
     // Parse card ID based on game type
     // Chord type: "MAJOR_4_ARPEGGIATED"
@@ -411,25 +380,16 @@ private data class CardDisplayItem(
 
 @Composable
 private fun CardsTab(
-    gameType: GameType,
-    chordTypeCards: List<CardWithFsrs>,
-    functionCards: List<FunctionCardWithFsrs>,
-    progressionCards: List<ProgressionCardWithFsrs>,
-    intervalCards: List<IntervalCardWithFsrs> = emptyList(),
-    scaleCards: List<ScaleCardWithFsrs> = emptyList(),
-    deprecatedChordTypeCards: List<CardWithFsrs> = emptyList(),
-    deprecatedFunctionCards: List<FunctionCardWithFsrs> = emptyList(),
-    deprecatedProgressionCards: List<ProgressionCardWithFsrs> = emptyList(),
-    deprecatedIntervalCards: List<IntervalCardWithFsrs> = emptyList(),
-    deprecatedScaleCards: List<ScaleCardWithFsrs> = emptyList(),
+    cards: GameCards,
     onResetFsrs: (suspend (String) -> Unit)? = null,
     onCardClicked: ((String) -> Unit)? = null,
     onCardUnlockToggled: (suspend (String, Boolean) -> Unit)? = null
 ) {
     // Convert cards to generic display items based on game type
-    val cardItems = remember(gameType, chordTypeCards, functionCards, progressionCards, intervalCards, scaleCards) {
-        when (gameType) {
-            GameType.CHORD_TYPE -> chordTypeCards.map { card ->
+    // Using exhaustive when on sealed class ensures compile error if new game type added
+    val cardItems = remember(cards) {
+        when (cards) {
+            is GameCards.ChordType -> cards.active.map { card ->
                 val chordType = ChordType.valueOf(card.chordType)
                 val isTriad = chordType in ChordType.TRIADS
                 val category = if (isTriad) "Triads" else "7ths"
@@ -444,7 +404,7 @@ private fun CardsTab(
                     groupKey = "$category @ Octave ${card.octave}, $mode"
                 )
             }
-            GameType.CHORD_FUNCTION -> functionCards.map { card ->
+            is GameCards.Function -> cards.active.map { card ->
                 val mode = card.playbackMode.lowercase().replaceFirstChar { it.uppercase() }
                 val keyQualityDisplay = card.keyQuality.lowercase().replaceFirstChar { it.uppercase() }
                 CardDisplayItem(
@@ -457,7 +417,7 @@ private fun CardsTab(
                     groupKey = "$keyQualityDisplay @ Octave ${card.octave}, $mode"
                 )
             }
-            GameType.CHORD_PROGRESSION -> progressionCards.map { card ->
+            is GameCards.Progression -> cards.active.map { card ->
                 val mode = card.playbackMode.lowercase().replaceFirstChar { it.uppercase() }
                 // Determine key quality from progression name (ends with _MAJOR or _MINOR equivalent)
                 val keyQuality = if (card.progression.contains("MAJOR", ignoreCase = true) ||
@@ -473,7 +433,7 @@ private fun CardsTab(
                     groupKey = "$keyQuality @ Octave ${card.octave}, $mode"
                 )
             }
-            GameType.INTERVAL -> intervalCards.map { card ->
+            is GameCards.Interval -> cards.active.map { card ->
                 val intervalType = IntervalType.valueOf(card.interval)
                 val direction = card.direction.lowercase().replaceFirstChar { it.uppercase() }
                 CardDisplayItem(
@@ -486,7 +446,7 @@ private fun CardsTab(
                     groupKey = "$direction @ Octave ${card.octave}"
                 )
             }
-            GameType.SCALE -> scaleCards.map { card ->
+            is GameCards.Scale -> cards.active.map { card ->
                 val scaleType = ScaleType.valueOf(card.scale)
                 val direction = card.direction.lowercase().replaceFirstChar { it.uppercase() }
                 CardDisplayItem(
@@ -503,9 +463,10 @@ private fun CardsTab(
     }
 
     // Convert deprecated cards to display items
-    val deprecatedItems = remember(gameType, deprecatedChordTypeCards, deprecatedFunctionCards, deprecatedProgressionCards, deprecatedIntervalCards, deprecatedScaleCards) {
-        when (gameType) {
-            GameType.CHORD_TYPE -> deprecatedChordTypeCards.map { card ->
+    // Using exhaustive when on sealed class ensures compile error if new game type added
+    val deprecatedItems = remember(cards) {
+        when (cards) {
+            is GameCards.ChordType -> cards.deprecated.map { card ->
                 val chordType = ChordType.valueOf(card.chordType)
                 val isTriad = chordType in ChordType.TRIADS
                 val category = if (isTriad) "Triads" else "7ths"
@@ -520,7 +481,7 @@ private fun CardsTab(
                     groupKey = "Archived: $category @ Octave ${card.octave}, $mode"
                 )
             }
-            GameType.CHORD_FUNCTION -> deprecatedFunctionCards.map { card ->
+            is GameCards.Function -> cards.deprecated.map { card ->
                 val mode = card.playbackMode.lowercase().replaceFirstChar { it.uppercase() }
                 val keyQualityDisplay = card.keyQuality.lowercase().replaceFirstChar { it.uppercase() }
                 CardDisplayItem(
@@ -533,7 +494,7 @@ private fun CardsTab(
                     groupKey = "Archived: $keyQualityDisplay @ Octave ${card.octave}, $mode"
                 )
             }
-            GameType.CHORD_PROGRESSION -> deprecatedProgressionCards.map { card ->
+            is GameCards.Progression -> cards.deprecated.map { card ->
                 val mode = card.playbackMode.lowercase().replaceFirstChar { it.uppercase() }
                 val keyQuality = if (card.progression.contains("MAJOR", ignoreCase = true) ||
                     card.progression in listOf("I_IV_V_I", "I_V_vi_IV", "I_vi_IV_V", "ii_V_I", "I_IV_vi_V", "vi_IV_I_V", "I_V_IV_I", "IV_I_V_vi")
@@ -548,7 +509,7 @@ private fun CardsTab(
                     groupKey = "Archived: $keyQuality @ Octave ${card.octave}, $mode"
                 )
             }
-            GameType.INTERVAL -> deprecatedIntervalCards.map { card ->
+            is GameCards.Interval -> cards.deprecated.map { card ->
                 val intervalType = IntervalType.valueOf(card.interval)
                 val direction = card.direction.lowercase().replaceFirstChar { it.uppercase() }
                 CardDisplayItem(
@@ -561,7 +522,7 @@ private fun CardsTab(
                     groupKey = "Archived: $direction @ Octave ${card.octave}"
                 )
             }
-            GameType.SCALE -> deprecatedScaleCards.map { card ->
+            is GameCards.Scale -> cards.deprecated.map { card ->
                 val scaleType = ScaleType.valueOf(card.scale)
                 val direction = card.direction.lowercase().replaceFirstChar { it.uppercase() }
                 CardDisplayItem(
@@ -838,14 +799,13 @@ private fun GenericCardRow(
 
 @Composable
 private fun StatsTab(
-    gameType: GameType,
+    cards: GameCards,
     cardStats: List<CardStatsView>,
-    chordTypeCards: List<CardWithFsrs> = emptyList(),
-    functionCards: List<FunctionCardWithFsrs> = emptyList(),
-    progressionCards: List<ProgressionCardWithFsrs> = emptyList(),
     onLoadChordConfusion: (suspend (Int?) -> List<ConfusionEntry>)? = null,
     onLoadFunctionConfusion: (suspend (String) -> List<ConfusionEntry>)? = null
 ) {
+    val gameType = cards.gameType
+
     // Filter state
     var octaveFilter by remember { mutableStateOf<Int?>(null) }
     var keyQualityFilter by remember { mutableStateOf("MAJOR") }
@@ -855,16 +815,16 @@ private fun StatsTab(
     var functionConfusion by remember { mutableStateOf<ConfusionMatrixData?>(null) }
 
     // Load chord confusion data when filter changes (only for CHORD_TYPE game)
-    LaunchedEffect(octaveFilter, onLoadChordConfusion, gameType) {
-        if (gameType == GameType.CHORD_TYPE && onLoadChordConfusion != null) {
+    LaunchedEffect(octaveFilter, onLoadChordConfusion, cards) {
+        if (cards is GameCards.ChordType && onLoadChordConfusion != null) {
             val entries = onLoadChordConfusion(octaveFilter)
             chordConfusion = buildConfusionMatrix(entries, ChordType.entries.map { it.name })
         }
     }
 
     // Load function confusion data when filter changes (only for CHORD_FUNCTION game)
-    LaunchedEffect(keyQualityFilter, onLoadFunctionConfusion, gameType) {
-        if (gameType == GameType.CHORD_FUNCTION && onLoadFunctionConfusion != null) {
+    LaunchedEffect(keyQualityFilter, onLoadFunctionConfusion, cards) {
+        if (cards is GameCards.Function && onLoadFunctionConfusion != null) {
             val entries = onLoadFunctionConfusion(keyQualityFilter)
             val functions = if (keyQualityFilter == "MAJOR")
                 ChordFunction.MAJOR_FUNCTIONS else ChordFunction.MINOR_FUNCTIONS
@@ -872,13 +832,13 @@ private fun StatsTab(
         }
     }
 
-    // Check if there's any data to show
-    val hasConfusionData = when (gameType) {
-        GameType.CHORD_TYPE -> chordConfusion?.isNotEmpty() == true
-        GameType.CHORD_FUNCTION -> functionConfusion?.isNotEmpty() == true
-        GameType.CHORD_PROGRESSION -> false // No confusion matrix for progressions yet
-        GameType.INTERVAL -> false  // TODO: Add interval confusion matrix
-        GameType.SCALE -> false  // TODO: Add scale confusion matrix
+    // Check if there's any data to show - exhaustive when on sealed class
+    val hasConfusionData = when (cards) {
+        is GameCards.ChordType -> chordConfusion?.isNotEmpty() == true
+        is GameCards.Function -> functionConfusion?.isNotEmpty() == true
+        is GameCards.Progression -> false // No confusion matrix for progressions yet
+        is GameCards.Interval -> false  // TODO: Add interval confusion matrix
+        is GameCards.Scale -> false  // TODO: Add scale confusion matrix
     }
 
     if (cardStats.isEmpty() && !hasConfusionData) {
@@ -898,23 +858,15 @@ private fun StatsTab(
     val totalCorrect = cardStats.sumOf { it.correctTrials }
     val overallAccuracy = if (totalTrials > 0) (totalCorrect.toFloat() / totalTrials * 100).toInt() else 0
 
-    // Compute mastery distribution for the selected game type only
-    val masteryDist = remember(gameType, chordTypeCards, functionCards, progressionCards) {
-        when (gameType) {
-            GameType.CHORD_TYPE -> computeMasteryDistribution(chordTypeCards)
-            GameType.CHORD_FUNCTION -> computeFunctionMasteryDistribution(functionCards)
-            GameType.CHORD_PROGRESSION -> computeProgressionMasteryDistribution(progressionCards)
-            GameType.INTERVAL -> net.xmppwocky.earbs.model.MasteryDistribution(0, 0, 0, 0)  // TODO: Add interval mastery
-            GameType.SCALE -> net.xmppwocky.earbs.model.MasteryDistribution(0, 0, 0, 0)  // TODO: Add scale mastery
+    // Compute mastery distribution - exhaustive when on sealed class
+    val masteryDist = remember(cards) {
+        when (cards) {
+            is GameCards.ChordType -> computeMasteryDistribution(cards.active)
+            is GameCards.Function -> computeFunctionMasteryDistribution(cards.active)
+            is GameCards.Progression -> computeProgressionMasteryDistribution(cards.active)
+            is GameCards.Interval -> net.xmppwocky.earbs.model.MasteryDistribution(0, 0, 0, 0)  // TODO: Add interval mastery
+            is GameCards.Scale -> net.xmppwocky.earbs.model.MasteryDistribution(0, 0, 0, 0)  // TODO: Add scale mastery
         }
-    }
-
-    val gameTypeDisplayName = when (gameType) {
-        GameType.CHORD_TYPE -> "Chord Type"
-        GameType.CHORD_FUNCTION -> "Function"
-        GameType.CHORD_PROGRESSION -> "Progression"
-        GameType.INTERVAL -> "Interval"
-        GameType.SCALE -> "Scale"
     }
 
     LazyColumn(
@@ -936,7 +888,7 @@ private fun StatsTab(
 
                         MasteryProgressBar(
                             distribution = masteryDist,
-                            title = "$gameTypeDisplayName (${masteryDist.total} cards)"
+                            title = "${gameType.displayName} (${masteryDist.total} cards)"
                         )
                     }
                 }
@@ -976,7 +928,7 @@ private fun StatsTab(
         }
 
         // Chord type confusion matrix (only for CHORD_TYPE game)
-        if (gameType == GameType.CHORD_TYPE && onLoadChordConfusion != null) {
+        if (cards is GameCards.ChordType && onLoadChordConfusion != null) {
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -1012,7 +964,7 @@ private fun StatsTab(
         }
 
         // Function confusion matrix (only for CHORD_FUNCTION game)
-        if (gameType == GameType.CHORD_FUNCTION && onLoadFunctionConfusion != null) {
+        if (cards is GameCards.Function && onLoadFunctionConfusion != null) {
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -1076,7 +1028,9 @@ private fun CardStatRow(stat: CardStatsView) {
         else -> AppColors.Error
     }
 
-    val isFunction = stat.gameType == "CHORD_FUNCTION"
+    // Convert string to enum for comparison
+    val statGameType = runCatching { GameType.valueOf(stat.gameType) }.getOrNull()
+    val isFunction = statGameType == GameType.CHORD_FUNCTION
 
     // Parse card ID based on game type
     val cardParts = stat.cardId.split("_")
