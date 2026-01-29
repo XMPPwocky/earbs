@@ -607,11 +607,15 @@ private fun EarbsApp(
             val chordTypeCards by repository.getAllCardsForUnlockScreen().collectAsState(initial = emptyList())
             val functionCards by repository.getAllFunctionCardsForUnlockScreen().collectAsState(initial = emptyList())
             val progressionCards by repository.getAllProgressionCardsForUnlockScreen().collectAsState(initial = emptyList())
+            val intervalCards by repository.getAllIntervalCardsForUnlockScreen().collectAsState(initial = emptyList())
+            val scaleCards by repository.getAllScaleCardsForUnlockScreen().collectAsState(initial = emptyList())
 
             // Load deprecated (archived) cards
             val deprecatedChordTypeCards by repository.getDeprecatedChordTypeCardsFlow().collectAsState(initial = emptyList())
             val deprecatedFunctionCards by repository.getDeprecatedFunctionCardsFlow().collectAsState(initial = emptyList())
             val deprecatedProgressionCards by repository.getDeprecatedProgressionCardsFlow().collectAsState(initial = emptyList())
+            val deprecatedIntervalCards by repository.getDeprecatedIntervalCardsFlow().collectAsState(initial = emptyList())
+            val deprecatedScaleCards by repository.getDeprecatedScaleCardsFlow().collectAsState(initial = emptyList())
 
             HistoryScreen(
                 gameType = historyGameType,
@@ -619,9 +623,13 @@ private fun EarbsApp(
                 chordTypeCards = chordTypeCards,
                 functionCards = functionCards,
                 progressionCards = progressionCards,
+                intervalCards = intervalCards,
+                scaleCards = scaleCards,
                 deprecatedChordTypeCards = deprecatedChordTypeCards,
                 deprecatedFunctionCards = deprecatedFunctionCards,
                 deprecatedProgressionCards = deprecatedProgressionCards,
+                deprecatedIntervalCards = deprecatedIntervalCards,
+                deprecatedScaleCards = deprecatedScaleCards,
                 cardStats = cardStats,
                 onBackClicked = {
                     coroutineScope.launch {
@@ -632,6 +640,10 @@ private fun EarbsApp(
                         functionUnlockedCount = repository.getFunctionUnlockedCount()
                         progressionDueCount = repository.getProgressionDueCount()
                         progressionUnlockedCount = repository.getProgressionUnlockedCount()
+                        intervalDueCount = repository.getIntervalDueCount()
+                        intervalUnlockedCount = repository.getIntervalUnlockedCount()
+                        scaleDueCount = repository.getScaleDueCount()
+                        scaleUnlockedCount = repository.getScaleUnlockedCount()
                     }
                     currentScreen = Screen.HOME
                 },

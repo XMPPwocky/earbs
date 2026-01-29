@@ -24,11 +24,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import net.xmppwocky.earbs.audio.ChordType
+import net.xmppwocky.earbs.audio.IntervalType
+import net.xmppwocky.earbs.audio.ScaleType
 import net.xmppwocky.earbs.data.db.CardStatsView
 import net.xmppwocky.earbs.data.db.CardWithFsrs
 import net.xmppwocky.earbs.data.db.ConfusionEntry
 import net.xmppwocky.earbs.data.db.FunctionCardWithFsrs
+import net.xmppwocky.earbs.data.db.IntervalCardWithFsrs
 import net.xmppwocky.earbs.data.db.ProgressionCardWithFsrs
+import net.xmppwocky.earbs.data.db.ScaleCardWithFsrs
 import net.xmppwocky.earbs.data.db.SessionOverview
 import net.xmppwocky.earbs.data.entity.GameType
 import net.xmppwocky.earbs.data.entity.TrialEntity
@@ -63,9 +67,13 @@ fun HistoryScreen(
     chordTypeCards: List<CardWithFsrs> = emptyList(),
     functionCards: List<FunctionCardWithFsrs> = emptyList(),
     progressionCards: List<ProgressionCardWithFsrs> = emptyList(),
+    intervalCards: List<IntervalCardWithFsrs> = emptyList(),
+    scaleCards: List<ScaleCardWithFsrs> = emptyList(),
     deprecatedChordTypeCards: List<CardWithFsrs> = emptyList(),
     deprecatedFunctionCards: List<FunctionCardWithFsrs> = emptyList(),
     deprecatedProgressionCards: List<ProgressionCardWithFsrs> = emptyList(),
+    deprecatedIntervalCards: List<IntervalCardWithFsrs> = emptyList(),
+    deprecatedScaleCards: List<ScaleCardWithFsrs> = emptyList(),
     cardStats: List<CardStatsView>,
     onBackClicked: () -> Unit,
     onLoadTrials: (suspend (Long) -> List<TrialEntity>)? = null,
@@ -90,8 +98,8 @@ fun HistoryScreen(
         GameType.CHORD_TYPE -> chordTypeCards.size
         GameType.CHORD_FUNCTION -> functionCards.size
         GameType.CHORD_PROGRESSION -> progressionCards.size
-        GameType.INTERVAL -> 0  // TODO: Add intervalCards parameter
-        GameType.SCALE -> 0  // TODO: Add scaleCards parameter
+        GameType.INTERVAL -> intervalCards.size
+        GameType.SCALE -> scaleCards.size
     }
     Log.d(TAG, "HistoryScreen composing: ${sessions.size} sessions, $cardCount cards (gameType=${gameType.name})")
 
@@ -141,9 +149,13 @@ fun HistoryScreen(
                     chordTypeCards = chordTypeCards,
                     functionCards = functionCards,
                     progressionCards = progressionCards,
+                    intervalCards = intervalCards,
+                    scaleCards = scaleCards,
                     deprecatedChordTypeCards = deprecatedChordTypeCards,
                     deprecatedFunctionCards = deprecatedFunctionCards,
                     deprecatedProgressionCards = deprecatedProgressionCards,
+                    deprecatedIntervalCards = deprecatedIntervalCards,
+                    deprecatedScaleCards = deprecatedScaleCards,
                     onResetFsrs = onResetFsrs,
                     onCardClicked = onCardClicked,
                     onCardUnlockToggled = onCardUnlockToggled
@@ -403,15 +415,19 @@ private fun CardsTab(
     chordTypeCards: List<CardWithFsrs>,
     functionCards: List<FunctionCardWithFsrs>,
     progressionCards: List<ProgressionCardWithFsrs>,
+    intervalCards: List<IntervalCardWithFsrs> = emptyList(),
+    scaleCards: List<ScaleCardWithFsrs> = emptyList(),
     deprecatedChordTypeCards: List<CardWithFsrs> = emptyList(),
     deprecatedFunctionCards: List<FunctionCardWithFsrs> = emptyList(),
     deprecatedProgressionCards: List<ProgressionCardWithFsrs> = emptyList(),
+    deprecatedIntervalCards: List<IntervalCardWithFsrs> = emptyList(),
+    deprecatedScaleCards: List<ScaleCardWithFsrs> = emptyList(),
     onResetFsrs: (suspend (String) -> Unit)? = null,
     onCardClicked: ((String) -> Unit)? = null,
     onCardUnlockToggled: (suspend (String, Boolean) -> Unit)? = null
 ) {
     // Convert cards to generic display items based on game type
-    val cardItems = remember(gameType, chordTypeCards, functionCards, progressionCards) {
+    val cardItems = remember(gameType, chordTypeCards, functionCards, progressionCards, intervalCards, scaleCards) {
         when (gameType) {
             GameType.CHORD_TYPE -> chordTypeCards.map { card ->
                 val chordType = ChordType.valueOf(card.chordType)
@@ -457,13 +473,37 @@ private fun CardsTab(
                     groupKey = "$keyQuality @ Octave ${card.octave}, $mode"
                 )
             }
-            GameType.INTERVAL -> emptyList()  // TODO: Add interval card display
-            GameType.SCALE -> emptyList()  // TODO: Add scale card display
+            GameType.INTERVAL -> intervalCards.map { card ->
+                val intervalType = IntervalType.valueOf(card.interval)
+                val direction = card.direction.lowercase().replaceFirstChar { it.uppercase() }
+                CardDisplayItem(
+                    id = card.id,
+                    displayName = intervalType.displayName,
+                    unlocked = card.unlocked,
+                    deprecated = card.deprecated,
+                    dueDate = card.dueDate,
+                    stability = card.stability,
+                    groupKey = "$direction @ Octave ${card.octave}"
+                )
+            }
+            GameType.SCALE -> scaleCards.map { card ->
+                val scaleType = ScaleType.valueOf(card.scale)
+                val direction = card.direction.lowercase().replaceFirstChar { it.uppercase() }
+                CardDisplayItem(
+                    id = card.id,
+                    displayName = scaleType.displayName,
+                    unlocked = card.unlocked,
+                    deprecated = card.deprecated,
+                    dueDate = card.dueDate,
+                    stability = card.stability,
+                    groupKey = "$direction @ Octave ${card.octave}"
+                )
+            }
         }
     }
 
     // Convert deprecated cards to display items
-    val deprecatedItems = remember(gameType, deprecatedChordTypeCards, deprecatedFunctionCards, deprecatedProgressionCards) {
+    val deprecatedItems = remember(gameType, deprecatedChordTypeCards, deprecatedFunctionCards, deprecatedProgressionCards, deprecatedIntervalCards, deprecatedScaleCards) {
         when (gameType) {
             GameType.CHORD_TYPE -> deprecatedChordTypeCards.map { card ->
                 val chordType = ChordType.valueOf(card.chordType)
@@ -508,8 +548,32 @@ private fun CardsTab(
                     groupKey = "Archived: $keyQuality @ Octave ${card.octave}, $mode"
                 )
             }
-            GameType.INTERVAL -> emptyList()  // TODO: Add interval deprecated card display
-            GameType.SCALE -> emptyList()  // TODO: Add scale deprecated card display
+            GameType.INTERVAL -> deprecatedIntervalCards.map { card ->
+                val intervalType = IntervalType.valueOf(card.interval)
+                val direction = card.direction.lowercase().replaceFirstChar { it.uppercase() }
+                CardDisplayItem(
+                    id = card.id,
+                    displayName = intervalType.displayName,
+                    unlocked = card.unlocked,
+                    deprecated = card.deprecated,
+                    dueDate = card.dueDate,
+                    stability = card.stability,
+                    groupKey = "Archived: $direction @ Octave ${card.octave}"
+                )
+            }
+            GameType.SCALE -> deprecatedScaleCards.map { card ->
+                val scaleType = ScaleType.valueOf(card.scale)
+                val direction = card.direction.lowercase().replaceFirstChar { it.uppercase() }
+                CardDisplayItem(
+                    id = card.id,
+                    displayName = scaleType.displayName,
+                    unlocked = card.unlocked,
+                    deprecated = card.deprecated,
+                    dueDate = card.dueDate,
+                    stability = card.stability,
+                    groupKey = "Archived: $direction @ Octave ${card.octave}"
+                )
+            }
         }
     }
 
