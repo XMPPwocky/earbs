@@ -20,15 +20,19 @@ Android app (Kotlin, Jetpack Compose) for ear training chord recognition using F
 
 ## Game Types
 
-Three ear training games, each with its own card type and deck:
+Five ear training games, each with its own card type and deck:
 
 | Game | Card tuple | Total cards | Answer options |
 |------|------------|-------------|----------------|
 | Chord Type | `(chord_type, octave, mode)` | 48 | Session-based (distinct types in session) |
 | Chord Function | `(function, key_quality, octave, mode)` | 72 | Card-based (all functions for key) |
 | Chord Progression | `(progression, octave, mode)` | 84 | Session-based (distinct progressions) |
+| Interval | `(interval, octave, direction)` | 108 | Session-based (distinct intervals in session) |
+| Scale | `(scale, octave, direction)` | 90 | Session-based (distinct scales in session) |
 
-All games share: octaves 3/4/5, playback modes arpeggiated/block, FSRS scheduling.
+Chord games: octaves 3/4/5, playback modes arpeggiated/block.
+Interval/Scale games: octaves 3/4/5, directions ascending/descending/harmonic (intervals) or both (scales).
+All games share FSRS scheduling.
 
 ## Architecture
 
@@ -39,6 +43,22 @@ Key abstractions for game-agnostic code:
 - **`GenericReviewSession<C>`** - Type-parameterized session that works with any card type
 
 Database: FSRS state stored separately from card data (`fsrs_state` table with `gameType` discriminator).
+
+## Adding a New Game Type
+
+When adding a new game type, search for all places that handle existing game types and update them. Checklist:
+
+- [ ] `GameType` enum in `data/entity/GameType.kt`
+- [ ] Card entity, DAO, and `*WithFsrs` view class
+- [ ] Deck object (card generation, unlock order, starting cards)
+- [ ] `GameTypeConfig` sealed class entry
+- [ ] `GameCardOperations` implementation
+- [ ] Repository methods (due cards, unlock, FSRS updates, flows)
+- [ ] Database migration (create table, prepopulate)
+- [ ] Audio synthesis for the new sound type
+- [ ] **MainActivity**: home screen card, session state, history screen data loading
+- [ ] **HistoryScreen**: card display items, deprecated items, stats tab
+- [ ] Tests for all new components
 
 ## Card Deprecation
 
