@@ -61,14 +61,16 @@ object IntervalDeck {
 
     /**
      * Get the starting deck (cards unlocked by default).
-     * Perfect 5th at octave 4, all 3 directions.
+     * Perfect 5th and Octave at octave 4, all 3 directions.
+     * This ensures at least 2 interval types from the first review.
      */
     fun getStartingCards(): List<IntervalCard> {
-        return listOf(
-            IntervalCard(IntervalType.PERFECT_5TH, 4, IntervalDirection.ASCENDING),
-            IntervalCard(IntervalType.PERFECT_5TH, 4, IntervalDirection.DESCENDING),
-            IntervalCard(IntervalType.PERFECT_5TH, 4, IntervalDirection.HARMONIC)
-        )
+        val startingIntervals = listOf(IntervalType.PERFECT_5TH, IntervalType.OCTAVE)
+        return startingIntervals.flatMap { interval ->
+            IntervalDirection.entries.map { direction ->
+                IntervalCard(interval, 4, direction)
+            }
+        }
     }
 
     /**

@@ -196,24 +196,11 @@ sealed class GameTypeConfig<C : GameCard, A : GameAnswer> {
         override val description: String = "Identify interval (Minor 2nd, Perfect 5th, etc.)"
         override val unlockGroupCount: Int = IntervalDeck.UNLOCK_ORDER.size
 
-        private const val MIN_ANSWER_OPTIONS = 4
-
         override fun getAnswerOptions(card: IntervalCard, session: GenericReviewSession<IntervalCard>): List<GameAnswer.IntervalAnswer> {
             // Session-based: show distinct intervals in session
-            val sessionIntervals = session.cards
+            return session.cards
                 .map { it.interval }
                 .distinct()
-                .toMutableSet()
-
-            // If not enough options, add distractor intervals from unlock order
-            if (sessionIntervals.size < MIN_ANSWER_OPTIONS) {
-                for (interval in IntervalDeck.UNLOCK_ORDER) {
-                    if (sessionIntervals.size >= MIN_ANSWER_OPTIONS) break
-                    sessionIntervals.add(interval)
-                }
-            }
-
-            return sessionIntervals
                 .sortedBy { it.ordinal }
                 .map { GameAnswer.IntervalAnswer(it) }
         }
@@ -248,24 +235,11 @@ sealed class GameTypeConfig<C : GameCard, A : GameAnswer> {
         override val description: String = "Identify scale (Major, Minor, Dorian, etc.)"
         override val unlockGroupCount: Int = ScaleDeck.UNLOCK_ORDER.size
 
-        private const val MIN_ANSWER_OPTIONS = 4
-
         override fun getAnswerOptions(card: ScaleCard, session: GenericReviewSession<ScaleCard>): List<GameAnswer.ScaleAnswer> {
             // Session-based: show distinct scales in session
-            val sessionScales = session.cards
+            return session.cards
                 .map { it.scale }
                 .distinct()
-                .toMutableSet()
-
-            // If not enough options, add distractor scales from unlock order
-            if (sessionScales.size < MIN_ANSWER_OPTIONS) {
-                for (scale in ScaleDeck.UNLOCK_ORDER) {
-                    if (sessionScales.size >= MIN_ANSWER_OPTIONS) break
-                    sessionScales.add(scale)
-                }
-            }
-
-            return sessionScales
                 .sortedBy { it.ordinal }
                 .map { GameAnswer.ScaleAnswer(it) }
         }

@@ -29,7 +29,7 @@ private const val TAG = "EarbsDatabase"
         ReviewSessionEntity::class,
         TrialEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 abstract class EarbsDatabase : RoomDatabase() {
@@ -620,7 +620,7 @@ abstract class EarbsDatabase : RoomDatabase() {
                 // 3. Pre-create all 108 interval cards
                 // Unlock order: PERFECT_5TH, OCTAVE, MAJOR_3RD, MINOR_3RD, PERFECT_4TH,
                 //               MAJOR_2ND, MINOR_2ND, MAJOR_6TH, MINOR_6TH, MINOR_7TH, MAJOR_7TH, TRITONE
-                // Starting deck: PERFECT_5TH at octave 4, all 3 directions (unlocked)
+                // Starting deck: PERFECT_5TH and OCTAVE at octave 4 (ensures 2 interval types)
                 Log.i(TAG, "Pre-creating interval cards")
 
                 val intervals = listOf(
@@ -631,11 +631,14 @@ abstract class EarbsDatabase : RoomDatabase() {
                 val octaves = listOf(3, 4, 5)
                 val directions = listOf("ASCENDING", "DESCENDING", "HARMONIC")
 
-                // Starting deck: PERFECT_5TH at octave 4
+                // Starting deck: PERFECT_5TH and OCTAVE at octave 4
                 val startingIds = setOf(
                     "PERFECT_5TH_4_ASCENDING",
                     "PERFECT_5TH_4_DESCENDING",
-                    "PERFECT_5TH_4_HARMONIC"
+                    "PERFECT_5TH_4_HARMONIC",
+                    "OCTAVE_4_ASCENDING",
+                    "OCTAVE_4_DESCENDING",
+                    "OCTAVE_4_HARMONIC"
                 )
 
                 for (interval in intervals) {
@@ -698,7 +701,7 @@ abstract class EarbsDatabase : RoomDatabase() {
                 // 3. Pre-create all 90 scale cards
                 // Unlock order: MAJOR, NATURAL_MINOR, MAJOR_PENTATONIC, MINOR_PENTATONIC,
                 //               DORIAN, MIXOLYDIAN, HARMONIC_MINOR, MELODIC_MINOR, PHRYGIAN, LYDIAN
-                // Starting deck: MAJOR at octave 4, all 3 directions (unlocked)
+                // Starting deck: MAJOR and NATURAL_MINOR at octave 4 (ensures 2 scale types)
                 Log.i(TAG, "Pre-creating scale cards")
 
                 val scales = listOf(
@@ -709,11 +712,14 @@ abstract class EarbsDatabase : RoomDatabase() {
                 val octaves = listOf(3, 4, 5)
                 val directions = listOf("ASCENDING", "DESCENDING", "BOTH")
 
-                // Starting deck: MAJOR at octave 4
+                // Starting deck: MAJOR and NATURAL_MINOR at octave 4
                 val startingIds = setOf(
                     "MAJOR_4_ASCENDING",
                     "MAJOR_4_DESCENDING",
-                    "MAJOR_4_BOTH"
+                    "MAJOR_4_BOTH",
+                    "NATURAL_MINOR_4_ASCENDING",
+                    "NATURAL_MINOR_4_DESCENDING",
+                    "NATURAL_MINOR_4_BOTH"
                 )
 
                 for (scale in scales) {
@@ -745,6 +751,27 @@ abstract class EarbsDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration from version 12 to 13:
+         * - Unlock additional starting cards for interval and scale games
+         * - Ensures at least 2 types are available from first review
+         */
+        private val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                Log.i(TAG, "Migrating database from version 12 to 13: expanding starting decks")
+
+                // Unlock OCTAVE cards at octave 4 for interval game
+                db.execSQL("UPDATE interval_cards SET unlocked = 1 WHERE id IN ('OCTAVE_4_ASCENDING', 'OCTAVE_4_DESCENDING', 'OCTAVE_4_HARMONIC')")
+                Log.i(TAG, "Unlocked OCTAVE cards for interval game")
+
+                // Unlock NATURAL_MINOR cards at octave 4 for scale game
+                db.execSQL("UPDATE scale_cards SET unlocked = 1 WHERE id IN ('NATURAL_MINOR_4_ASCENDING', 'NATURAL_MINOR_4_DESCENDING', 'NATURAL_MINOR_4_BOTH')")
+                Log.i(TAG, "Unlocked NATURAL_MINOR cards for scale game")
+
+                Log.i(TAG, "Migration 12->13 complete: expanded starting decks")
+            }
+        }
+
         fun getDatabase(context: Context): EarbsDatabase {
             return INSTANCE ?: synchronized(this) {
                 Log.i(TAG, "Creating database instance")
@@ -753,7 +780,7 @@ abstract class EarbsDatabase : RoomDatabase() {
                     EarbsDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

@@ -137,24 +137,27 @@ class ScaleDeckTest {
     // ========== getStartingCards tests ==========
 
     @Test
-    fun `getStartingCards returns 3 cards`() {
-        assertEquals(3, ScaleDeck.getStartingCards().size)
+    fun `getStartingCards returns 6 cards`() {
+        assertEquals(6, ScaleDeck.getStartingCards().size)
     }
 
     @Test
-    fun `starting cards are Major at octave 4`() {
+    fun `starting cards are Major and Natural Minor at octave 4`() {
         val startingCards = ScaleDeck.getStartingCards()
+        val scales = startingCards.map { it.scale }.toSet()
+        assertEquals(setOf(ScaleType.MAJOR, ScaleType.NATURAL_MINOR), scales)
         startingCards.forEach { card ->
-            assertEquals(ScaleType.MAJOR, card.scale)
             assertEquals(4, card.octave)
         }
     }
 
     @Test
-    fun `starting cards cover all 3 directions`() {
+    fun `starting cards cover all 3 directions for each scale`() {
         val startingCards = ScaleDeck.getStartingCards()
-        val directions = startingCards.map { it.direction }.toSet()
-        assertEquals(ScaleDirection.entries.toSet(), directions)
+        val majorCards = startingCards.filter { it.scale == ScaleType.MAJOR }
+        val minorCards = startingCards.filter { it.scale == ScaleType.NATURAL_MINOR }
+        assertEquals(ScaleDirection.entries.toSet(), majorCards.map { it.direction }.toSet())
+        assertEquals(ScaleDirection.entries.toSet(), minorCards.map { it.direction }.toSet())
     }
 
     @Test

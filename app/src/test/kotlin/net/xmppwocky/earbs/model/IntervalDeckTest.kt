@@ -134,24 +134,27 @@ class IntervalDeckTest {
     // ========== getStartingCards tests ==========
 
     @Test
-    fun `getStartingCards returns 3 cards`() {
-        assertEquals(3, IntervalDeck.getStartingCards().size)
+    fun `getStartingCards returns 6 cards`() {
+        assertEquals(6, IntervalDeck.getStartingCards().size)
     }
 
     @Test
-    fun `starting cards are Perfect 5th at octave 4`() {
+    fun `starting cards are Perfect 5th and Octave at octave 4`() {
         val startingCards = IntervalDeck.getStartingCards()
+        val intervals = startingCards.map { it.interval }.toSet()
+        assertEquals(setOf(IntervalType.PERFECT_5TH, IntervalType.OCTAVE), intervals)
         startingCards.forEach { card ->
-            assertEquals(IntervalType.PERFECT_5TH, card.interval)
             assertEquals(4, card.octave)
         }
     }
 
     @Test
-    fun `starting cards cover all 3 directions`() {
+    fun `starting cards cover all 3 directions for each interval`() {
         val startingCards = IntervalDeck.getStartingCards()
-        val directions = startingCards.map { it.direction }.toSet()
-        assertEquals(IntervalDirection.entries.toSet(), directions)
+        val p5Cards = startingCards.filter { it.interval == IntervalType.PERFECT_5TH }
+        val octCards = startingCards.filter { it.interval == IntervalType.OCTAVE }
+        assertEquals(IntervalDirection.entries.toSet(), p5Cards.map { it.direction }.toSet())
+        assertEquals(IntervalDirection.entries.toSet(), octCards.map { it.direction }.toSet())
     }
 
     @Test

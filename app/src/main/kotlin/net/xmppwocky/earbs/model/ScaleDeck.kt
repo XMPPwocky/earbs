@@ -49,11 +49,15 @@ object ScaleDeck {
 
     /**
      * Get the starting cards for a new deck.
-     * Major scale at octave 4, all 3 directions.
+     * Major and Natural Minor scales at octave 4, all 3 directions.
+     * This ensures at least 2 scale types from the first review.
      */
     fun getStartingCards(): List<ScaleCard> {
-        return ScaleDirection.entries.map { direction ->
-            ScaleCard(ScaleType.MAJOR, 4, direction)
+        val startingScales = listOf(ScaleType.MAJOR, ScaleType.NATURAL_MINOR)
+        return startingScales.flatMap { scale ->
+            ScaleDirection.entries.map { direction ->
+                ScaleCard(scale, 4, direction)
+            }
         }
     }
 
